@@ -2,6 +2,8 @@ Shared library for generic reflection tools for CLR implementations. Tested on .
 
 Requires `HarmonyLib 2.2.2+`.
 
+NuGet Package: [DanielWillett.ReflectionTools](https://www.nuget.org/packages/DanielWillett.ReflectionTools)
+
 ### Accessor
 * `IsMono` property
 * Generating static or instance setters and getters for fields and properties.
