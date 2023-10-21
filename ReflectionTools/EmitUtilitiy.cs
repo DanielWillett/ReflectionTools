@@ -1,10 +1,12 @@
-﻿using HarmonyLib;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Diagnostics.Contracts;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+#if !NETSTANDARD
+using HarmonyLib;
+using System.Collections.Generic;
+using System.Linq;
+#endif
 
 namespace DanielWillett.ReflectionTools;
 
@@ -13,6 +15,7 @@ namespace DanielWillett.ReflectionTools;
 /// </summary>
 public static class EmitUtilitiy
 {
+#if !NETSTANDARD
     /// <summary>
     /// Returns instructions to throw the provided <typeparamref name="TException"/> with an optional <paramref name="message"/>.
     /// </summary>
@@ -303,46 +306,6 @@ public static class EmitUtilitiy
     }
 
     /// <summary>
-    /// Get the label ID from a <see cref="Label"/> object.
-    /// </summary>
-    /// <remarks>Not CLR compliant.</remarks>
-    [Pure]
-    public static unsafe int GetLabelId(this Label label) => *(int*)&label;
-
-    /// <summary>
-    /// Loads an argument from an index.
-    /// </summary>
-    public static void EmitArgument(ILGenerator il, int index, bool set, bool byref = false)
-    {
-        if (index > ushort.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(index));
-        if (set)
-        {
-            il.Emit(index > byte.MaxValue ? OpCodes.Starg : OpCodes.Starg_S, index);
-            return;
-        }
-        if (byref)
-        {
-            il.Emit(index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S, index);
-            return;
-        }
-
-        if (index is < 4 and > -1)
-        {
-            il.Emit(index switch
-            {
-                0 => OpCodes.Ldarg_0,
-                1 => OpCodes.Ldarg_1,
-                2 => OpCodes.Ldarg_2,
-                _ => OpCodes.Ldarg_3
-            });
-            return;
-        }
-
-        il.Emit(index > byte.MaxValue ? OpCodes.Ldarg : OpCodes.Ldarg_S, index);
-    }
-
-    /// <summary>
     /// Get the index of a local code instruction.
     /// </summary>
     [Pure]
@@ -405,31 +368,6 @@ public static class EmitUtilitiy
     }
 
     /// <summary>
-    /// Emit an Int32.
-    /// </summary>
-    public static void LoadConstantI4(ILGenerator generator, int number)
-    {
-        OpCode code = number switch
-        {
-            -1 => OpCodes.Ldc_I4_M1,
-            0 => OpCodes.Ldc_I4_0,
-            1 => OpCodes.Ldc_I4_1,
-            2 => OpCodes.Ldc_I4_2,
-            3 => OpCodes.Ldc_I4_3,
-            4 => OpCodes.Ldc_I4_4,
-            5 => OpCodes.Ldc_I4_5,
-            6 => OpCodes.Ldc_I4_6,
-            7 => OpCodes.Ldc_I4_7,
-            8 => OpCodes.Ldc_I4_8,
-            _ => OpCodes.Ldc_I4
-        };
-        if (number is < -1 or > 8)
-            generator.Emit(code, number);
-        else
-            generator.Emit(code);
-    }
-
-    /// <summary>
     /// Loads a parameter from an index.
     /// </summary>
     [Pure]
@@ -444,38 +382,6 @@ public static class EmitUtilitiy
             < ushort.MaxValue => new CodeInstruction(OpCodes.Ldarg_S, index),
             _ => new CodeInstruction(OpCodes.Ldarg, index)
         };
-    }
-
-    /// <summary>
-    /// Loads a parameter from an index.
-    /// </summary>
-    public static void EmitParameter(this ILGenerator generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
-    {
-        if (byref)
-        {
-            generator.Emit(index > ushort.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S, index);
-            return;
-        }
-        OpCode code = index switch
-        {
-            0 => OpCodes.Ldarg_0,
-            1 => OpCodes.Ldarg_1,
-            2 => OpCodes.Ldarg_2,
-            3 => OpCodes.Ldarg_3,
-            <= ushort.MaxValue => OpCodes.Ldarg_S,
-            _ => OpCodes.Ldarg
-        };
-        if (index > 3)
-            generator.Emit(code, index);
-        else
-            generator.Emit(code);
-        if (type != null && targetType != null && type != typeof(void) && targetType != typeof(void))
-        {
-            if (type.IsValueType && !targetType.IsValueType)
-                generator.Emit(OpCodes.Box, type);
-            else if (!type.IsValueType && targetType.IsValueType)
-                generator.Emit(OpCodes.Unbox_Any, targetType);
-        }
     }
 
     /// <summary>
@@ -601,6 +507,104 @@ public static class EmitUtilitiy
     /// </summary>
     [Pure]
     public static bool IsEndBlockType(this ExceptionBlockType type) => type == ExceptionBlockType.EndExceptionBlock;
+#endif
+
+    /// <summary>
+    /// Get the label ID from a <see cref="Label"/> object.
+    /// </summary>
+    /// <remarks>Not CLR compliant.</remarks>
+    [Pure]
+    public static unsafe int GetLabelId(this Label label) => *(int*)&label;
+
+    /// <summary>
+    /// Loads an argument from an index.
+    /// </summary>
+    public static void EmitArgument(ILGenerator il, int index, bool set, bool byref = false)
+    {
+        if (index > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        if (set)
+        {
+            il.Emit(index > byte.MaxValue ? OpCodes.Starg : OpCodes.Starg_S, index);
+            return;
+        }
+        if (byref)
+        {
+            il.Emit(index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S, index);
+            return;
+        }
+
+        if (index is < 4 and > -1)
+        {
+            il.Emit(index switch
+            {
+                0 => OpCodes.Ldarg_0,
+                1 => OpCodes.Ldarg_1,
+                2 => OpCodes.Ldarg_2,
+                _ => OpCodes.Ldarg_3
+            });
+            return;
+        }
+
+        il.Emit(index > byte.MaxValue ? OpCodes.Ldarg : OpCodes.Ldarg_S, index);
+    }
+
+    /// <summary>
+    /// Emit an Int32.
+    /// </summary>
+    public static void LoadConstantI4(ILGenerator generator, int number)
+    {
+        OpCode code = number switch
+        {
+            -1 => OpCodes.Ldc_I4_M1,
+            0 => OpCodes.Ldc_I4_0,
+            1 => OpCodes.Ldc_I4_1,
+            2 => OpCodes.Ldc_I4_2,
+            3 => OpCodes.Ldc_I4_3,
+            4 => OpCodes.Ldc_I4_4,
+            5 => OpCodes.Ldc_I4_5,
+            6 => OpCodes.Ldc_I4_6,
+            7 => OpCodes.Ldc_I4_7,
+            8 => OpCodes.Ldc_I4_8,
+            _ => OpCodes.Ldc_I4
+        };
+        if (number is < -1 or > 8)
+            generator.Emit(code, number);
+        else
+            generator.Emit(code);
+    }
+
+    /// <summary>
+    /// Loads a parameter from an index.
+    /// </summary>
+    public static void EmitParameter(this ILGenerator generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
+    {
+        if (byref)
+        {
+            generator.Emit(index > ushort.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S, index);
+            return;
+        }
+        OpCode code = index switch
+        {
+            0 => OpCodes.Ldarg_0,
+            1 => OpCodes.Ldarg_1,
+            2 => OpCodes.Ldarg_2,
+            3 => OpCodes.Ldarg_3,
+            <= ushort.MaxValue => OpCodes.Ldarg_S,
+            _ => OpCodes.Ldarg
+        };
+        if (index > 3)
+            generator.Emit(code, index);
+        else
+            generator.Emit(code);
+        if (type != null && targetType != null && type != typeof(void) && targetType != typeof(void))
+        {
+            if (type.IsValueType && !targetType.IsValueType)
+                generator.Emit(OpCodes.Box, type);
+            else if (!type.IsValueType && targetType.IsValueType)
+                generator.Emit(OpCodes.Unbox_Any, targetType);
+        }
+    }
 
     /// <summary>
     /// Compare <see cref="OpCode"/>s.
@@ -851,11 +855,11 @@ public static class EmitUtilitiy
     /// <param name="overflowCheck">Allow overflow checks.</param>
     /// <param name="noOverflowCheck">Allow no overflow checks.</param>
     [Pure]
-    public static bool IsConv(this OpCode opcode, bool @nint = true, bool @byte = true, bool @short = true, bool @int = true, bool @long = true, bool @float = true, bool @double = true,
+    public static bool IsConv(this OpCode opcode, bool nint = true, bool @byte = true, bool @short = true, bool @int = true, bool @long = true, bool @float = true, bool @double = true,
         bool fromUnsigned = true, bool toUnsigned = true, bool signed = true, bool overflowCheck = true, bool noOverflowCheck = true)
     {
         if (noOverflowCheck && (signed && opcode == OpCodes.Conv_I || toUnsigned && opcode == OpCodes.Conv_U) || overflowCheck && (signed && opcode == OpCodes.Conv_Ovf_I || fromUnsigned && opcode == OpCodes.Conv_Ovf_I_Un))
-            return @nint;
+            return nint;
         if (noOverflowCheck && (signed && opcode == OpCodes.Conv_I1 || toUnsigned && opcode == OpCodes.Conv_U1) || overflowCheck && (signed && opcode == OpCodes.Conv_Ovf_I1 || fromUnsigned && opcode == OpCodes.Conv_Ovf_I1_Un))
             return @byte;
         if (noOverflowCheck && (signed && opcode == OpCodes.Conv_I2 || toUnsigned && opcode == OpCodes.Conv_U2) || overflowCheck && (signed && opcode == OpCodes.Conv_Ovf_I2 || fromUnsigned && opcode == OpCodes.Conv_Ovf_I2_Un))
@@ -891,9 +895,11 @@ public static class EmitUtilitiy
     }
 }
 
+#if !NETSTANDARD
 /// <summary>
 /// Represents a predicate for code instructions.
 /// </summary>
 /// <param name="instruction">The code instruction to check for a match on.</param>
 /// <returns><see langword="true"/> for a match, otherwise <see langword="false"/>.</returns>
 public delegate bool PatternMatch(CodeInstruction instruction);
+#endif
