@@ -10,7 +10,8 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools</PackageId>
     <Title>Reflection Tools</Title>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
+    <PackageReleaseNotes></PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools</Product>
     <Description>Various reflection tools for modding.</Description>
@@ -21,13 +22,13 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/DanielWillett/ReflectionTools</RepositoryUrl>
     <PackageTags>reflection, modding, utility, utilities</PackageTags>
-    <PackageReleaseNotes></PackageReleaseNotes>
     <IncludeSymbols>True</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
+    <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.dll.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
