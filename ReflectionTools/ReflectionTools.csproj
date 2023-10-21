@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net461;net481;netstandard2.1;net50;net60;net70</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
+
+    <RootNamespace>DanielWillett.ReflectionTools</RootNamespace>
+
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <PackageId>DanielWillett.ReflectionTools</PackageId>
+    <Title>Reflection Tools</Title>
+    <Version>0.0.1</Version>
+    <Authors>Daniel Willett</Authors>
+    <Product>DanielWillett.ReflectionTools</Product>
+    <Description>Various reflection tools for modding.</Description>
+    <PackageProjectUrl>https://github.com/DanielWillett/ReflectionTools</PackageProjectUrl>
+    <SignAssembly>True</SignAssembly>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/DanielWillett/ReflectionTools</RepositoryUrl>
+    <PackageTags>reflection, modding, utility, utilities</PackageTags>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+</Project>
