@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
+using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -1666,19 +1667,31 @@ public static class Accessor
     public static List<Type> GetTypesSafe(Assembly assembly, bool removeIgnored = false)
     {
         List<Type?> types;
+        bool removeNulls = false;
         try
         {
             types = new List<Type?>(assembly.GetTypes());
         }
+        catch (FileNotFoundException ex)
+        {
+            Console.WriteLine($"Unable to get any types from assembly \"{assembly.FullName}\". Missing dependency: \"{ex.FileName}\".");
+            return new List<Type>(0);
+        }
         catch (ReflectionTypeLoadException ex)
         {
             types = new List<Type?>(ex.Types);
+            removeNulls = true;
         }
 
-        if (removeIgnored)
-            types.RemoveAll(x => x == null || Attribute.IsDefined(x, typeof(IgnoreAttribute)));
-        else
-            types.RemoveAll(x => x == null);
+        if (removeNulls)
+        {
+            if (removeIgnored)
+                types.RemoveAll(x => x == null || Attribute.IsDefined(x, typeof(IgnoreAttribute)));
+            else
+                types.RemoveAll(x => x == null);
+        }
+        else if (removeIgnored)
+            types.RemoveAll(x => Attribute.IsDefined(x!, typeof(IgnoreAttribute)));
 
         types.Sort(SortTypesByPriorityHandler!);
         return types!;
@@ -1689,22 +1702,33 @@ public static class Accessor
     public static List<Type> GetTypesSafe(IEnumerable<Assembly> assmeblies, bool removeIgnored = false)
     {
         List<Type?> types = new List<Type?>();
+        bool removeNulls = false;
         foreach (Assembly assembly in assmeblies)
         {
             try
             {
                 types.AddRange(assembly.GetTypes());
             }
+            catch (FileNotFoundException ex)
+            {
+                Console.WriteLine($"Unable to get any types from assembly \"{assembly.FullName}\". Missing dependency: \"{ex.FileName}\".");
+            }
             catch (ReflectionTypeLoadException ex)
             {
                 types.AddRange(ex.Types);
+                removeNulls = true;
             }
         }
 
-        if (removeIgnored)
-            types.RemoveAll(x => x == null || Attribute.IsDefined(x, typeof(IgnoreAttribute)));
-        else
-            types.RemoveAll(x => x == null);
+        if (removeNulls)
+        {
+            if (removeIgnored)
+                types.RemoveAll(x => x == null || Attribute.IsDefined(x, typeof(IgnoreAttribute)));
+            else
+                types.RemoveAll(x => x == null);
+        }
+        else if (removeIgnored)
+            types.RemoveAll(x => Attribute.IsDefined(x!, typeof(IgnoreAttribute)));
 
         types.Sort(SortTypesByPriorityHandler!);
         return types!;
