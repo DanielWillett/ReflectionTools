@@ -103,24 +103,41 @@ public static class EmitUtilitiy
         }
         return true;
     }
-
+    
     /// <summary>
     /// Inserts instructions to execute <paramref name="checker"/> and return (or optionally branch to <paramref name="goto"/>) if it returns <see langword="false"/>.
     /// </summary>
-    /// <returns>Amount of instructions skipped.</returns>
-    public static void ReturnIfFalse(IList<CodeInstruction> instructions, ILGenerator generator, ref int index, Func<bool> checker, Label? @goto = null)
+    /// <returns>Amount of instructions inserted.</returns>
+    public static int ReturnIfFalse(IList<CodeInstruction> instructions, ILGenerator generator, ref int index, Func<bool> checker, Label? @goto = null)
     {
-        Label continueLbl = generator.DefineLabel();
-        CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);
-        instruction.labels.AddRange(instructions[index].labels);
-        instructions[index].labels.Clear();
-        instructions.Insert(index, instruction);
+        if (index < 0)
+            throw new ArgumentException($"Unable to add ReturnIfFalse ({checker.Method.Name}), index is too small: {index}.", nameof(index));
+        if (index >= instructions.Count)
+            throw new ArgumentException($"Unable to add ReturnIfFalse ({checker.Method.Name}), index is too large: {index}.", nameof(index));
+        if (@goto.HasValue)
+        {
+            CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);
+            instruction.MoveLabelsFrom(instructions[index]);
+            instructions.Insert(index, instruction);
+            
+            instructions.Insert(index + 1, new CodeInstruction(OpCodes.Brfalse, @goto));
+            index += 2;
+            return 2;
+        }
+        else
+        {
+            Label continueLbl = generator.DefineLabel();
+            CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);
+            instruction.MoveLabelsFrom(instructions[index]);
+            instructions.Insert(index, instruction);
 
-        instructions.Insert(index + 1, new CodeInstruction(OpCodes.Brtrue, continueLbl));
-        instructions.Insert(index + 2, @goto.HasValue ? new CodeInstruction(OpCodes.Br, @goto) : new CodeInstruction(OpCodes.Ret));
-        index += 3;
-        if (instructions.Count > index)
-            instructions[index].labels.Add(continueLbl);
+            instructions.Insert(index + 1, new CodeInstruction(OpCodes.Brtrue, continueLbl));
+            instructions.Insert(index + 2, @goto.HasValue ? new CodeInstruction(OpCodes.Br, @goto) : new CodeInstruction(OpCodes.Ret));
+            index += 3;
+            if (instructions.Count > index)
+                instructions[index].labels.Add(continueLbl);
+            return 3;
+        }
     }
 
     /// <summary>

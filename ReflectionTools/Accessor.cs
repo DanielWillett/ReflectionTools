@@ -24,6 +24,8 @@ public static class Accessor
 
     internal static Type[]? FuncTypes;
     internal static Type[]? ActionTypes;
+    private static Type? _ignoreAttribute;
+    private static Type? _priorityAttribute;
     private static bool _castExCtorCalc;
     private static bool _nreExCtorCalc;
 
@@ -1449,64 +1451,120 @@ public static class Accessor
     }
 
     /// <summary>
+    /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
+    /// </summary>
+    [Pure]
+    public static bool IsDefinedSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute => member.IsDefinedSafe(typeof(TAttribute), inherit);
+
+    /// <summary>
+    /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <param name="attributeType">Type of the attribute to check for.</param>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+    [Pure]
+    public static bool IsDefinedSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
+    {
+        try
+        {
+            return member.IsDefined(attributeType, inherit);
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
+    [Pure]
+    public static TAttribute? GetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
+        => member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute;
+
+    /// <summary>
+    /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <param name="attributeType">Type of the attribute to check for.</param>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+    [Pure]
+    public static Attribute? GetAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
+    {
+        try
+        {
+            return member.GetAttributeSafe(attributeType, inherit);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="type"/>.
     /// </summary>
     [Pure]
-    public static bool IsIgnored(this Type type) => Attribute.IsDefined(type, typeof(IgnoreAttribute));
+    public static bool IsIgnored(this Type type) => type.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="member"/>.
     /// </summary>
     [Pure]
-    public static bool IsIgnored(this MemberInfo member) => Attribute.IsDefined(member, typeof(IgnoreAttribute));
+    public static bool IsIgnored(this MemberInfo member) => member.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="assembly"/>.
     /// </summary>
     [Pure]
-    public static bool IsIgnored(this Assembly assembly) => Attribute.IsDefined(assembly, typeof(IgnoreAttribute));
+    public static bool IsIgnored(this Assembly assembly) => assembly.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="parameter"/>.
     /// </summary>
     [Pure]
-    public static bool IsIgnored(this ParameterInfo parameter) => Attribute.IsDefined(parameter, typeof(IgnoreAttribute));
+    public static bool IsIgnored(this ParameterInfo parameter) => parameter.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="module"/>.
     /// </summary>
     [Pure]
-    public static bool IsIgnored(this Module module) => Attribute.IsDefined(module, typeof(IgnoreAttribute));
+    public static bool IsIgnored(this Module module) => module.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="type"/> and returns the priority (or zero if not found).
     /// </summary>
     [Pure]
-    public static int GetPriority(this Type type) => Attribute.GetCustomAttribute(type, typeof(PriorityAttribute)) is PriorityAttribute attr ? attr.Priority : 0;
+    public static int GetPriority(this Type type) => type.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="member"/> and returns the priority (or zero if not found).
     /// </summary>
     [Pure]
-    public static int GetPriority(this MemberInfo member) => Attribute.GetCustomAttribute(member, typeof(PriorityAttribute)) is PriorityAttribute attr ? attr.Priority : 0;
+    public static int GetPriority(this MemberInfo member) => member.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="assembly"/> and returns the priority (or zero if not found).
     /// </summary>
     [Pure]
-    public static int GetPriority(this Assembly assembly) => Attribute.GetCustomAttribute(assembly, typeof(PriorityAttribute)) is PriorityAttribute attr ? attr.Priority : 0;
+    public static int GetPriority(this Assembly assembly) => assembly.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="parameter"/> and returns the priority (or zero if not found).
     /// </summary>
     [Pure]
-    public static int GetPriority(this ParameterInfo parameter) => Attribute.GetCustomAttribute(parameter, typeof(PriorityAttribute)) is PriorityAttribute attr ? attr.Priority : 0;
+    public static int GetPriority(this ParameterInfo parameter) => parameter.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="module"/> and returns the priority (or zero if not found).
     /// </summary>
     [Pure]
-    public static int GetPriority(this Module module) => Attribute.GetCustomAttribute(module, typeof(PriorityAttribute)) is PriorityAttribute attr ? attr.Priority : 0;
+    public static int GetPriority(this Module module) => module.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
@@ -1878,6 +1936,41 @@ public static class Accessor
     {
         return method is { IsFinal: false, IsVirtual: true } || method.IsAbstract || method.DeclaringType is { IsInterface: true };
     }
+
+    /// <summary>
+    /// Get the underlying array from a list.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentNullException"/>
+    [Pure]
+    public static TElementType[] GetUnderlyingArray<TElementType>(this List<TElementType> list) => ListInfo<TElementType>.GetUnderlyingArray(list);
+
+    /// <summary>
+    /// Get the underlying array from a list, or in the case of a reflection failure calls <see cref="List{TElementType}.ToArray"/> on <paramref name="list"/> and returns that.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+    [Pure]
+    public static TElementType[] GetUnderlyingArrayOrCopy<TElementType>(this List<TElementType> list) => ListInfo<TElementType>.TryGetUnderlyingArray(list, out TElementType[] array) ? array : list.ToArray();
+
+    /// <summary>
+    /// Get the version of a list, which is incremented each time the list is updated.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentNullException"/>
+    [Pure]
+    public static int GetListVersion<TElementType>(this List<TElementType> list) => ListInfo<TElementType>.GetListVersion(list);
+
+    /// <summary>
+    /// Get the underlying array from a list.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+    public static bool TryGetUnderlyingArray<TElementType>(List<TElementType> list, out TElementType[] underlyingArray) => ListInfo<TElementType>.TryGetUnderlyingArray(list, out underlyingArray);
+
+    /// <summary>
+    /// Get the version of a list, which is incremented each time the list is updated.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+    public static bool TryGetListVersion<TElementType>(List<TElementType> list, out int version) => ListInfo<TElementType>.TryGetListVersion(list, out version);
     private static class DelegateInfo<TDelegate> where TDelegate : Delegate
     {
         public static MethodInfo InvokeMethod { get; }
@@ -1888,6 +1981,79 @@ public static class Accessor
             InvokeMethod = typeof(TDelegate).GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
             Parameters = InvokeMethod.GetParameters();
             ReturnType = InvokeMethod.ReturnType;
+        }
+    }
+    private static class ListInfo<TElementType>
+    {
+        private static InstanceGetter<List<TElementType>, TElementType[]>? _underlyingArrayGetter;
+        private static InstanceGetter<List<TElementType>, int>? _versionGetter;
+        private static bool _checkUndArr;
+        private static bool _checkVer;
+        private static bool CheckUndArr()
+        {
+            if (!_checkUndArr)
+            {
+                _underlyingArrayGetter = GenerateInstanceGetter<List<TElementType>, TElementType[]>("_items", false);
+                _checkUndArr = true;
+            }
+            return _underlyingArrayGetter != null;
+        }
+        private static bool CheckVer()
+        {
+            if (_checkVer)
+            {
+                _versionGetter = GenerateInstanceGetter<List<TElementType>, int>("_version", true);
+                _checkVer = true;
+            }
+            return _versionGetter != null;
+        }
+        public static TElementType[] GetUnderlyingArray(List<TElementType> list)
+        {
+            if (list == null)
+                throw new ArgumentNullException(nameof(list));
+
+            if (_underlyingArrayGetter != null || CheckUndArr())
+                return _underlyingArrayGetter!(list);
+
+            throw new NotSupportedException($"Unable to find '_items' in list of {typeof(TElementType).Name}.");
+        }
+        public static int GetListVersion(List<TElementType> list)
+        {
+            if (list == null)
+                throw new ArgumentNullException(nameof(list));
+
+            if (_versionGetter != null || CheckVer())
+                return _versionGetter!(list);
+
+            throw new NotSupportedException($"Unable to find '_version' in list of {typeof(TElementType).Name}.");
+        }
+        public static bool TryGetUnderlyingArray(List<TElementType> list, out TElementType[] underlyingArray)
+        {
+            if (list == null)
+                throw new ArgumentNullException(nameof(list));
+
+            if (_underlyingArrayGetter == null && !CheckUndArr())
+            {
+                underlyingArray = null!;
+                return false;
+            }
+
+            underlyingArray = _underlyingArrayGetter!(list);
+            return true;
+        }
+        public static bool TryGetListVersion(List<TElementType> list, out int version)
+        {
+            if (list == null)
+                throw new ArgumentNullException(nameof(list));
+
+            if (_versionGetter == null && !CheckVer())
+            {
+                version = 0;
+                return false;
+            }
+
+            version = _versionGetter!(list);
+            return true;
         }
     }
     private static void CheckExceptionConstructors()
