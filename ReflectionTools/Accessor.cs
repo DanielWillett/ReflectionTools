@@ -1475,16 +1475,12 @@ public static class Accessor
             return false;
         }
     }
-
+    
     /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
     /// </summary>
-    /// <param name="inherit">Also check parent members.</param>
-    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
-    /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
     [Pure]
-    public static TAttribute? GetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
-        => member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute;
+    public static bool HasAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute => member.HasAttributeSafe(typeof(TAttribute), inherit);
 
     /// <summary>
     /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
@@ -1494,16 +1490,141 @@ public static class Accessor
     /// <param name="inherit">Also check parent members.</param>
     /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
     [Pure]
+    public static bool HasAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
+    {
+        try
+        {
+            return member.IsDefined(attributeType, inherit);
+        }
+        catch (TypeLoadException)
+        {
+            return false;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks for and returns the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
+    /// <exception cref="AmbiguousMatchException">There are more than one attributes of type <typeparamref name="TAttribute"/>.</exception>
+    [Pure]
+    public static TAttribute? GetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
+        => member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute;
+
+    /// <summary>
+    /// Checks for and returns the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <param name="attributeType">Type of the attribute to check for.</param>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+    /// <exception cref="AmbiguousMatchException">There are more than one attributes of type <paramref name="attributeType"/>.</exception>
+    [Pure]
     public static Attribute? GetAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
     {
         try
         {
-            return member.GetAttributeSafe(attributeType, inherit);
+            switch (member)
+            {
+                case MemberInfo memberInfo:
+                    return Attribute.GetCustomAttribute(memberInfo, attributeType, inherit);
+                case Module module:
+                    return Attribute.GetCustomAttribute(module, attributeType, inherit);
+                case Assembly assembly:
+                    return Attribute.GetCustomAttribute(assembly, attributeType, inherit);
+                case ParameterInfo parameterInfo:
+                    return Attribute.GetCustomAttribute(parameterInfo, attributeType, inherit);
+                default:
+                    object[] attributes = member.GetCustomAttributes(attributeType, inherit);
+                    if (attributes is not { Length: > 0 })
+                        return null;
+                    if (attributes.Length > 1)
+                        throw new AmbiguousMatchException($"Multiple attributes of type {attributeType.FullName}.");
+
+                    return attributes[0] as Attribute;
+            }
+        }
+        catch (TypeLoadException)
+        {
+            return null;
         }
         catch (FileNotFoundException)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Checks for and returns the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
+    [Pure]
+    public static TAttribute[] GetAttributesSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
+        => (TAttribute[])member.GetAttributesSafe(typeof(TAttribute), inherit);
+
+    /// <summary>
+    /// Checks for and returns the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <param name="attributeType">Type of the attribute to check for.</param>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+    [Pure]
+    public static Attribute[] GetAttributesSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
+    {
+        try
+        {
+            object[] array = member.GetCustomAttributes(attributeType, inherit);
+            if (array is { Length: > 0 })
+            {
+                if (array.GetType().GetElementType() == attributeType)
+                    return (Attribute[])array;
+
+                int ct = 0;
+                for (int i = 0; i < array.Length; ++i)
+                {
+                    if (array[i] is Attribute attr && attributeType.IsInstanceOfType(attr))
+                        ++ct;
+                }
+
+                Attribute[] array2 = (Attribute[])Array.CreateInstance(attributeType, ct);
+                for (int i = 0; i < array.Length; ++i)
+                {
+                    if (array[i] is Attribute attr && attributeType.IsInstanceOfType(attr))
+                        array2[array2.Length - --ct - 1] = attr;
+                }
+
+                return array2;
+            }
+        }
+        catch (TypeLoadException) { }
+        catch (FileNotFoundException) { }
+
+        return attributeType == typeof(Attribute)
+            ? Array.Empty<Attribute>()
+            : (Attribute[])Array.CreateInstance(attributeType, 0);
+    }
+
+    /// <summary>
+    /// Checks for and outputs the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
+    /// </summary>
+    /// <param name="inherit">Also check parent members.</param>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
+    /// <returns><see langword="true"/> if the attribute was found, otherwise <see langword="false"/>.</returns>
+    [Pure]
+    public static bool TryGetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, out TAttribute attribute, bool inherit = false) where TAttribute : Attribute
+    {
+        attribute = (member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute)!;
+        return attribute != null;
     }
 
     /// <summary>
