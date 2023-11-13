@@ -5,6 +5,7 @@ Requires `HarmonyLib 2.2.2+`.
 NuGet Package: [DanielWillett.ReflectionTools](https://www.nuget.org/packages/DanielWillett.ReflectionTools)
 
 ### Accessor
+* `IReflectionToolsLogger` + `ReflectionToolsLoggerProxy` for Microsoft's `ILogger` support.
 * `IsMono` property
 * Generating static or instance setters and getters for fields and properties.
 * Generating static or instance callers for private methods.
@@ -17,6 +18,8 @@ NuGet Package: [DanielWillett.ReflectionTools](https://www.nuget.org/packages/Da
 * `GetTypesSafe` - `Assembly.GetTypes` but it won't throw an exception and will sort by PriorityAttribute.
 * `GetImplementedMethod` for getting the implementation of an interface method (even explicitly implemented).
 * `GetDelegateSignature` and similar to get parameters, return type, and `Invoke` method of a delegate type.
+* `CouldBeAssignedTo` for checking if it's possible for a variable of one type to have a value of another type.
+* Safe, generic methods for getting and checking attribtues.
 
 ### EmitUtility
 Various tools for Harmony patching.
@@ -59,3 +62,7 @@ Various tools for Harmony patching.
 * Extensions for emitting `call` vs `callvirt` codes.
     * `GetCall`
     * `GetCallRuntime`
+
+### Other
+* Extensions for Stopwatch
+    * `GetElapsedMilliseconds` (returns a double instead of a long like usual)
