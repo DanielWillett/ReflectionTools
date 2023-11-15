@@ -120,7 +120,7 @@ public static class Accessor
                 throw new Exception($"Unable to create instance setter for {typeof(TInstance).FullName}.{fieldName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
 
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to create instance setter for {typeof(TInstance).Name}.{fieldName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
+                Logger.LogError(source, null, $"Unable to create instance setter for {typeof(TInstance).FullName}.{fieldName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
             return null;
         }
 
@@ -131,7 +131,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {typeof(TInstance).FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching field {typeof(TInstance).Name}.{fieldName}.");
+                Logger.LogError(source, null, $"Unable to find matching field {typeof(TInstance).FullName}.{fieldName}.");
             return null;
         }
 
@@ -175,12 +175,11 @@ public static class Accessor
                 typeLbl = il.DefineLabel();
                 il.Emit(OpCodes.Isinst, field.FieldType);
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Brtrue, typeLbl.Value);
+                il.Emit(OpCodes.Brtrue_S, typeLbl.Value);
                 il.Emit(OpCodes.Pop);
                 il.Emit(OpCodes.Ldarg_1);
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Ldnull);
-                il.Emit(OpCodes.Beq_S, typeLbl.Value);
+                il.Emit(OpCodes.Brfalse_S, typeLbl.Value);
                 il.Emit(OpCodes.Pop);
                 il.Emit(OpCodes.Pop);
                 string errMsg = "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
@@ -230,9 +229,9 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Error generating instance getter for {field.DeclaringType!.Name}.{fieldName}.", ex);
+                throw new Exception($"Error generating instance getter for {field.DeclaringType!.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance getter for {field.DeclaringType!.Name}.{fieldName}.");
+                Logger.LogError(source, ex, $"Error generating instance getter for {field.DeclaringType!.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -256,7 +255,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {typeof(TInstance).FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {typeof(TInstance).Name}.{fieldName}.");
+                Logger.LogError(source, null, $"Unable to find matching property {typeof(TInstance).FullName}.{fieldName}.");
             return null;
         }
 
@@ -305,9 +304,9 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Error generating instance getter for {typeof(TInstance)}.{fieldName}.", ex);
+                throw new Exception($"Error generating instance getter for {typeof(TInstance).FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance getter for {typeof(TInstance)}.{fieldName}.");
+                Logger.LogError(source, ex, $"Error generating instance getter for {typeof(TInstance).FullName}.{fieldName}.");
             return null;
         }
     }
@@ -345,9 +344,12 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
             return null;
         }
+
+        fieldName = field.Name;
+
         try
         {
             CheckExceptionConstructors();
@@ -378,9 +380,8 @@ public static class Accessor
                 il.Emit(OpCodes.Brtrue_S, lbl);
                 if (!isValueType)
                     il.Emit(OpCodes.Pop);
-                il.Emit(OpCodes.Ldnull);
                 il.Emit(OpCodes.Ldarg_0);
-                il.Emit(OpCodes.Beq_S, lbl2);
+                il.Emit(OpCodes.Brfalse_S, lbl2);
 
                 string castError = $"Invalid instance type passed to getter for {fieldName}. Expected {declaringType.FullName}.";
                 if (CastExCtor != null)
@@ -456,12 +457,11 @@ public static class Accessor
                     typeLbl = il.DefineLabel();
                     il.Emit(OpCodes.Isinst, field.FieldType);
                     il.Emit(OpCodes.Dup);
-                    il.Emit(OpCodes.Brtrue, typeLbl.Value);
+                    il.Emit(OpCodes.Brtrue_S, typeLbl.Value);
                     il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Ldarg_1);
                     il.Emit(OpCodes.Dup);
-                    il.Emit(OpCodes.Ldnull);
-                    il.Emit(OpCodes.Beq_S, typeLbl.Value);
+                    il.Emit(OpCodes.Brfalse_S, typeLbl.Value);
                     il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Pop);
                     string errMsg = "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
@@ -522,12 +522,11 @@ public static class Accessor
                     typeLbl = il.DefineLabel();
                     il.Emit(OpCodes.Isinst, field.FieldType);
                     il.Emit(OpCodes.Dup);
-                    il.Emit(OpCodes.Brtrue, typeLbl.Value);
+                    il.Emit(OpCodes.Brtrue_S, typeLbl.Value);
                     il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Ldarg_1);
                     il.Emit(OpCodes.Dup);
-                    il.Emit(OpCodes.Ldnull);
-                    il.Emit(OpCodes.Beq_S, typeLbl.Value);
+                    il.Emit(OpCodes.Brfalse_S, typeLbl.Value);
                     il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Pop);
                     string errMsg = "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
@@ -576,9 +575,9 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Error generating instance setter for {declaringType.Name}.{fieldName}.", ex);
+                throw new Exception($"Error generating instance setter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance setter for {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, ex, $"Error generating instance setter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -610,9 +609,12 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
             return null;
         }
+
+        fieldName = field.Name;
+
         try
         {
             CheckExceptionConstructors();
@@ -636,11 +638,10 @@ public static class Accessor
                 Label lbl2 = il.DefineLabel();
                 il.Emit(OpCodes.Isinst, declaringType);
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Brtrue, lbl.Value);
+                il.Emit(OpCodes.Brtrue_S, lbl.Value);
                 il.Emit(OpCodes.Pop);
-                il.Emit(OpCodes.Ldnull);
                 il.Emit(OpCodes.Ldarg_0);
-                il.Emit(OpCodes.Beq_S, lbl2);
+                il.Emit(OpCodes.Brfalse_S, lbl2);
                 string castError = "Invalid instance type passed to getter for " + fieldName + ". Expected " + declaringType.FullName + ".";
                 if (CastExCtor != null)
                     il.Emit(OpCodes.Ldstr, castError);
@@ -718,9 +719,9 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Error generating instance getter for {declaringType.Name}.{fieldName}.", ex);
+                throw new Exception($"Error generating instance getter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance getter for {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, ex, $"Error generating instance getter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -742,7 +743,7 @@ public static class Accessor
                 throw new Exception($"Unable to create instance setter for {typeof(TInstance).FullName}.{propertyName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
 
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to create instance setter for {typeof(TInstance).Name}.{propertyName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
+                Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to create instance setter for {typeof(TInstance).FullName}.{propertyName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
             return null;
         }
 
@@ -758,7 +759,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {typeof(TInstance).FullName}.{propertyName} with a setter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {typeof(TInstance).Name}.{propertyName} with a setter.");
+                    Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {typeof(TInstance).FullName}.{propertyName} with a setter.");
                 return null;
             }
         }
@@ -789,7 +790,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {typeof(TInstance).FullName}.{propertyName} with a getter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {typeof(TInstance).Name}.{propertyName} with a getter.");
+                    Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {typeof(TInstance).FullName}.{propertyName} with a getter.");
                 return null;
             }
         }
@@ -837,7 +838,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a setter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {declaringType.Name}.{propertyName} with a setter.");
+                    Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a setter.");
                 return null;
             }
         }
@@ -880,7 +881,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a getter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {declaringType.Name}.{propertyName} with a getter.");
+                    Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a getter.");
                 return null;
             }
         }
@@ -939,7 +940,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching field {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, null, $"Unable to find matching field {declaringType.FullName}.{fieldName}.");
             return null;
         }
 
@@ -988,12 +989,11 @@ public static class Accessor
                 lbl = il.DefineLabel();
                 il.Emit(OpCodes.Isinst, field.FieldType);
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Brtrue, lbl.Value);
+                il.Emit(OpCodes.Brtrue_S, lbl.Value);
                 il.Emit(OpCodes.Pop);
                 il.Emit(OpCodes.Ldarg_0);
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Ldnull);
-                il.Emit(OpCodes.Beq_S, lbl.Value);
+                il.Emit(OpCodes.Brfalse_S, lbl.Value);
                 il.Emit(OpCodes.Pop);
                 string errMsg = "Invalid argument type passed to getter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
                 if (CastExCtor != null)
@@ -1040,9 +1040,9 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Error generating static setter for {declaringType.Name}.{fieldName}.", ex);
+                throw new Exception($"Error generating static setter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating static setter for {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, ex, $"Error generating static setter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -1074,9 +1074,12 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
             return null;
         }
+
+        fieldName = field.Name;
+
         try
         {
             GetDynamicMethodFlags(true, out MethodAttributes attr, out CallingConventions convention);
@@ -1113,9 +1116,9 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Error generating static getter for {declaringType.Name}.{fieldName}.", ex);
+                throw new Exception($"Error generating static getter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating static getter for {declaringType.Name}.{fieldName}.");
+                Logger.LogError(source, ex, $"Error generating static getter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -1130,7 +1133,23 @@ public static class Accessor
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
     [Pure]
     public static StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false)
-        => GenerateStaticPropertySetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, true);
+        => GenerateStaticPropertySetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, false);
+
+    /// <summary>
+    /// Generates a delegate or dynamic method that sets a static property value.
+    /// </summary>
+    /// <typeparam name="TDeclaringType">Declaring type of the property.</typeparam>
+    /// <typeparam name="TValue">Property return type.</typeparam>
+    /// <param name="propertyName">Name of property that will be referenced.</param>
+    /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
+    /// <param name="allowUnsafeTypeBinding">Enables unsafe type binding to non-matching delegates, meaning classes of different
+    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
+    /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
+    /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+    [Pure]
+    // ReSharper disable once MethodOverloadWithOptionalParameter
+    public static StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
+        => GenerateStaticPropertySetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, allowUnsafeTypeBinding);
 
     /// <summary>
     /// Generates a delegate that gets a static property value.
@@ -1145,10 +1164,27 @@ public static class Accessor
         => GenerateStaticPropertyGetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, true);
 
     /// <summary>
+    /// Generates a delegate that gets a static property value.
+    /// </summary>
+    /// <typeparam name="TDeclaringType">Declaring type of the property.</typeparam>
+    /// <typeparam name="TValue">Property return type.</typeparam>
+    /// <param name="propertyName">Name of property that will be referenced.</param>
+    /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
+    /// <param name="allowUnsafeTypeBinding">Enables unsafe type binding to non-matching delegates, meaning classes of different
+    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
+    /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
+    /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+    [Pure]
+    // ReSharper disable once MethodOverloadWithOptionalParameter
+    public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = true)
+        => GenerateStaticPropertyGetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, allowUnsafeTypeBinding);
+
+    /// <summary>
     /// Generates a delegate or dynamic method that sets a static property value.
     /// </summary>
     /// <param name="allowUnsafeTypeBinding">Enables unsafe type binding to non-matching delegates, meaning classes of different
-    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).</param>
+    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
+    /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
     /// <param name="declaringType">Declaring type of the property.</param>
     /// <typeparam name="TValue">Property return type.</typeparam>
     /// <param name="propertyName">Name of property that will be referenced.</param>
@@ -1173,7 +1209,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a setter.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticPropertySetter", null, $"Unable to find matching property {declaringType.Name}.{propertyName} with a setter.");
+                Logger.LogError("Accessor.GenerateStaticPropertySetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a setter.");
             return null;
         }
 
@@ -1184,7 +1220,8 @@ public static class Accessor
     /// Generates a delegate that gets a static property value.
     /// </summary>
     /// <param name="allowUnsafeTypeBinding">Enables unsafe type binding to non-matching delegates, meaning classes of different
-    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).</param>
+    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
+    /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
     /// <param name="declaringType">Declaring type of the property.</param>
     /// <typeparam name="TValue">Property return type.</typeparam>
     /// <param name="propertyName">Name of property that will be referenced.</param>
@@ -1209,7 +1246,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a getter.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticPropertyGetter", null, $"Unable to find matching property {declaringType.Name}.{propertyName} with a getter.");
+                Logger.LogError("Accessor.GenerateStaticPropertyGetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a getter.");
             return null;
         }
 
@@ -1258,7 +1295,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).Name}.{methodName}.");
+                    Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1314,7 +1351,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).Name}.{methodName}.");
+                    Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1356,7 +1393,7 @@ public static class Accessor
                 throw new ArgumentException($"Method {method.DeclaringType.FullName}.{method.Name} can not have more than {maxArgs} arguments!", nameof(method));
 
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Method {method.DeclaringType.Name}.{method.Name} can not have more than {maxArgs} arguments!");
+                Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Method {method.DeclaringType.FullName}.{method.Name} can not have more than {maxArgs} arguments!");
             return null;
         }
 
@@ -1413,9 +1450,9 @@ public static class Accessor
         ParameterInfo[] delegateParameters = invokeMethod.GetParameters();
         Type delegateReturnType = invokeMethod.ReturnType;
         bool shouldCallvirt = method.ShouldCallvirtRuntime();
-        bool needsDynamicMethod = shouldCallvirt || (!method.DeclaringType.IsValueType && !allowUnsafeTypeBinding) || method.ReturnType != typeof(void) && delegateReturnType == typeof(void);
+        bool needsDynamicMethod = shouldCallvirt || (!instance.IsValueType && !allowUnsafeTypeBinding) || method.ReturnType != typeof(void) && delegateReturnType == typeof(void);
         bool isInstanceForValueType = method is { DeclaringType.IsValueType: true };
-        shouldCallvirt |= !method.DeclaringType.IsValueType;
+        shouldCallvirt |= !instance.IsValueType;
 
         // for some reasons invoking a delegate with zero parameters and a null instance does not throw an exception.
         // Adding parameters changes this behavior.
@@ -1425,14 +1462,14 @@ public static class Accessor
         if (p.Length != delegateParameters.Length - 1)
         {
             if (throwOnError)
-                throw new Exception("Unable to create instance caller for " + (method.DeclaringType?.Name ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.Name}.");
+                throw new Exception("Unable to create instance caller for " + instance.FullName + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
 
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to create instance caller for {method}: incompatable delegate type: {delegateType.Name}.");
+                Logger.LogError(source, null, $"Unable to create instance caller for {instance.FullName}.{method.Name}: incompatable delegate type: {delegateType.FullName}.");
             return null;
         }
 
-        if (needsDynamicMethod && method.DeclaringType.IsInterface && !delegateParameters[0].ParameterType.IsInterface)
+        if (needsDynamicMethod && instance.IsInterface && !delegateParameters[0].ParameterType.IsInterface)
             needsDynamicMethod = false;
 
         // exact match
@@ -1453,14 +1490,14 @@ public static class Accessor
                 {
                     Delegate basicDelegate = method.CreateDelegate(delegateType);
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created basic delegate binding instance caller for {method.DeclaringType.Name}.{method.Name}.");
+                        Logger.LogDebug(source, $"Created basic delegate binding instance caller for {instance.FullName}.{method.Name}.");
                     return basicDelegate;
                 }
                 catch (Exception ex)
                 {
                     if (LogDebugMessages || LogILTraceMessages)
                     {
-                        Logger.LogDebug(source, $"Unable to create basic delegate binding instance caller for {method.DeclaringType.Name}.{method.Name}.");
+                        Logger.LogDebug(source, $"Unable to create basic delegate binding instance caller for {instance.FullName}.{method.Name}.");
                         Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }
@@ -1470,10 +1507,10 @@ public static class Accessor
         if (isInstanceForValueType && delegateParameters[0].ParameterType != typeof(object) && !method.IsReadOnly())
         {
             if (throwOnError)
-                throw new Exception($"Unable to create instance caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name ?? "<unknown-name>"} (non-readonly), you must pass structs ({instance.FullName}) as a boxed object (in {delegateType.FullName}).");
+                throw new Exception($"Unable to create instance caller for {instance.FullName}.{method.Name} (non-readonly), you must pass structs ({instance.Name}) as a boxed object (in {delegateType.FullName}).");
 
             if (LogErrorMessages || LogILTraceMessages)
-                Logger.LogError(source, null, $"Unable to create instance caller for {method} (non-readonly), you must pass structs ({instance.Name}) as a boxed object (in {delegateType.Name}).");
+                Logger.LogError(source, null, $"Unable to create instance caller for {instance.FullName}.{method.Name} (non-readonly), you must pass structs ({instance.Name}) as a boxed object (in {delegateType.FullName}).");
             return null;
         }
 
@@ -1500,14 +1537,14 @@ public static class Accessor
                     object d2 = FormatterServices.GetUninitializedObject(delegateType);
                     delegateType.GetConstructors()[0].Invoke(d2, new object[] { null!, ptr });
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created unsafely binded delegate binding instance caller for {method.DeclaringType.Name}.{method.Name}.");
+                        Logger.LogDebug(source, $"Created unsafely binded delegate binding instance caller for {instance.Name}.{method.Name}.");
                     return (Delegate)d2;
                 }
                 catch (Exception ex)
                 {
                     if (LogDebugMessages || LogILTraceMessages)
                     {
-                        Logger.LogDebug(source, $"Unable to create unsafely binded delegate binding instance caller for {method.DeclaringType.Name}.{method.Name}.");
+                        Logger.LogDebug(source, $"Unable to create unsafely binded delegate binding instance caller for {instance.Name}.{method.Name}.");
                         Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }
@@ -1525,7 +1562,7 @@ public static class Accessor
         DynamicMethod dynMethod = new DynamicMethod("Invoke" + method.Name, attributes, convention, delegateReturnType, parameterTypes, instance.IsInterface ? typeof(Accessor) : instance, true);
         bool logIl = LogILTraceMessages;
         if (logIl)
-            Logger.LogDebug(source, $"IL: Generating instance caller for {method.DeclaringType.FullName}.{method.Name}:");
+            Logger.LogDebug(source, $"IL: Generating instance caller for {instance.FullName}.{method.Name}:");
         dynMethod.DefineParameter(1, ParameterAttributes.None, "this");
 
         for (int i = 0; i < p.Length; ++i)
@@ -1560,12 +1597,12 @@ public static class Accessor
         }
 
         for (int i = 0; i < p.Length; ++i)
-            generator.EmitParameter(source, i + 1, $"Invalid argument type passed to instance caller for {method.DeclaringType.FullName}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i + 1], p[i].ParameterType);
+            generator.EmitParameter(source, i + 1, $"Invalid argument type passed to instance caller for {instance.FullName}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i + 1], p[i].ParameterType);
 
         OpCode call = shouldCallvirt ? OpCodes.Callvirt : OpCodes.Call;
         generator.Emit(call, method);
         if (logIl)
-            Logger.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{method.DeclaringType.FullName}.{method.Name}({string.Join(", ", method.GetParameters().Select(x => x.ParameterType.FullName))})>");
+            Logger.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{instance.FullName}.{method.Name}({string.Join(", ", method.GetParameters().Select(x => x.ParameterType.FullName))})>");
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
@@ -1617,16 +1654,16 @@ public static class Accessor
         {
             Delegate dynamicDelegate = dynMethod.CreateDelegate(delegateType);
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method instance caller for {method.DeclaringType.Name}.{method.Name}.");
+                Logger.LogDebug(source, $"Created dynamic method instance caller for {instance.FullName}.{method.Name}.");
             return dynamicDelegate;
         }
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Unable to create instance caller for {method.Name}.", ex);
+                throw new Exception($"Unable to create instance caller for {instance.FullName}.{method.Name}.", ex);
 
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Unable to create instance caller for {method.Name}.");
+                Logger.LogError(source, ex, $"Unable to create instance caller for {instance.FullName}.{method.Name}.");
             return null;
         }
     }
@@ -1666,7 +1703,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).Name}.{methodName}.");
+                    Logger.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1712,7 +1749,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).Name}.{methodName}.");
+                    Logger.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1793,9 +1830,9 @@ public static class Accessor
         if (method == null || !method.IsStatic)
         {
             if (throwOnError)
-                throw new Exception($"Unable to find static method for delegate: {delegateType.Name}.");
+                throw new Exception($"Unable to find static method for delegate: {delegateType.FullName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find static method for delegate: {delegateType.Name}.");
+                Logger.LogError(source, null, $"Unable to find static method for delegate: {delegateType.FullName}.");
             return null;
         }
 
@@ -1808,10 +1845,10 @@ public static class Accessor
         if (p.Length != delegateParameters.Length)
         {
             if (throwOnError)
-                throw new Exception("Unable to create static caller for " + (method.DeclaringType?.Name ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.Name}.");
+                throw new Exception("Unable to create static caller for " + (method.DeclaringType?.FullName ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
 
             if (LogErrorMessages)
-                Logger.LogError(source, null, "Unable to create static caller for " + (method.DeclaringType?.Name ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.Name}.");
+                Logger.LogError(source, null, "Unable to create static caller for " + (method.DeclaringType?.FullName ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
             return null;
         }
 
@@ -1833,14 +1870,14 @@ public static class Accessor
                 {
                     Delegate basicDelegateCaller = method.CreateDelegate(delegateType);
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created basic delegate binding static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
+                        Logger.LogDebug(source, $"Created basic delegate binding static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
                     return basicDelegateCaller;
                 }
                 catch (Exception ex)
                 {
                     if (LogDebugMessages || LogILTraceMessages)
                     {
-                        Logger.LogDebug(source, $"Unable to create basic delegate binding static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
+                        Logger.LogDebug(source, $"Unable to create basic delegate binding static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
                         Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }

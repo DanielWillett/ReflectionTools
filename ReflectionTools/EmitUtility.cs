@@ -484,7 +484,7 @@ public static class EmitUtility
     /// <summary>
     /// Transfers blocks that would be on the last instruction of a block to the target instruction.
     /// </summary>
-    public static void TransferEndingInstructionNeeds(CodeInstruction originalEnd, CodeInstruction newEnd)
+    public static void TransferEndingInstructionNeeds(this CodeInstruction originalEnd, CodeInstruction newEnd)
     {
         newEnd.blocks.AddRange(originalEnd.blocks.Where(x => x.blockType.IsEndBlockType()));
         originalEnd.blocks.RemoveAll(x => x.blockType.IsEndBlockType());
@@ -493,7 +493,7 @@ public static class EmitUtility
     /// <summary>
     /// Transfers all labels and blocks that would be on the first instruction of a block to the target instruction.
     /// </summary>
-    public static void TransferStartingInstructionNeeds(CodeInstruction originalStart, CodeInstruction newStart)
+    public static void TransferStartingInstructionNeeds(this CodeInstruction originalStart, CodeInstruction newStart)
     {
         newStart.labels.AddRange(originalStart.labels);
         originalStart.labels.Clear();
