@@ -1,8 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+
+#if NET461_OR_GREATER || !NETFRAMEWORK
+using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+#endif
 
 namespace DanielWillett.ReflectionTools;
 
@@ -36,6 +39,7 @@ public interface IReflectionToolsLogger
     void LogError(string source, Exception? ex, string? message);
 }
 
+#if NET461_OR_GREATER || !NETFRAMEWORK
 /// <summary>
 /// Implement a <see cref="ILogger"/> through <see cref="IReflectionToolsLogger"/>.
 /// </summary>
@@ -119,6 +123,7 @@ public class ReflectionToolsLoggerProxy : IReflectionToolsLogger, IDisposable
             LoggerFactory.Dispose();
     }
 }
+#endif
 
 /// <summary>
 /// Logs messages to the <see cref="Console"/>.

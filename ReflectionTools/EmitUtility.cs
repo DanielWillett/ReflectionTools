@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.Contracts;
+using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
 #if !NETSTANDARD
@@ -13,7 +14,7 @@ namespace DanielWillett.ReflectionTools;
 /// <summary>
 /// Utilities for <see cref="ILGenerator"/> and transpiling with Harmony.
 /// </summary>
-public static class EmitUtilitiy
+public static class EmitUtility
 {
 #if !NETSTANDARD
     /// <summary>
@@ -540,14 +541,23 @@ public static class EmitUtilitiy
     {
         if (index > ushort.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(index));
+        OpCode code;
         if (set)
         {
-            il.Emit(index > byte.MaxValue ? OpCodes.Starg : OpCodes.Starg_S, index);
+            code = index > byte.MaxValue ? OpCodes.Starg : OpCodes.Starg_S;
+            if (index > byte.MaxValue)
+                il.Emit(code, (short)index);
+            else
+                il.Emit(code, (byte)index);
             return;
         }
         if (byref)
         {
-            il.Emit(index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S, index);
+            code = index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S;
+            if (index > byte.MaxValue)
+                il.Emit(code, (short)index);
+            else
+                il.Emit(code, (byte)index);
             return;
         }
 
@@ -563,7 +573,11 @@ public static class EmitUtilitiy
             return;
         }
 
-        il.Emit(index > byte.MaxValue ? OpCodes.Ldarg : OpCodes.Ldarg_S, index);
+        code = index > byte.MaxValue ? OpCodes.Ldarg : OpCodes.Ldarg_S;
+        if (index > byte.MaxValue)
+            il.Emit(code, (short)index);
+        else
+            il.Emit(code, (byte)index);
     }
 
     /// <summary>
@@ -595,31 +609,133 @@ public static class EmitUtilitiy
     /// Loads a parameter from an index.
     /// </summary>
     public static void EmitParameter(this ILGenerator generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
+        => EmitParameter(generator, index, null, byref, type, targetType);
+
+    /// <summary>
+    /// Loads a parameter from an index.
+    /// </summary>
+    public static void EmitParameter(this ILGenerator generator, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
     {
+        EmitParameter(generator, null, index, castErrorMessage, byref, type, targetType);
+    }
+    internal static void EmitParameter(this ILGenerator generator, string? logSource, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
+    {
+        if (index > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        if (!byref && type != null && targetType != null && type.IsValueType && targetType.IsValueType && type != targetType)
+            throw new ArgumentException($"Types not compatible; input type: {type.FullName}, target type: {targetType.FullName}.", nameof(type));
+
         if (byref)
         {
-            generator.Emit(index > ushort.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S, index);
+            OpCode code2 = index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S;
+            if (index > byte.MaxValue)
+                generator.Emit(code2, (short)index);
+            else
+                generator.Emit(code2, (byte)index);
+            if (logSource != null)
+                Accessor.Logger.LogDebug(logSource, $"IL:  {(index > ushort.MaxValue ? "ldarga" : "ldarga.s")} <{index.ToString(CultureInfo.InvariantCulture)}>");
             return;
         }
+
         OpCode code = index switch
         {
             0 => OpCodes.Ldarg_0,
             1 => OpCodes.Ldarg_1,
             2 => OpCodes.Ldarg_2,
             3 => OpCodes.Ldarg_3,
-            <= ushort.MaxValue => OpCodes.Ldarg_S,
+            <= byte.MaxValue => OpCodes.Ldarg_S,
             _ => OpCodes.Ldarg
         };
+        if (logSource != null)
+        {
+            Accessor.Logger.LogDebug(logSource, index switch
+            {
+                0 => "IL:  ldarg.0",
+                1 => "IL:  ldarg.1",
+                2 => "IL:  ldarg.2",
+                3 => "IL:  ldarg.3",
+                <= byte.MaxValue => $"IL:  ldarg.s <{index.ToString(CultureInfo.InvariantCulture)}",
+                _ => $"IL:  ldarg <{index.ToString(CultureInfo.InvariantCulture)}"
+            });
+        }
         if (index > 3)
-            generator.Emit(code, index);
+        {
+            if (index > byte.MaxValue)
+                generator.Emit(code, (ushort)index);
+            else
+                generator.Emit(code, (byte)index);
+        }
         else
             generator.Emit(code);
-        if (type != null && targetType != null && type != typeof(void) && targetType != typeof(void))
+
+        if (type == null || targetType == null || type == typeof(void) || targetType == typeof(void))
+            return;
+
+        Accessor.CheckExceptionConstructors();
+        if (type.IsValueType && !targetType.IsValueType)
         {
-            if (type.IsValueType && !targetType.IsValueType)
-                generator.Emit(OpCodes.Box, type);
-            else if (!type.IsValueType && targetType.IsValueType)
-                generator.Emit(OpCodes.Unbox_Any, targetType);
+            generator.Emit(OpCodes.Box, type);
+            if (logSource != null)
+                Accessor.Logger.LogDebug(logSource, $"IL:  box <{type.FullName}>");
+        }
+        else if (!type.IsValueType && targetType.IsValueType)
+        {
+            generator.Emit(OpCodes.Unbox_Any, targetType);
+            if (logSource != null)
+                Accessor.Logger.LogDebug(logSource, $"IL:  unbox.any <{targetType.FullName}>");
+        }
+        else if (!targetType.IsAssignableFrom(type) && (Accessor.CastExCtor != null || Accessor.NreExCtor != null))
+        {
+            Label lbl = generator.DefineLabel();
+            generator.Emit(OpCodes.Isinst, targetType);
+            generator.Emit(OpCodes.Dup);
+            generator.Emit(OpCodes.Brtrue, lbl);
+            generator.Emit(OpCodes.Pop);
+            if (index > 3)
+            {
+                if (index > byte.MaxValue)
+                    generator.Emit(code, (ushort)index);
+                else
+                    generator.Emit(code, (byte)index);
+            }
+            else
+                generator.Emit(code);
+            generator.Emit(OpCodes.Dup);
+            generator.Emit(OpCodes.Ldnull);
+            generator.Emit(OpCodes.Beq_S, lbl);
+            generator.Emit(OpCodes.Pop);
+            castErrorMessage ??= $"Invalid type passed to parameter {index.ToString(CultureInfo.InvariantCulture)}.";
+            if (Accessor.CastExCtor != null)
+                generator.Emit(OpCodes.Ldstr, castErrorMessage);
+            generator.Emit(OpCodes.Newobj, Accessor.CastExCtor ?? Accessor.NreExCtor!);
+            generator.Emit(OpCodes.Throw);
+            generator.MarkLabel(lbl);
+            if (logSource != null)
+            {
+                string lblId = lbl.GetLabelId().ToString(CultureInfo.InvariantCulture);
+                Accessor.Logger.LogDebug(logSource, $"IL:  isinst <{targetType.FullName}>");
+                Accessor.Logger.LogDebug(logSource, "IL:  dup");
+                Accessor.Logger.LogDebug(logSource, $"IL:  brtrue <lbl_{lblId}>");
+                Accessor.Logger.LogDebug(logSource, "IL:  pop");
+                Accessor.Logger.LogDebug(logSource, index switch
+                {
+                    0 => "IL:  ldarg.0",
+                    1 => "IL:  ldarg.1",
+                    2 => "IL:  ldarg.2",
+                    3 => "IL:  ldarg.3",
+                    <= byte.MaxValue => $"IL:  ldarg.s <{index.ToString(CultureInfo.InvariantCulture)}",
+                    _ => $"IL:  ldarg <{index.ToString(CultureInfo.InvariantCulture)}"
+                });
+                Accessor.Logger.LogDebug(logSource, "IL:  dup");
+                Accessor.Logger.LogDebug(logSource, "IL:  ldnull");
+                Accessor.Logger.LogDebug(logSource, $"IL:  beq.s <lbl_{lblId}>");
+                Accessor.Logger.LogDebug(logSource, "IL:  pop");
+                if (Accessor.CastExCtor != null)
+                    Accessor.Logger.LogDebug(logSource, $"IL:  ldstr \"{castErrorMessage}\"");
+                Accessor.Logger.LogDebug(logSource, $"IL:  newobj <{(Accessor.CastExCtor?.DeclaringType ?? Accessor.NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                Accessor.Logger.LogDebug(logSource, "IL:  throw");
+                Accessor.Logger.LogDebug(logSource, $"IL: lbl_{lblId}:");
+            }
         }
     }
 
@@ -648,6 +764,14 @@ public static class EmitUtilitiy
                 return comparand.IsLdLoc();
             if (opcode.IsLdLoc(true))
                 return comparand.IsLdLoc(true);
+            if (opcode.IsLdFld())
+                return comparand.IsLdFld();
+            if (opcode.IsLdFld(true))
+                return comparand.IsLdFld(true);
+            if (opcode.IsLdFld(@static: true))
+                return comparand.IsLdFld(@static: true);
+            if (opcode.IsLdFld(true, @static: true))
+                return comparand.IsLdFld(true, @static: true);
             if (opcode.IsLdc())
                 return comparand.IsLdc();
             if (opcode.IsLdc(false, true))
@@ -685,6 +809,8 @@ public static class EmitUtilitiy
                 return comparand.IsLdArg(true, true);
             if (opcode.IsLdLoc(true, true))
                 return comparand.IsLdLoc(true, true);
+            if (opcode.IsLdFld(either: true, staticOrInstance: true))
+                return comparand.IsLdFld(either: true, staticOrInstance: true);
             if (opcode.IsLdc(true, true, true, true, true, true))
                 return comparand.IsLdc(true, true, true, true, true, true);
             if (opcode.IsBr(true, true, true, true, true, true, true, true, true))
@@ -731,6 +857,29 @@ public static class EmitUtilitiy
             return !byRef || either;
         if (opcode == OpCodes.Ldloca_S || opcode == OpCodes.Ldloca)
             return byRef || either;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Is this opcode any variants of <c>ldfld</c>.
+    /// </summary>
+    /// <param name="opcode"><see cref="OpCode"/> to check.</param>
+    /// <param name="byRef">Only match instructions that load by address.</param>
+    /// <param name="either">Match instructions that load by value or address.</param>
+    /// <param name="static">Only match instructions that load static fields.</param>
+    /// <param name="staticOrInstance">Match instructions that load static or instance fields.</param>
+    [Pure]
+    public static bool IsLdFld(this OpCode opcode, bool byRef = false, bool either = false, bool @static = false, bool staticOrInstance = false)
+    {
+        if (opcode == OpCodes.Ldfld)
+            return (!byRef || either) && (!@static || staticOrInstance);
+        if (opcode == OpCodes.Ldflda)
+            return (byRef || either) && (!@static || staticOrInstance);
+        if (opcode == OpCodes.Ldsfld)
+            return (!byRef || either) && (@static || staticOrInstance);
+        if (opcode == OpCodes.Ldsflda)
+            return (byRef || either) && (@static || staticOrInstance);
 
         return false;
     }
@@ -896,6 +1045,7 @@ public static class EmitUtilitiy
     /// <summary>
     /// Return the correct call <see cref="OpCode"/> to use depending on the method. Usually you will use <see cref="GetCallRuntime"/> instead as it doesn't account for possible future keyword changes.
     /// </summary>
+    /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
     [Pure]
     public static OpCode GetCall(this MethodBase method)
     {
@@ -905,6 +1055,7 @@ public static class EmitUtilitiy
     /// <summary>
     /// Return the correct call <see cref="OpCode"/> to use depending on the method at runtime. Doesn't account for future changes.
     /// </summary>
+    /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
     [Pure]
     public static OpCode GetCallRuntime(this MethodBase method)
     {
