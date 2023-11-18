@@ -75,7 +75,8 @@ public static class Accessor
             if (!ReferenceEquals(old, value) && old is IDisposable disp)
                 disp.Dispose();
 
-            value?.LogDebug("Accessor.Logger", $"Logger updated: {value.GetType().FullName}.");
+            if (LogInfoMessages)
+                value?.LogInfo("Accessor.Logger", $"Logger updated: {value.GetType().FullName}.");
         }
     }
 
@@ -191,12 +192,11 @@ public static class Accessor
                 {
                     Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
                     Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brtrue <lbl_0>");
+                    Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
                     Logger.LogDebug(source, "IL:  pop");
                     Logger.LogDebug(source, "IL:  ldarg.1");
                     Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  ldnull");
-                    Logger.LogDebug(source, "IL:  beq.s <lbl_0>");
+                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
                     Logger.LogDebug(source, "IL:  pop");
                     Logger.LogDebug(source, "IL:  pop");
                     if (CastExCtor != null)
@@ -397,9 +397,8 @@ public static class Accessor
                     Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
                     if (!isValueType)
                         Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  ldnull");
                     Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, "IL:  beq.s <lbl_1>");
+                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
                     if (CastExCtor != null)
                         Logger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
                     Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
@@ -473,12 +472,11 @@ public static class Accessor
                     {
                         Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
                         Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, $"IL:  brtrue <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        Logger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
                         Logger.LogDebug(source, "IL:  pop");
                         Logger.LogDebug(source, "IL:  ldarg.1");
                         Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, "IL:  ldnull");
-                        Logger.LogDebug(source, $"IL:  beq.s <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        Logger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
                         Logger.LogDebug(source, "IL:  pop");
                         Logger.LogDebug(source, "IL:  pop");
                         if (CastExCtor != null)
@@ -492,7 +490,7 @@ public static class Accessor
                 {
                     il.MarkLabel(typeLbl.Value);
                     if (logIl)
-                        Logger.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "3" : "2")}:");
+                        Logger.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
                 }
 
                 il.Emit(OpCodes.Stobj, field.FieldType);
@@ -538,12 +536,11 @@ public static class Accessor
                     {
                         Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
                         Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, $"IL:  brtrue <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        Logger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
                         Logger.LogDebug(source, "IL:  pop");
                         Logger.LogDebug(source, "IL:  ldarg.1");
                         Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, "IL:  ldnull");
-                        Logger.LogDebug(source, $"IL:  beq.s <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        Logger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
                         Logger.LogDebug(source, "IL:  pop");
                         Logger.LogDebug(source, "IL:  pop");
                         if (CastExCtor != null)
@@ -654,9 +651,8 @@ public static class Accessor
                     Logger.LogDebug(source, "IL:  dup");
                     Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
                     Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  ldnull");
                     Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, "IL:  beq.s <lbl_1>");
+                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
                     if (CastExCtor != null)
                         Logger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
                     Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
@@ -1004,12 +1000,11 @@ public static class Accessor
                 {
                     Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
                     Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brtrue <lbl_0>");
+                    Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
                     Logger.LogDebug(source, "IL:  pop");
                     Logger.LogDebug(source, "IL:  ldarg.0");
                     Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  ldnull");
-                    Logger.LogDebug(source, "IL:  beq.s <lbl_0>");
+                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
                     Logger.LogDebug(source, "IL:  pop");
                     if (CastExCtor != null)
                         Logger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
@@ -1454,7 +1449,7 @@ public static class Accessor
         bool isInstanceForValueType = method is { DeclaringType.IsValueType: true };
         shouldCallvirt |= !instance.IsValueType;
 
-        // for some reasons invoking a delegate with zero parameters and a null instance does not throw an exception.
+        // for some reason invoking a delegate with zero parameters and a null instance does not throw an exception.
         // Adding parameters changes this behavior.
         if (!isInstanceForValueType && p.Length == 0 && !allowUnsafeTypeBinding)
             needsDynamicMethod = true;
@@ -2003,10 +1998,10 @@ public static class Accessor
         catch (Exception ex)
         {
             if (throwOnError)
-                throw new Exception($"Unable to create static caller for {method}.", ex);
+                throw new Exception($"Unable to create static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.", ex);
 
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Unable to create static caller for {method}.");
+                Logger.LogError(source, ex, $"Unable to create static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
             return null;
         }
     }
@@ -2077,7 +2072,24 @@ public static class Accessor
     /// Checks <paramref name="method"/> for the <see langword="extern"/> flag.
     /// </summary>
     [Pure]
-    public static bool IsExtern(this MethodBase method) => (method.Attributes & MethodAttributes.PinvokeImpl) != 0;
+    public static bool IsExtern(this MethodBase method)
+    {
+        if ((method.Attributes & MethodAttributes.PinvokeImpl) != 0)
+            return true;
+
+        if (method.IsAbstract || method.IsVirtual || method.DeclaringType is { IsInterface: true })
+            return false;
+
+        try
+        {
+            method.GetMethodBody();
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
 
     /// <summary>
     /// Checks <paramref name="field"/> for the <see langword="extern"/> flag.
@@ -2099,19 +2111,7 @@ public static class Accessor
                 return false;
         }
 
-        if ((method.Attributes & MethodAttributes.PinvokeImpl) != 0)
-            return true;
-        if (method.IsAbstract || method.IsVirtual || method.DeclaringType!.IsInterface)
-            return false;
-        try
-        {
-            method.GetMethodBody();
-            return false;
-        }
-        catch (BadImageFormatException)
-        {
-            return true;
-        }
+        return method.IsExtern();
     }
 
     /// <summary>
@@ -2878,12 +2878,14 @@ public static class Accessor
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <paramref name="queriedType"/>. 
     /// </summary>
     /// <returns><see langword="true"/> if <paramref name="actualType"/> is assignable from <paramref name="queriedType"/> or if <paramref name="queriedType"/> is assignable from <paramref name="actualType"/>.</returns>
+    [Pure]
     public static bool CouldBeAssignedTo(this Type actualType, Type queriedType) => actualType.IsAssignableFrom(queriedType) || queriedType.IsAssignableFrom(actualType);
 
     /// <summary>
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <typeparamref name="T"/>. 
     /// </summary>
     /// <returns><see langword="true"/> if <paramref name="actualType"/> is assignable from <typeparamref name="T"/> or if <typeparamref name="T"/> is assignable from <paramref name="actualType"/>.</returns>
+    [Pure]
     public static bool CouldBeAssignedTo<T>(this Type actualType) => actualType.CouldBeAssignedTo(typeof(T));
     private static class DelegateInfo<TDelegate> where TDelegate : Delegate
     {

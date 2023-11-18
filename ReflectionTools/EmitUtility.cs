@@ -484,7 +484,25 @@ public static class EmitUtility
     /// <summary>
     /// Transfers blocks that would be on the last instruction of a block to the target instruction.
     /// </summary>
-    public static void TransferEndingInstructionNeeds(this CodeInstruction originalEnd, CodeInstruction newEnd)
+    public static CodeInstruction WithEndingInstructionNeeds(this CodeInstruction instruction, CodeInstruction other)
+    {
+        TransferEndingInstructionNeeds(instruction, other);
+        return instruction;
+    }
+
+    /// <summary>
+    /// Transfers all labels and blocks that would be on the first instruction of a block to the target instruction.
+    /// </summary>
+    public static CodeInstruction WithStartingInstructionNeeds(this CodeInstruction instruction, CodeInstruction other)
+    {
+        TransferStartingInstructionNeeds(instruction, other);
+        return instruction;
+    }
+
+    /// <summary>
+    /// Transfers blocks that would be on the last instruction of a block to the target instruction.
+    /// </summary>
+    public static void TransferEndingInstructionNeeds(CodeInstruction originalEnd, CodeInstruction newEnd)
     {
         newEnd.blocks.AddRange(originalEnd.blocks.Where(x => x.blockType.IsEndBlockType()));
         originalEnd.blocks.RemoveAll(x => x.blockType.IsEndBlockType());
@@ -493,7 +511,7 @@ public static class EmitUtility
     /// <summary>
     /// Transfers all labels and blocks that would be on the first instruction of a block to the target instruction.
     /// </summary>
-    public static void TransferStartingInstructionNeeds(this CodeInstruction originalStart, CodeInstruction newStart)
+    public static void TransferStartingInstructionNeeds(CodeInstruction originalStart, CodeInstruction newStart)
     {
         newStart.labels.AddRange(originalStart.labels);
         originalStart.labels.Clear();
@@ -701,8 +719,7 @@ public static class EmitUtility
             else
                 generator.Emit(code);
             generator.Emit(OpCodes.Dup);
-            generator.Emit(OpCodes.Ldnull);
-            generator.Emit(OpCodes.Beq_S, lbl);
+            generator.Emit(OpCodes.Brfalse, lbl);
             generator.Emit(OpCodes.Pop);
             castErrorMessage ??= $"Invalid type passed to parameter {index.ToString(CultureInfo.InvariantCulture)}.";
             if (Accessor.CastExCtor != null)
@@ -727,8 +744,7 @@ public static class EmitUtility
                     _ => $"IL:  ldarg <{index.ToString(CultureInfo.InvariantCulture)}"
                 });
                 Accessor.Logger.LogDebug(logSource, "IL:  dup");
-                Accessor.Logger.LogDebug(logSource, "IL:  ldnull");
-                Accessor.Logger.LogDebug(logSource, $"IL:  beq.s <lbl_{lblId}>");
+                Accessor.Logger.LogDebug(logSource, $"IL:  brfalse <lbl_{lblId}>");
                 Accessor.Logger.LogDebug(logSource, "IL:  pop");
                 if (Accessor.CastExCtor != null)
                     Accessor.Logger.LogDebug(logSource, $"IL:  ldstr \"{castErrorMessage}\"");
