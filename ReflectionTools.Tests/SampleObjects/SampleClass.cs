@@ -1,4 +1,8 @@
-﻿namespace DanielWillett.ReflectionTools.Tests.SampleObjects;
+﻿// ReSharper disable UnassignedReadonlyField
+// ReSharper disable UnassignedGetOnlyAutoProperty
+// ReSharper disable UnusedAutoPropertyAccessor.Local
+namespace DanielWillett.ReflectionTools.Tests.SampleObjects;
+#pragma warning disable CS0169
 #nullable disable
 public class SampleClass
 {
@@ -74,4 +78,8 @@ public class SampleClass
         
     }
 }
+#pragma warning restore CS0169
 #nullable restore
+// ReSharper restore UnassignedReadonlyField
+// ReSharper restore UnassignedGetOnlyAutoProperty
+// ReSharper restore UnusedAutoPropertyAccessor.Local
