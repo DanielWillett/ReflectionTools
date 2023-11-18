@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿#if NET461_OR_GREATER || !NETFRAMEWORK
+using Microsoft.Extensions.Logging;
 
 namespace DanielWillett.ReflectionTools.IoC;
 
@@ -18,3 +19,4 @@ public static class LoggerFactoryExtensions
         return new ReflectionToolsLoggerProxy(loggerFactory, disposeFactoryOnDispose);
     }
 }
+#endif
