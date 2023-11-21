@@ -3,7 +3,7 @@ using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
-#if !NETSTANDARD
+#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
 using HarmonyLib;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,7 +16,7 @@ namespace DanielWillett.ReflectionTools;
 /// </summary>
 public static class EmitUtility
 {
-#if !NETSTANDARD
+#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
     /// <summary>
     /// Returns instructions to throw the provided <typeparamref name="TException"/> with an optional <paramref name="message"/>.
     /// </summary>
@@ -1079,7 +1079,7 @@ public static class EmitUtility
     }
 }
 
-#if !NETSTANDARD
+#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
 /// <summary>
 /// Represents a predicate for code instructions.
 /// </summary>
