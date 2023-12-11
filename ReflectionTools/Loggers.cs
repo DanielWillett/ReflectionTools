@@ -109,7 +109,7 @@ public class ReflectionToolsLoggerProxy : IReflectionToolsLogger, IDisposable
         lock (this)
         {
             _loggers ??= new Dictionary<string, ILogger>(4);
-            if (!_loggers.TryGetValue(source, out ILogger logger))
+            if (!_loggers.TryGetValue(source, out ILogger? logger))
                 _loggers.Add(source, logger = LoggerFactory.CreateLogger("DanielWillett.ReflectionTools::" + source));
 
             return logger;

@@ -12,8 +12,8 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools</PackageId>
     <Title>Reflection Tools</Title>
-    <Version>2.0.2</Version>
-    <PackageReleaseNotes></PackageReleaseNotes>
+    <Version>2.0.3</Version>
+    <PackageReleaseNotes>Added check for default interface implementations in Accessor.GetImplementedMethod.</PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools</Product>
     <Description>Various reflection tools for modding.</Description>
@@ -30,6 +30,7 @@
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
+    <NoWarn>CS8002</NoWarn>
     <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.dll.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
@@ -38,17 +39,17 @@
   </ItemGroup>
 
   <ItemGroup Condition="$(TargetFramework) == 'netstandard2.1'">
-    <Reference Include="Lib.Harmony" HintPath="Lib/Lib.Harmony/0Harmony.dll" Private="true" />
+    <Reference Include="Lib.Harmony" HintPath="Lib/Lib.Harmony/0Harmony.dll" Private="true" NoWarn="NU1701"/>
     <TfmSpecificPackageFile Include="Lib/Lib.Harmony/0Harmony.dll" Pack="true" PackagePath="\lib\$(TargetFramework)" />
     <TfmSpecificPackageFile Include="Lib/Lib.Harmony/0Harmony.xml" Pack="true" PackagePath="\lib\$(TargetFramework)" />
     <TfmSpecificPackageFile Include="Lib/Lib.Harmony/0Harmony.deps.json" Pack="true" PackagePath="\lib\$(TargetFramework)" />
     <TfmSpecificPackageFile Include="Lib/Lib.Harmony/LICENSE.txt" Pack="true" PackagePath="\lib\$(TargetFramework)" />
     <TfmSpecificPackageFile Include="Lib/Lib.Harmony/README.md" Pack="true" PackagePath="\lib\$(TargetFramework)" />
-    <PackageReference Include="Lib.Harmony" Version="[2.2.2,)" ExcludeAssets="Compile"/>
+    <PackageReference Include="Lib.Harmony" Version="[2.2.2,)" ExcludeAssets="Compile" NoWarn="NU1701"/>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony" Version="[2.2.2,)" Condition="'$(TargetFramework)' != 'netstandard2.1' And '$(TargetFramework)' != 'netstandard2.0'" />
+    <PackageReference Include="Lib.Harmony" Version="[2.2.2,)" Condition="'$(TargetFramework)' != 'netstandard2.1' And '$(TargetFramework)' != 'netstandard2.0'" NoWarn="NU1701"/>
     <PackageReference Include="System.Reflection.Emit" Version="[4.6.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="[4.6.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="[4.6.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
@@ -56,7 +57,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Lib\Lib.Harmony\0Harmony.dll">
+    <None Update="Lib\Lib.Harmony\0Harmony.dll" NoWarn="NU1701">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

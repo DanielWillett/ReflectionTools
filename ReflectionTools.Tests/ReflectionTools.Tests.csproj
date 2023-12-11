@@ -10,7 +10,7 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-
+    <NoWarn>NU1701;CS8002</NoWarn>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <Version>1.0.0</Version>
     <AssemblyVersion>$(Version).0</AssemblyVersion>

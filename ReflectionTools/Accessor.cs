@@ -2703,6 +2703,10 @@ public static class Accessor
             }
         }
 
+        // default implementation
+        if (interfaceMethod.IsVirtual)
+            return interfaceMethod;
+
         return null;
     }
 
