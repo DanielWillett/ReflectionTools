@@ -6,4 +6,4 @@ namespace DanielWillett.ReflectionTools;
 /// Ignore members from being checked by reflection (where supported).
 /// </summary>
 [AttributeUsage(AttributeTargets.All, Inherited = false)]
-public sealed class IgnoreAttribute : Attribute { }
+public sealed class IgnoreAttribute : Attribute;

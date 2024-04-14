@@ -1,555 +1,25 @@
 ﻿using System;
-using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
-#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
-using HarmonyLib;
-using System.Collections.Generic;
-using System.Linq;
+#if NET40_OR_GREATER || !NETFRAMEWORK
+using System.Diagnostics.Contracts;
 #endif
 
 namespace DanielWillett.ReflectionTools;
 
 /// <summary>
-/// Utilities for <see cref="ILGenerator"/> and transpiling with Harmony.
+/// Utilities for <see cref="ILGenerator"/>.
 /// </summary>
 public static class EmitUtility
 {
-#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
-    /// <summary>
-    /// Returns instructions to throw the provided <typeparamref name="TException"/> with an optional <paramref name="message"/>.
-    /// </summary>
-    [Pure]
-    public static IEnumerable<CodeInstruction> Throw<TException>(string? message = null) where TException : Exception
-    {
-        ConstructorInfo[] ctors = typeof(TException).GetConstructors(BindingFlags.Instance | BindingFlags.Public);
-
-        ConstructorInfo? info = message == null
-            ? ctors.FirstOrDefault(x => x.GetParameters().Length == 0)
-            : (ctors.FirstOrDefault(x => x.GetParameters().Length == 1 && x.GetParameters()[0].ParameterType == typeof(string)) ??
-               ctors.FirstOrDefault(x => x.GetParameters().Length == 0));
-
-        if (info == null)
-            throw new MemberAccessException("Unable to find any constructors for that exception.");
-
-        if (info.GetParameters().Length == 1)
-        {
-            return new CodeInstruction[]
-            {
-                new CodeInstruction(OpCodes.Ldstr, message),
-                new CodeInstruction(OpCodes.Newobj, info),
-                new CodeInstruction(OpCodes.Throw)
-            };
-        }
-
-        return new CodeInstruction[]
-        {
-            new CodeInstruction(OpCodes.Newobj, info),
-            new CodeInstruction(OpCodes.Throw)
-        };
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> if the instruction at <paramref name="index"/> and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
-    /// </summary>
-    /// <remarks><paramref name="index"/> will be incremented to the next instruction after the match.</remarks>
-    [Pure]
-    public static bool FollowPattern(IList<CodeInstruction> instructions, ref int index, params PatternMatch?[] matches)
-    {
-        if (MatchPattern(instructions, index, matches))
-        {
-            index += matches.Length;
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> and removes the instructions at <paramref name="index"/> and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
-    /// </summary>
-    [Pure]
-    public static bool RemovePattern(IList<CodeInstruction> instructions, int index, params PatternMatch?[] matches)
-    {
-        if (MatchPattern(instructions, index, matches))
-        {
-            if (instructions is List<CodeInstruction> list)
-            {
-                list.RemoveRange(index, matches.Length);
-            }
-            else
-            {
-                for (int i = 0; i < matches.Length; ++i)
-                    instructions.RemoveAt(index);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> if the instruction at <paramref name="index"/> and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
-    /// </summary>
-    [Pure]
-    public static bool MatchPattern(IList<CodeInstruction> instructions, int index, params PatternMatch?[] matches)
-    {
-        int c = matches.Length;
-        if (c <= 0 || index >= instructions.Count - matches.Length)
-            return false;
-        for (int i = index; i < index + matches.Length; ++i)
-        {
-            PatternMatch? pattern = matches[i - index];
-            if (pattern != null && !pattern.Invoke(instructions[i]))
-                return false;
-        }
-        return true;
-    }
-    
-    /// <summary>
-    /// Inserts instructions to execute <paramref name="checker"/> and return (or optionally branch to <paramref name="goto"/>) if it returns <see langword="false"/>.
-    /// </summary>
-    /// <returns>Amount of instructions inserted.</returns>
-    public static int ReturnIfFalse(IList<CodeInstruction> instructions, ILGenerator generator, ref int index, Func<bool> checker, Label? @goto = null)
-    {
-        if (index < 0)
-            throw new ArgumentException($"Unable to add ReturnIfFalse ({checker.Method.Name}), index is too small: {index}.", nameof(index));
-        if (index >= instructions.Count)
-            throw new ArgumentException($"Unable to add ReturnIfFalse ({checker.Method.Name}), index is too large: {index}.", nameof(index));
-        if (@goto.HasValue)
-        {
-            CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);
-            instruction.MoveLabelsFrom(instructions[index]);
-            instructions.Insert(index, instruction);
-            
-            instructions.Insert(index + 1, new CodeInstruction(OpCodes.Brfalse, @goto));
-            index += 2;
-            return 2;
-        }
-        else
-        {
-            Label continueLbl = generator.DefineLabel();
-            CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);
-            instruction.MoveLabelsFrom(instructions[index]);
-            instructions.Insert(index, instruction);
-
-            instructions.Insert(index + 1, new CodeInstruction(OpCodes.Brtrue, continueLbl));
-            instructions.Insert(index + 2, @goto.HasValue ? new CodeInstruction(OpCodes.Br, @goto) : new CodeInstruction(OpCodes.Ret));
-            index += 3;
-            if (instructions.Count > index)
-                instructions[index].labels.Add(continueLbl);
-            return 3;
-        }
-    }
-
-    /// <summary>
-    /// Increment <paramref name="index"/> until <paramref name="match"/> matches or the function ends.
-    /// </summary>
-    /// <returns>Amount of instructions skipped.</returns>
-    [Pure]
-    public static int ContinueUntil(IList<CodeInstruction> instructions, ref int index, PatternMatch match, bool includeMatch = true)
-    {
-        int amt = 0;
-        for (int i = index; i < instructions.Count; ++i)
-        {
-            ++amt;
-            if (match(instructions[i]))
-            {
-                index = includeMatch ? i : i + 1;
-                if (includeMatch)
-                    --amt;
-                break;
-            }
-        }
-        return amt;
-    }
-
-    /// <summary>
-    /// Increment <paramref name="index"/> until <paramref name="match"/> fails or the function ends.
-    /// </summary>
-    /// <returns>Amount of instructions skipped.</returns>
-    [Pure]
-    public static int ContinueWhile(IList<CodeInstruction> instructions, ref int index, PatternMatch match, bool includeNext = true)
-    {
-        int amt = 0;
-        for (int i = index; i < instructions.Count; ++i)
-        {
-            ++amt;
-            if (!match(instructions[i]))
-            {
-                index = includeNext ? i : i - 1;
-                if (!includeNext)
-                    --amt;
-                break;
-            }
-        }
-        return amt;
-    }
-
-    /// <summary>
-    /// Add <paramref name="label"/> to the next instruction that matches <paramref name="match"/>.
-    /// </summary>
-    [Pure]
-    public static bool LabelNext(IList<CodeInstruction> instructions, int index, Label label, PatternMatch match, int shift = 0, bool labelRtnIfFailure = false)
-    {
-        for (int i = index; i < instructions.Count; ++i)
-        {
-            if (match(instructions[i]))
-            {
-                int newIndex = i + shift;
-                if (instructions.Count > i)
-                {
-                    instructions[newIndex].labels.Add(label);
-                    return true;
-                }
-            }
-        }
-        if (labelRtnIfFailure)
-        {
-            if (instructions[instructions.Count - 1].opcode == OpCodes.Ret)
-                instructions[instructions.Count - 1].labels.Add(label);
-            else
-            {
-                CodeInstruction instruction = new CodeInstruction(OpCodes.Ret);
-                instruction.labels.Add(label);
-                instructions.Add(instruction);
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Get a label to the next instruction that matches <paramref name="match"/>.
-    /// </summary>
-    [Pure]
-    public static Label? LabelNext(IList<CodeInstruction> instructions, ILGenerator generator, int index, PatternMatch match, int shift = 0)
-    {
-        for (int i = index; i < instructions.Count; ++i)
-        {
-            if (match(instructions[i]))
-            {
-                int newIndex = i + shift;
-                if (instructions.Count > i)
-                {
-                    Label label = generator.DefineLabel();
-                    instructions[newIndex].labels.Add(label);
-                    return label;
-                }
-            }
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Get a label to the next instruction that matches <paramref name="match"/>, or the end of the function.
-    /// </summary>
-    [Pure]
-    public static Label LabelNextOrReturn(IList<CodeInstruction> instructions, ILGenerator generator, int index, PatternMatch? match, int shift = 0, bool allowUseExisting = true)
-    {
-        CodeInstruction instruction;
-        for (int i = index; i < instructions.Count; ++i)
-        {
-            if (match == null || match(instructions[i]))
-            {
-                int newIndex = i + shift;
-                if (instructions.Count > i)
-                {
-                    instruction = instructions[newIndex];
-                    if (allowUseExisting && instruction.labels.Count > 0)
-                        return instruction.labels[instruction.labels.Count - 1];
-                    Label label = generator.DefineLabel();
-                    instruction.labels.Add(label);
-                    return label;
-                }
-            }
-        }
-
-        instruction = instructions[instructions.Count - 1];
-        if (instruction.opcode == OpCodes.Ret)
-        {
-            if (allowUseExisting && instruction.labels.Count > 0)
-                return instruction.labels[instruction.labels.Count - 1];
-            Label label = generator.DefineLabel();
-            instruction.labels.Add(label);
-            return label;
-        }
-        else
-        {
-            Label label = generator.DefineLabel();
-            instruction = new CodeInstruction(OpCodes.Ret);
-            instruction.labels.Add(label);
-            instructions.Add(instruction);
-            return label;
-        }
-    }
-
-    /// <summary>
-    /// Get the label of the next branch instructino.
-    /// </summary>
-    [Pure]
-    public static Label? GetNextBranchTarget(IList<CodeInstruction> instructions, int index)
-    {
-        if (index < 0)
-            index = 0;
-        for (int i = index; i < instructions.Count; ++i)
-        {
-            if (instructions[i].Branches(out Label? label) && label.HasValue)
-                return label;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Find the index of the code instruction to which the label refers.
-    /// </summary>
-    [Pure]
-    public static int FindLabelDestinationIndex(IList<CodeInstruction> instructions, Label label, int startIndex = 0)
-    {
-        if (startIndex < 0)
-            startIndex = 0;
-        for (int i = startIndex; i < instructions.Count; ++i)
-        {
-            List<Label>? labels = instructions[i].labels;
-            if (labels != null)
-            {
-                for (int j = 0; j < labels.Count; ++j)
-                {
-                    if (labels[j] == label)
-                        return i;
-                }
-            }
-        }
-
-        return -1;
-    }
-
-    /// <summary>
-    /// Get the index of a local code instruction.
-    /// </summary>
-    [Pure]
-    public static int GetLocalIndex(CodeInstruction code, bool set)
-    {
-        if (code.opcode.OperandType == OperandType.ShortInlineVar &&
-            (set && code.opcode == OpCodes.Stloc_S ||
-             !set && code.opcode == OpCodes.Ldloc_S || !set && code.opcode == OpCodes.Ldloca_S))
-            return ((LocalBuilder)code.operand).LocalIndex;
-        if (code.opcode.OperandType == OperandType.InlineVar &&
-            (set && code.opcode == OpCodes.Stloc ||
-             !set && code.opcode == OpCodes.Ldloc || !set && code.opcode == OpCodes.Ldloca))
-            return ((LocalBuilder)code.operand).LocalIndex;
-        if (set)
-        {
-            if (code.opcode == OpCodes.Stloc_0)
-                return 0;
-            if (code.opcode == OpCodes.Stloc_1)
-                return 1;
-            if (code.opcode == OpCodes.Stloc_2)
-                return 2;
-            if (code.opcode == OpCodes.Stloc_3)
-                return 3;
-        }
-        else
-        {
-            if (code.opcode == OpCodes.Ldloc_0)
-                return 0;
-            if (code.opcode == OpCodes.Ldloc_1)
-                return 1;
-            if (code.opcode == OpCodes.Ldloc_2)
-                return 2;
-            if (code.opcode == OpCodes.Ldloc_3)
-                return 3;
-        }
-
-        return -1;
-    }
-
-    /// <summary>
-    /// Emit an Int32.
-    /// </summary>
-    [Pure]
-    public static CodeInstruction LoadConstantI4(int number)
-    {
-        return number switch
-        {
-            -1 => new CodeInstruction(OpCodes.Ldc_I4_M1),
-            0 => new CodeInstruction(OpCodes.Ldc_I4_0),
-            1 => new CodeInstruction(OpCodes.Ldc_I4_1),
-            2 => new CodeInstruction(OpCodes.Ldc_I4_2),
-            3 => new CodeInstruction(OpCodes.Ldc_I4_3),
-            4 => new CodeInstruction(OpCodes.Ldc_I4_4),
-            5 => new CodeInstruction(OpCodes.Ldc_I4_5),
-            6 => new CodeInstruction(OpCodes.Ldc_I4_6),
-            7 => new CodeInstruction(OpCodes.Ldc_I4_7),
-            8 => new CodeInstruction(OpCodes.Ldc_I4_8),
-            _ => new CodeInstruction(OpCodes.Ldc_I4, number),
-        };
-    }
-
-    /// <summary>
-    /// Loads a parameter from an index.
-    /// </summary>
-    [Pure]
-    public static CodeInstruction GetParameter(int index)
-    {
-        return index switch
-        {
-            0 => new CodeInstruction(OpCodes.Ldarg_0),
-            1 => new CodeInstruction(OpCodes.Ldarg_1),
-            2 => new CodeInstruction(OpCodes.Ldarg_2),
-            3 => new CodeInstruction(OpCodes.Ldarg_3),
-            < ushort.MaxValue => new CodeInstruction(OpCodes.Ldarg_S, index),
-            _ => new CodeInstruction(OpCodes.Ldarg, index)
-        };
-    }
-
-    /// <summary>
-    /// Get the local builder or index of the instruction.
-    /// </summary>
-    [Pure]
-    public static LocalBuilder? GetLocal(CodeInstruction code, out int index, bool set)
-    {
-        if (code.opcode.OperandType == OperandType.ShortInlineVar &&
-            (set && code.opcode == OpCodes.Stloc_S ||
-             !set && code.opcode == OpCodes.Ldloc_S || !set && code.opcode == OpCodes.Ldloca_S))
-        {
-            LocalBuilder bld = (LocalBuilder)code.operand;
-            index = bld.LocalIndex;
-            return bld;
-        }
-        if (code.opcode.OperandType == OperandType.InlineVar &&
-            (set && code.opcode == OpCodes.Stloc ||
-             !set && code.opcode == OpCodes.Ldloc || !set && code.opcode == OpCodes.Ldloca))
-        {
-            LocalBuilder bld = (LocalBuilder)code.operand;
-            index = bld.LocalIndex;
-            return bld;
-        }
-        if (set)
-        {
-            if (code.opcode == OpCodes.Stloc_0)
-            {
-                index = 0;
-                return null;
-            }
-            if (code.opcode == OpCodes.Stloc_1)
-            {
-                index = 1;
-                return null;
-            }
-            if (code.opcode == OpCodes.Stloc_2)
-            {
-                index = 2;
-                return null;
-            }
-            if (code.opcode == OpCodes.Stloc_3)
-            {
-                index = 3;
-                return null;
-            }
-        }
-        else
-        {
-            if (code.opcode == OpCodes.Ldloc_0)
-            {
-                index = 0;
-                return null;
-            }
-            if (code.opcode == OpCodes.Ldloc_1)
-            {
-                index = 1;
-                return null;
-            }
-            if (code.opcode == OpCodes.Ldloc_2)
-            {
-                index = 2;
-                return null;
-            }
-            if (code.opcode == OpCodes.Ldloc_3)
-            {
-                index = 3;
-                return null;
-            }
-        }
-
-        index = -1;
-        return null;
-    }
-
-    /// <summary>
-    /// Copy an instruction without 
-    /// </summary>
-    [Pure]
-    public static CodeInstruction CopyWithoutSpecial(this CodeInstruction instruction) => new CodeInstruction(instruction.opcode, instruction.operand);
-
-    /// <summary>
-    /// Transfers blocks that would be on the last instruction of a block to the target instruction.
-    /// </summary>
-    public static CodeInstruction WithEndingInstructionNeeds(this CodeInstruction instruction, CodeInstruction other)
-    {
-        TransferEndingInstructionNeeds(instruction, other);
-        return instruction;
-    }
-
-    /// <summary>
-    /// Transfers all labels and blocks that would be on the first instruction of a block to the target instruction.
-    /// </summary>
-    public static CodeInstruction WithStartingInstructionNeeds(this CodeInstruction instruction, CodeInstruction other)
-    {
-        TransferStartingInstructionNeeds(instruction, other);
-        return instruction;
-    }
-
-    /// <summary>
-    /// Transfers blocks that would be on the last instruction of a block to the target instruction.
-    /// </summary>
-    public static void TransferEndingInstructionNeeds(CodeInstruction originalEnd, CodeInstruction newEnd)
-    {
-        newEnd.blocks.AddRange(originalEnd.blocks.Where(x => x.blockType.IsEndBlockType()));
-        originalEnd.blocks.RemoveAll(x => x.blockType.IsEndBlockType());
-    }
-
-    /// <summary>
-    /// Transfers all labels and blocks that would be on the first instruction of a block to the target instruction.
-    /// </summary>
-    public static void TransferStartingInstructionNeeds(CodeInstruction originalStart, CodeInstruction newStart)
-    {
-        newStart.labels.AddRange(originalStart.labels);
-        originalStart.labels.Clear();
-        newStart.blocks.AddRange(originalStart.blocks.Where(x => x.blockType.IsBeginBlockType()));
-        originalStart.blocks.RemoveAll(x => x.blockType.IsBeginBlockType());
-    }
-
-    /// <summary>
-    /// Cut and pastes all labels and blocks to the target instruction.
-    /// </summary>
-    public static void MoveBlocksAndLabels(this CodeInstruction from, CodeInstruction to)
-    {
-        to.labels.AddRange(from.labels);
-        from.labels.Clear();
-        to.blocks.AddRange(from.blocks);
-        from.blocks.Clear();
-    }
-
-    /// <summary>
-    /// Would this block type begin a block?
-    /// </summary>
-    [Pure]
-    public static bool IsBeginBlockType(this ExceptionBlockType type) => type is ExceptionBlockType.BeginCatchBlock
-        or ExceptionBlockType.BeginExceptFilterBlock or ExceptionBlockType.BeginExceptionBlock
-        or ExceptionBlockType.BeginFaultBlock or ExceptionBlockType.BeginFinallyBlock;
-
-    /// <summary>
-    /// Would this block type end a block?
-    /// </summary>
-    [Pure]
-    public static bool IsEndBlockType(this ExceptionBlockType type) => type == ExceptionBlockType.EndExceptionBlock;
-#endif
-
     /// <summary>
     /// Get the label ID from a <see cref="Label"/> object.
     /// </summary>
     /// <remarks>Not CLR compliant.</remarks>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static unsafe int GetLabelId(this Label label) => *(int*)&label;
 
     /// <summary>
@@ -761,7 +231,9 @@ public static class EmitUtility
     /// <param name="opcode">Original <see cref="OpCode"/>.</param>
     /// <param name="comparand"><see cref="OpCode"/> to compare to <paramref name="opcode"/>.</param>
     /// <param name="fuzzy">Changes how similar <see cref="OpCode"/>s are compared (<c>br</c> and <c>ble</c> will match, for example).</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsOfType(this OpCode opcode, OpCode comparand, bool fuzzy = false)
     {
         if (opcode == comparand)
@@ -854,7 +326,9 @@ public static class EmitUtility
     /// Is this opcode any variants of <c>stloc</c>.
     /// </summary>
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsStLoc(this OpCode opcode)
     {
         return opcode == OpCodes.Stloc || opcode == OpCodes.Stloc_S || opcode == OpCodes.Stloc_0 || opcode == OpCodes.Stloc_1 || opcode == OpCodes.Stloc_2 || opcode == OpCodes.Stloc_3;
@@ -866,7 +340,9 @@ public static class EmitUtility
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
     /// <param name="byRef">Only match instructions that load by address.</param>
     /// <param name="either">Match instructions that load by value or address.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsLdLoc(this OpCode opcode, bool byRef = false, bool either = false)
     {
         if (opcode == OpCodes.Ldloc_S || opcode == OpCodes.Ldloc_0 || opcode == OpCodes.Ldloc_1 || opcode == OpCodes.Ldloc_2 || opcode == OpCodes.Ldloc_3 || opcode == OpCodes.Ldloc)
@@ -885,7 +361,9 @@ public static class EmitUtility
     /// <param name="either">Match instructions that load by value or address.</param>
     /// <param name="static">Only match instructions that load static fields.</param>
     /// <param name="staticOrInstance">Match instructions that load static or instance fields.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsLdFld(this OpCode opcode, bool byRef = false, bool either = false, bool @static = false, bool staticOrInstance = false)
     {
         if (opcode == OpCodes.Ldfld)
@@ -904,7 +382,9 @@ public static class EmitUtility
     /// Is this opcode any variants of <c>starg</c>.
     /// </summary>
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsStArg(this OpCode opcode)
     {
         return opcode == OpCodes.Starg || opcode == OpCodes.Starg_S;
@@ -916,7 +396,9 @@ public static class EmitUtility
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
     /// <param name="byRef">Only match instructions that load by address.</param>
     /// <param name="either">Match instructions that load by value or address.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsLdArg(this OpCode opcode, bool byRef = false, bool either = false)
     {
         if (opcode == OpCodes.Ldarg_S || opcode == OpCodes.Ldarg_0 || opcode == OpCodes.Ldarg_1 || opcode == OpCodes.Ldarg_2 || opcode == OpCodes.Ldarg_3 || opcode == OpCodes.Ldarg)
@@ -941,7 +423,9 @@ public static class EmitUtility
     /// <param name="ble">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ble</c>.</param>
     /// <param name="bgt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>bgt</c>.</param>
     /// <param name="blt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>blt</c>.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsBrAny(this OpCode opcode, bool br = true, bool brtrue = true, bool brfalse = true,
         bool beq = true, bool bne = true, bool bge = true, bool ble = true, bool bgt = true, bool blt = true)
         => opcode.IsBr(br, brtrue, brfalse, beq, bne, bge, ble, bgt, blt);
@@ -960,7 +444,9 @@ public static class EmitUtility
     /// <param name="ble">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ble</c>.</param>
     /// <param name="bgt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>bgt</c>.</param>
     /// <param name="blt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>blt</c>.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsBr(this OpCode opcode, bool br = false, bool brtrue = false, bool brfalse = false,
         bool beq = false, bool bne = false, bool bge = false, bool ble = false, bool bgt = false, bool blt = false)
     {
@@ -997,7 +483,9 @@ public static class EmitUtility
     /// <param name="double">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ldc.r8</c>.</param>
     /// <param name="string">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ldstr</c>.</param>
     /// <param name="null">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ldnull</c>.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsLdc(this OpCode opcode, bool @int = true, bool @long = false, bool @float = false, bool @double = false, bool @string = false, bool @null = false)
     {
         if (opcode == OpCodes.Ldc_I4_0 || opcode == OpCodes.Ldc_I4_1 || opcode == OpCodes.Ldc_I4_S ||
@@ -1036,7 +524,9 @@ public static class EmitUtility
     /// <param name="signed">Allow converting to signed checks.</param>
     /// <param name="overflowCheck">Allow overflow checks.</param>
     /// <param name="noOverflowCheck">Allow no overflow checks.</param>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static bool IsConv(this OpCode opcode, bool nint = true, bool @byte = true, bool @short = true, bool @int = true, bool @long = true, bool @float = true, bool @double = true,
         bool fromUnsigned = true, bool toUnsigned = true, bool signed = true, bool overflowCheck = true, bool noOverflowCheck = true)
     {
@@ -1062,7 +552,9 @@ public static class EmitUtility
     /// Return the correct call <see cref="OpCode"/> to use depending on the method. Usually you will use <see cref="GetCallRuntime"/> instead as it doesn't account for possible future keyword changes.
     /// </summary>
     /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static OpCode GetCall(this MethodBase method)
     {
         return method.ShouldCallvirt() ? OpCodes.Callvirt : OpCodes.Call;
@@ -1072,18 +564,11 @@ public static class EmitUtility
     /// Return the correct call <see cref="OpCode"/> to use depending on the method at runtime. Doesn't account for future changes.
     /// </summary>
     /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
+#if NET40_OR_GREATER
     [Pure]
+#endif
     public static OpCode GetCallRuntime(this MethodBase method)
     {
         return method.ShouldCallvirtRuntime() ? OpCodes.Callvirt : OpCodes.Call;
     }
 }
-
-#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
-/// <summary>
-/// Represents a predicate for code instructions.
-/// </summary>
-/// <param name="instruction">The code instruction to check for a match on.</param>
-/// <returns><see langword="true"/> for a match, otherwise <see langword="false"/>.</returns>
-public delegate bool PatternMatch(CodeInstruction instruction);
-#endif

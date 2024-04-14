@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading;
+#if NET40_OR_GREATER || !NETFRAMEWORK
+using System.Diagnostics.Contracts;
+#endif
 
 namespace DanielWillett.ReflectionTools;
 
@@ -111,7 +112,9 @@ public static class Accessor
     /// <param name="fieldName">Name of field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceSetter<TInstance, TValue>? GenerateInstanceSetter<TInstance, TValue>(string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceSetter";
@@ -244,7 +247,9 @@ public static class Accessor
     /// <param name="fieldName">Name of field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceGetter<TInstance, TValue>? GenerateInstanceGetter<TInstance, TValue>(string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceGetter";
@@ -325,7 +330,9 @@ public static class Accessor
     /// <param name="fieldName">Name of field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceSetter<object, TValue>? GenerateInstanceSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceSetter";
@@ -587,7 +594,9 @@ public static class Accessor
     /// <param name="fieldName">Name of field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceGetter<object, TValue>? GenerateInstanceGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceGetter";
@@ -730,7 +739,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceSetter<TInstance, TValue>? GenerateInstancePropertySetter<TInstance, TValue>(string propertyName, bool throwOnError = false)
     {
         if (typeof(TInstance).IsValueType)
@@ -771,7 +782,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceGetter<TInstance, TValue>? GenerateInstancePropertyGetter<TInstance, TValue>(string propertyName, bool throwOnError = false)
     {
         PropertyInfo? property = typeof(TInstance).GetProperty(propertyName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -811,7 +824,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceSetter<object, TValue>? GenerateInstancePropertySetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (declaringType == null)
@@ -853,7 +868,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static InstanceGetter<object, TValue>? GenerateInstancePropertyGetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (declaringType == null)
@@ -893,7 +910,9 @@ public static class Accessor
     /// <param name="fieldName">Name of the field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticSetter<TValue>? GenerateStaticSetter<TDeclaringType, TValue>(string fieldName, bool throwOnError = false)
         => GenerateStaticSetter<TValue>(typeof(TDeclaringType), fieldName, throwOnError);
 
@@ -905,7 +924,9 @@ public static class Accessor
     /// <param name="fieldName">Name of the field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticGetter<TValue>? GenerateStaticGetter<TDeclaringType, TValue>(string fieldName, bool throwOnError = false)
         => GenerateStaticGetter<TValue>(typeof(TDeclaringType), fieldName, throwOnError);
 
@@ -917,7 +938,9 @@ public static class Accessor
     /// <param name="fieldName">Name of the field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticSetter<TValue>? GenerateStaticSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateStaticSetter";
@@ -1050,7 +1073,9 @@ public static class Accessor
     /// <param name="fieldName">Name of the field that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticGetter<TValue>? GenerateStaticGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateStaticGetter";
@@ -1126,7 +1151,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false)
         => GenerateStaticPropertySetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, false);
 
@@ -1141,7 +1168,9 @@ public static class Accessor
     /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
     /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     // ReSharper disable once MethodOverloadWithOptionalParameter
     public static StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
         => GenerateStaticPropertySetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, allowUnsafeTypeBinding);
@@ -1154,7 +1183,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false)
         => GenerateStaticPropertyGetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, true);
 
@@ -1169,7 +1200,9 @@ public static class Accessor
     /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
     /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     // ReSharper disable once MethodOverloadWithOptionalParameter
     public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = true)
         => GenerateStaticPropertyGetter<TValue>(typeof(TDeclaringType), propertyName, throwOnError, allowUnsafeTypeBinding);
@@ -1185,7 +1218,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticSetter<TValue>? GenerateStaticPropertySetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (declaringType == null)
@@ -1222,7 +1257,9 @@ public static class Accessor
     /// <param name="propertyName">Name of property that will be referenced.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (declaringType == null)
@@ -1260,7 +1297,9 @@ public static class Accessor
     /// <param name="parameters">Optional parameter list for resolving ambiguous methods.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Delegate? GenerateInstanceCaller<TInstance>(string methodName, Type[]? parameters = null, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         MethodInfo? method = null;
@@ -1309,7 +1348,9 @@ public static class Accessor
     /// <param name="parameters">Optional parameter list for resolving ambiguous methods.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TDelegate? GenerateInstanceCaller<TInstance, TDelegate>(string methodName, bool throwOnError = false, bool allowUnsafeTypeBinding = false, Type[]? parameters = null) where TDelegate : Delegate
     {
         MethodInfo? method = null;
@@ -1365,7 +1406,9 @@ public static class Accessor
     /// <param name="method">Method that will be called.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Delegate? GenerateInstanceCaller(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (method == null || method.IsStatic || method.DeclaringType == null)
@@ -1406,7 +1449,9 @@ public static class Accessor
     /// <param name="method">Method that will be called.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TDelegate? GenerateInstanceCaller<TDelegate>(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TDelegate : Delegate
     {
         return (TDelegate?)GenerateInstanceCaller(typeof(TDelegate), method, throwOnError, allowUnsafeTypeBinding);
@@ -1423,7 +1468,9 @@ public static class Accessor
     /// <param name="method">Method that will be called.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Delegate? GenerateInstanceCaller(Type delegateType, MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         const string source = "Accessor.GenerateInstanceCaller";
@@ -1467,6 +1514,7 @@ public static class Accessor
         if (needsDynamicMethod && instance.IsInterface && !delegateParameters[0].ParameterType.IsInterface)
             needsDynamicMethod = false;
 
+#if NET45_OR_GREATER || !NETFRAMEWORK
         // exact match
         if (!isInstanceForValueType && !needsDynamicMethod && delegateReturnType == method.ReturnType && instance.IsAssignableFrom(delegateParameters[0].ParameterType))
         {
@@ -1498,6 +1546,7 @@ public static class Accessor
                 }
             }
         }
+#endif
 
         if (isInstanceForValueType && delegateParameters[0].ParameterType != typeof(object) && !method.IsReadOnly())
         {
@@ -1597,7 +1646,13 @@ public static class Accessor
         OpCode call = shouldCallvirt ? OpCodes.Callvirt : OpCodes.Call;
         generator.Emit(call, method);
         if (logIl)
-            Logger.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{instance.FullName}.{method.Name}({string.Join(", ", method.GetParameters().Select(x => x.ParameterType.FullName))})>");
+        {
+            ParameterInfo[] parameters = method.GetParameters();
+            string[] typeNames = new string[parameters.Length];
+            for (int i = 0; i < parameters.Length; ++i)
+                typeNames[i] = parameters[i].ParameterType.FullName ?? "<null>";
+            Logger.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{instance.FullName}.{method.Name}({string.Join(", ", typeNames)})>");
+        }
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
@@ -1673,7 +1728,9 @@ public static class Accessor
     /// <param name="parameters">Optional parameter list for resolving ambiguous methods.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Delegate? GenerateStaticCaller<TDeclaringType>(string methodName, Type[]? parameters = null, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         MethodInfo? method = null;
@@ -1715,7 +1772,9 @@ public static class Accessor
     /// <param name="parameters">Optional parameter list for resolving ambiguous methods.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TDelegate? GenerateStaticCaller<TDeclaringType, TDelegate>(string methodName, bool throwOnError = false, bool allowUnsafeTypeBinding = false, Type[]? parameters = null) where TDelegate : Delegate
     {
         MethodInfo? method = null;
@@ -1761,7 +1820,9 @@ public static class Accessor
     /// <param name="method">Method that will be called.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Delegate? GenerateStaticCaller(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (method == null || !method.IsStatic)
@@ -1800,7 +1861,9 @@ public static class Accessor
     /// <param name="method">Method that will be called.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TDelegate? GenerateStaticCaller<TDelegate>(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TDelegate : Delegate
     {
         return (TDelegate?)GenerateStaticCaller(typeof(TDelegate), method, throwOnError, allowUnsafeTypeBinding);
@@ -1815,7 +1878,9 @@ public static class Accessor
     /// <param name="method">Method that will be called.</param>
     /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
     /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Delegate? GenerateStaticCaller(Type delegateType, MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
     {
         if (!typeof(Delegate).IsAssignableFrom(delegateType))
@@ -1847,6 +1912,7 @@ public static class Accessor
             return null;
         }
 
+#if NET45_OR_GREATER || !NETFRAMEWORK
         // exact match
         if (!needsDynamicMethod && delegateReturnType == method.ReturnType)
         {
@@ -1878,6 +1944,7 @@ public static class Accessor
                 }
             }
         }
+#endif
 
 #if !NET6_0_OR_GREATER // unsafe type binding doesn't work past .NET 5.0
         // rough match, can unsafely cast to actual function arguments.
@@ -1939,7 +2006,13 @@ public static class Accessor
 
         generator.Emit(OpCodes.Call, method);
         if (logIl)
-            Logger.LogDebug(source, $"IL:  call <{method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}({string.Join(", ", method.GetParameters().Select(x => x.ParameterType.FullName))})>");
+        {
+            ParameterInfo[] parameters = method.GetParameters();
+            string[] typeNames = new string[parameters.Length];
+            for (int i = 0; i < parameters.Length; ++i)
+                typeNames[i] = parameters[i].ParameterType.FullName ?? "<null>";
+            Logger.LogDebug(source, $"IL:  call <{method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}({string.Join(", ", typeNames)})>");
+        }
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
@@ -2028,12 +2101,13 @@ public static class Accessor
     }
     internal static void CheckFuncArrays()
     {
-        FuncTypes ??= new Type[]
-        {
+        FuncTypes ??=
+        [
             typeof(Func<,>),
             typeof(Func<,,>),
             typeof(Func<,,,>),
             typeof(Func<,,,,>),
+#if NET40_OR_GREATER || !NETFRAMEWORK
             typeof(Func<,,,,,>),
             typeof(Func<,,,,,,>),
             typeof(Func<,,,,,,,>),
@@ -2046,13 +2120,15 @@ public static class Accessor
             typeof(Func<,,,,,,,,,,,,,,>),
             typeof(Func<,,,,,,,,,,,,,,,>),
             typeof(Func<,,,,,,,,,,,,,,,,>)
-        };
-        ActionTypes ??= new Type[]
-        {
+#endif
+        ];
+        ActionTypes ??=
+        [
             typeof(Action<>),
             typeof(Action<,>),
             typeof(Action<,,>),
             typeof(Action<,,,>),
+#if NET40_OR_GREATER || !NETFRAMEWORK
             typeof(Action<,,,,>),
             typeof(Action<,,,,,>),
             typeof(Action<,,,,,,>),
@@ -2065,13 +2141,307 @@ public static class Accessor
             typeof(Action<,,,,,,,,,,,,,>),
             typeof(Action<,,,,,,,,,,,,,,>),
             typeof(Action<,,,,,,,,,,,,,,,>)
-        };
+#endif
+        ];
+    }
+
+    /// <summary>
+    /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="type"/>.
+    /// </summary>
+    /// <remarks>Takes nested types into account, returning the lowest visibility in the nested hierarchy
+    /// (ex. if an internal class is nested in a private nested type, this method will consider it private).</remarks>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetVisibility(this Type type)
+    {
+        if (type == null)
+            throw new ArgumentNullException(nameof(type));
+
+        MemberVisibility lowest = MemberVisibility.Public;
+        bool isFamily = false, isAssembly = false;
+        for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+        {
+            TypeAttributes attr = nestingType.Attributes;
+            if (nestingType.IsNested)
+            {
+                if ((attr & TypeAttributes.NestedFamORAssem) == TypeAttributes.NestedFamORAssem)
+                {
+                    if (lowest > MemberVisibility.ProtectedInternal)
+                        lowest = MemberVisibility.ProtectedInternal;
+                }
+                if ((attr & TypeAttributes.NestedFamANDAssem) == TypeAttributes.NestedFamANDAssem)
+                {
+                    if (lowest > MemberVisibility.PrivateProtected)
+                        lowest = MemberVisibility.PrivateProtected;
+                }
+                if ((attr & TypeAttributes.NestedAssembly) == TypeAttributes.NestedAssembly)
+                {
+                    isAssembly = true;
+                    MemberVisibility newVis = isFamily ? MemberVisibility.PrivateProtected : MemberVisibility.Internal;
+                    if (lowest > newVis)
+                        lowest = newVis;
+                }
+                if ((attr & TypeAttributes.NestedFamily) != 0)
+                {
+                    isFamily = true;
+                    MemberVisibility newVis = isAssembly ? MemberVisibility.PrivateProtected : MemberVisibility.Protected;
+                    if (lowest > newVis)
+                        lowest = newVis;
+                }
+
+                if ((attr & TypeAttributes.NestedPrivate) == TypeAttributes.NestedPrivate)
+                    return MemberVisibility.Private;
+
+            }
+            else if (nestingType.IsNotPublic)
+            {
+                return lowest == MemberVisibility.Public ? MemberVisibility.Internal : lowest;
+            }
+            else return lowest;
+        }
+
+        return MemberVisibility.Unknown;
+    }
+
+    /// <summary>
+    /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="method"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetVisibility(this MethodBase method)
+    {
+        if (method == null)
+            throw new ArgumentNullException(nameof(method));
+
+        MethodAttributes attr = method.Attributes;
+        if ((attr & MethodAttributes.Public) == MethodAttributes.Public)
+            return MemberVisibility.Public;
+        if ((attr & MethodAttributes.Assembly) == MethodAttributes.Assembly)
+            return MemberVisibility.Internal;
+        if ((attr & MethodAttributes.FamORAssem) == MethodAttributes.FamORAssem)
+            return MemberVisibility.ProtectedInternal;
+        if ((attr & MethodAttributes.FamANDAssem) != 0)
+            return MemberVisibility.PrivateProtected;
+        if ((attr & MethodAttributes.Family) != 0)
+            return MemberVisibility.Protected;
+        if ((attr & MethodAttributes.Private) != 0)
+            return MemberVisibility.Private;
+
+        return MemberVisibility.Unknown;
+    }
+
+    /// <summary>
+    /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="field"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetVisibility(this FieldInfo field)
+    {
+        if (field == null)
+            throw new ArgumentNullException(nameof(field));
+
+        FieldAttributes attr = field.Attributes;
+        if ((attr & FieldAttributes.Public) == FieldAttributes.Public)
+            return MemberVisibility.Public;
+        if ((attr & FieldAttributes.Assembly) == FieldAttributes.Assembly)
+            return MemberVisibility.Internal;
+        if ((attr & FieldAttributes.FamORAssem) == FieldAttributes.FamORAssem)
+            return MemberVisibility.ProtectedInternal;
+        if ((attr & FieldAttributes.FamANDAssem) != 0)
+            return MemberVisibility.PrivateProtected;
+        if ((attr & FieldAttributes.Family) != 0)
+            return MemberVisibility.Protected;
+        if ((attr & FieldAttributes.Private) != 0)
+            return MemberVisibility.Private;
+
+        return MemberVisibility.Unknown;
+    }
+
+    /// <summary>
+    /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="property"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetVisibility(this PropertyInfo property)
+    {
+        if (property == null)
+            throw new ArgumentNullException(nameof(property));
+
+        MethodInfo? getMethod = property.GetGetMethod(true);
+        if (getMethod != null && getMethod.IsPublic)
+            return MemberVisibility.Public;
+
+        MethodInfo? setMethod = property.GetSetMethod(true);
+        return GetHighestVisibility(setMethod, getMethod);
+    }
+
+    /// <summary>
+    /// Gets a simplified enum representing the visiblity (accessibility) of an <paramref name="event"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetVisibility(this EventInfo @event)
+    {
+        if (@event == null)
+            throw new ArgumentNullException(nameof(@event));
+
+        MethodInfo? getMethod = @event.GetAddMethod(true);
+        if (getMethod != null && getMethod.IsPublic)
+            return MemberVisibility.Public;
+
+        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
+        if (removeMethod != null && removeMethod.IsPublic)
+            return MemberVisibility.Public;
+
+        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
+        return GetHighestVisibility(raiseMethod, removeMethod, getMethod);
+    }
+
+    /// <summary>
+    /// Get the highest visibilty needed for both of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
+    /// </summary>
+    /// <remarks>Useful for getting property visiblity manually, will always be at least <see cref="MemberVisibility.Private"/>.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2)
+    {
+        MemberVisibility highest = MemberVisibility.Private;
+
+        CheckHighest(method1, ref highest);
+        if (highest == MemberVisibility.Public)
+            return MemberVisibility.Public;
+
+        CheckHighest(method2, ref highest);
+
+        return highest;
+    }
+
+    /// <summary>
+    /// Get the highest visibilty needed for all three of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
+    /// </summary>
+    /// <remarks>Useful for getting event visiblity manually, will always be at least <see cref="MemberVisibility.Private"/>.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2, MethodInfo? method3)
+    {
+        MemberVisibility highest = MemberVisibility.Private;
+
+        CheckHighest(method1, ref highest);
+        if (highest == MemberVisibility.Public)
+            return MemberVisibility.Public;
+
+        CheckHighest(method2, ref highest);
+        if (highest == MemberVisibility.Public)
+            return MemberVisibility.Public;
+
+        CheckHighest(method3, ref highest);
+
+        return highest;
+    }
+
+    /// <summary>
+    /// Get the highest visibilty needed for all of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
+    /// </summary>
+    /// <remarks>Will always be at least <see cref="MemberVisibility.Private"/>.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static MemberVisibility GetHighestVisibility(params MethodInfo?[] methods)
+    {
+        MemberVisibility highest = MemberVisibility.Private;
+
+        for (int i = 0; i < methods.Length; ++i)
+        {
+            CheckHighest(methods[i], ref highest);
+            if (highest == MemberVisibility.Public)
+                return MemberVisibility.Public;
+        }
+
+        return highest;
+    }
+
+    private static void CheckHighest(MethodBase? method, ref MemberVisibility highest)
+    {
+        if (method == null)
+            return;
+
+        MethodAttributes attr = method.Attributes;
+        if ((attr & MethodAttributes.Public) == MethodAttributes.Public)
+        {
+            highest = MemberVisibility.Public;
+            return;
+        }
+        if ((attr & MethodAttributes.Assembly) == MethodAttributes.Assembly)
+        {
+            if (highest is MemberVisibility.ProtectedInternal or MemberVisibility.Protected)
+                highest = MemberVisibility.Public;
+            else if (highest is MemberVisibility.Private or MemberVisibility.PrivateProtected)
+                highest = MemberVisibility.Internal;
+            return;
+        }
+        if ((attr & MethodAttributes.Private) != 0)
+            return;
+        if ((attr & MethodAttributes.FamORAssem) == MethodAttributes.FamORAssem)
+        {
+            if (highest is MemberVisibility.Private or MemberVisibility.Protected or MemberVisibility.Internal)
+                highest = MemberVisibility.ProtectedInternal;
+            return;
+        }
+        if ((attr & MethodAttributes.Family) != 0)
+        {
+            if (highest is MemberVisibility.ProtectedInternal or MemberVisibility.Internal)
+                highest = MemberVisibility.Public;
+            else if (highest is MemberVisibility.Private or MemberVisibility.PrivateProtected)
+                highest = MemberVisibility.Protected;
+            return;
+        }
+        if ((attr & MethodAttributes.FamANDAssem) != 0)
+        {
+            if (highest == MemberVisibility.Private)
+                highest = MemberVisibility.PrivateProtected;
+        }
+    }
+
+    /// <summary>
+    /// Checks if <paramref name="assembly"/> has a <see cref="InternalsVisibleToAttribute"/> with the given <paramref name="assemblyName"/>.
+    /// The value of the attribute must match <paramref name="assemblyName"/> exactly.
+    /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static bool AssemblyGivesInternalAccess(Assembly assembly, string assemblyName)
+    {
+        InternalsVisibleToAttribute[] internalsVisibleTo = assembly.GetAttributesSafe<InternalsVisibleToAttribute>();
+        for (int i = 0; i < internalsVisibleTo.Length; ++i)
+        {
+            if (internalsVisibleTo[i].AssemblyName.Equals(assemblyName, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
     /// Checks <paramref name="method"/> for the <see langword="extern"/> flag.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsExtern(this MethodBase method)
     {
         if ((method.Attributes & MethodAttributes.PinvokeImpl) != 0)
@@ -2094,13 +2464,17 @@ public static class Accessor
     /// <summary>
     /// Checks <paramref name="field"/> for the <see langword="extern"/> flag.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsExtern(this FieldInfo field) => field.IsPinvokeImpl;
 
     /// <summary>
     /// Checks <paramref name="property"/>'s getter and setter for the <see langword="extern"/> flag.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsExtern(this PropertyInfo property, bool checkGetterFirst = true)
     {
         MethodInfo? method = checkGetterFirst ? property.GetGetMethod(true) : property.GetSetMethod(true);
@@ -2117,7 +2491,9 @@ public static class Accessor
     /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsDefinedSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute => member.IsDefinedSafe(typeof(TAttribute), inherit);
 
     /// <summary>
@@ -2127,7 +2503,9 @@ public static class Accessor
     /// <param name="attributeType">Type of the attribute to check for.</param>
     /// <param name="inherit">Also check parent members.</param>
     /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsDefinedSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
     {
         try
@@ -2149,11 +2527,13 @@ public static class Accessor
             return false;
         }
     }
-    
+
     /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool HasAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute => member.HasAttributeSafe(typeof(TAttribute), inherit);
 
     /// <summary>
@@ -2163,7 +2543,9 @@ public static class Accessor
     /// <param name="attributeType">Type of the attribute to check for.</param>
     /// <param name="inherit">Also check parent members.</param>
     /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool HasAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
     {
         try
@@ -2206,7 +2588,9 @@ public static class Accessor
     /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
     /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
     /// <exception cref="AmbiguousMatchException">There are more than one attributes of type <typeparamref name="TAttribute"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TAttribute? GetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
         => member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute;
 
@@ -2218,7 +2602,9 @@ public static class Accessor
     /// <param name="inherit">Also check parent members.</param>
     /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
     /// <exception cref="AmbiguousMatchException">There are more than one attributes of type <paramref name="attributeType"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Attribute? GetAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
     {
         try
@@ -2265,7 +2651,9 @@ public static class Accessor
     /// <param name="inherit">Also check parent members.</param>
     /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
     /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TAttribute[] GetAttributesSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
         => (TAttribute[])member.GetAttributesSafe(typeof(TAttribute), inherit);
 
@@ -2276,7 +2664,9 @@ public static class Accessor
     /// <param name="attributeType">Type of the attribute to check for.</param>
     /// <param name="inherit">Also check parent members.</param>
     /// <exception cref="ArgumentException"><paramref name="attributeType"/> did not derive from <see cref="Attribute"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Attribute[] GetAttributesSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
     {
         try
@@ -2332,7 +2722,9 @@ public static class Accessor
     /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
     /// <typeparam name="TAttribute">Type of the attribute to check for.</typeparam>
     /// <returns><see langword="true"/> if the attribute was found, otherwise <see langword="false"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool TryGetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, out TAttribute attribute, bool inherit = false) where TAttribute : Attribute
     {
         attribute = (member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute)!;
@@ -2357,7 +2749,9 @@ public static class Accessor
     /// Checks for <see cref="FieldInfo.IsInitOnly"/> on <paramref name="member"/> if it is a field.
     /// </summary>
     /// <remarks>.NET Framework 4.7.1 and lower, .NET Standard 2.0, or .NET Core 2.0 and lower do not support the <c>IsReadOnlyAttribute</c> to check for readonly methods and structs.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsReadOnly(this ICustomAttributeProvider member)
     {
         if (member is FieldInfo field)
@@ -2371,67 +2765,89 @@ public static class Accessor
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="type"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsIgnored(this Type type) => type.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="member"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsIgnored(this MemberInfo member) => member.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="assembly"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsIgnored(this Assembly assembly) => assembly.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="parameter"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsIgnored(this ParameterInfo parameter) => parameter.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="module"/>.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsIgnored(this Module module) => module.IsDefinedSafe(_ignoreAttribute ??= typeof(IgnoreAttribute));
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="type"/> and returns the priority (or zero if not found).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int GetPriority(this Type type) => type.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="member"/> and returns the priority (or zero if not found).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int GetPriority(this MemberInfo member) => member.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="assembly"/> and returns the priority (or zero if not found).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int GetPriority(this Assembly assembly) => assembly.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="parameter"/> and returns the priority (or zero if not found).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int GetPriority(this ParameterInfo parameter) => parameter.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="module"/> and returns the priority (or zero if not found).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int GetPriority(this Module module) => module.GetAttributeSafe(_priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
 
     /// <summary>
     /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int SortTypesByPriorityHandler(Type a, Type b)
     {
         return b.GetPriority().CompareTo(a.GetPriority());
@@ -2440,7 +2856,9 @@ public static class Accessor
     /// <summary>
     /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int SortMembersByPriorityHandler(MemberInfo a, MemberInfo b)
     {
         return b.GetPriority().CompareTo(a.GetPriority());
@@ -2453,7 +2871,9 @@ public static class Accessor
     /// </code>
     /// </summary>
     /// <returns>A method info of a passed delegate</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static MethodInfo? GetMethod(Delegate @delegate)
     {
         try
@@ -2474,8 +2894,16 @@ public static class Accessor
     /// <param name="instanceType">The declaring type, or <see langword="null"/> for static methods.</param>
     /// <remarks>The first argument will be the instance.</remarks>
     /// <returns>A delegate of type <see cref="Action"/> or <see cref="Func{T}"/> (or one of their generic counterparts), depending on the method signature, or <see langword="null"/> if there are too many parameters.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
-    public static Type? GetDefaultDelegate(Type returnType, IReadOnlyList<ParameterInfo> parameters, Type? instanceType)
+#endif
+    public static Type? GetDefaultDelegate(Type returnType,
+#if NET45_OR_GREATER
+        IReadOnlyList<ParameterInfo> parameters,
+#else
+        IList<ParameterInfo> parameters,
+#endif
+        Type? instanceType)
     {
         CheckFuncArrays();
 
@@ -2582,11 +3010,15 @@ public static class Accessor
 
     /// <returns>Every type defined in the calling assembly.</returns>
     [MethodImpl(MethodImplOptions.NoInlining)]
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static List<Type> GetTypesSafe(bool removeIgnored = false) => GetTypesSafe(Assembly.GetCallingAssembly(), removeIgnored);
 
     /// <returns>Every type defined in <paramref name="assembly"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static List<Type> GetTypesSafe(Assembly assembly, bool removeIgnored = false)
     {
         List<Type?> types;
@@ -2633,7 +3065,9 @@ public static class Accessor
     }
 
     /// <returns>Every type defined in the provided <paramref name="assmeblies"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static List<Type> GetTypesSafe(IEnumerable<Assembly> assmeblies, bool removeIgnored = false)
     {
         List<Type?> types = new List<Type?>();
@@ -2685,7 +3119,9 @@ public static class Accessor
     /// Takes a method declared in an interface and returns an implementation on <paramref name="type"/>. Useful for getting explicit implementations.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="interfaceMethod"/> is not defined in an interface or <paramref name="type"/> does not implement the interface it's defined in.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static MethodInfo? GetImplementedMethod(Type type, MethodInfo interfaceMethod)
     {
         if (interfaceMethod is not { DeclaringType.IsInterface: true })
@@ -2724,21 +3160,27 @@ public static class Accessor
     /// Gets the (cached) return type of a <typeparamref name="TDelegate"/> delegate type.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Type GetReturnType<TDelegate>() where TDelegate : Delegate => DelegateInfo<TDelegate>.ReturnType;
 
     /// <summary>
     /// Gets the (cached) parameters of a <typeparamref name="TDelegate"/> delegate type.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static ParameterInfo[] GetParameters<TDelegate>() where TDelegate : Delegate => DelegateInfo<TDelegate>.Parameters;
 
     /// <summary>
     /// Gets the (cached) <see langword="Invoke"/> method of a <typeparamref name="TDelegate"/> delegate type. All delegates have one by default.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static MethodInfo GetInvokeMethod<TDelegate>() where TDelegate : Delegate => DelegateInfo<TDelegate>.InvokeMethod;
 
     /// <summary>
@@ -2756,7 +3198,9 @@ public static class Accessor
     /// Gets the return type of a <paramref name="delegateType"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Type GetReturnType(Type delegateType)
     {
         if (!typeof(Delegate).IsAssignableFrom(delegateType))
@@ -2770,7 +3214,9 @@ public static class Accessor
     /// Gets the parameters of a <paramref name="delegateType"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static ParameterInfo[] GetParameters(Type delegateType)
     {
         if (!typeof(Delegate).IsAssignableFrom(delegateType))
@@ -2784,7 +3230,9 @@ public static class Accessor
     /// Gets the (cached) <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static MethodInfo GetInvokeMethod(Type delegateType)
     {
         if (!typeof(Delegate).IsAssignableFrom(delegateType))
@@ -2798,7 +3246,9 @@ public static class Accessor
     /// Get the 'type' of a member, returns <see cref="FieldInfo.FieldType"/> or <see cref="PropertyInfo.PropertyType"/> or
     /// <see cref="MethodInfo.ReturnType"/> or <see cref="EventInfo.EventHandlerType"/> or <see cref="MemberInfo.DeclaringType"/> for constructors.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static Type? GetMemberType(this MemberInfo member) => member switch
     {
         MethodInfo a => a.ReturnType,
@@ -2812,14 +3262,16 @@ public static class Accessor
     /// <summary>
     /// Check any member for being static.
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool GetIsStatic(this MemberInfo member) => member switch
     {
         MethodBase a => a.IsStatic,
         FieldInfo a => a.IsStatic,
         PropertyInfo a => a.GetGetMethod(true) is { } getter ? getter.IsStatic : (a.GetSetMethod(true) is { } setter && setter.IsStatic),
         EventInfo a => a.GetAddMethod(true) is { } adder ? adder.IsStatic : (a.GetRemoveMethod(true) is { } remover ? remover.IsStatic : (a.GetRaiseMethod(true) is { } raiser && raiser.IsStatic)),
-        Type a => (a.Attributes & (TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit | TypeAttributes.Class)) != 0,
+        Type a => (a.Attributes & (TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class)) == (TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class),
         _ => throw new ArgumentException($"Member type {member.GetType().Name} is not static-able.", nameof(member))
     };
 
@@ -2827,7 +3279,9 @@ public static class Accessor
     /// Decide if a method should be callvirt'd instead of call'd. Usually you will use <see cref="ShouldCallvirtRuntime"/> instead as it doesn't account for possible future keyword changes.
     /// </summary>
     /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool ShouldCallvirt(this MethodBase method)
     {
         return method is { IsFinal: false, IsVirtual: true } || method.IsAbstract || method is { IsStatic: false, DeclaringType: not { IsValueType: true }, IsFinal: false } || method.DeclaringType is { IsInterface: true };
@@ -2837,7 +3291,9 @@ public static class Accessor
     /// Decide if a method should be callvirt'd instead of call'd at runtime. Doesn't account for future changes.
     /// </summary>
     /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool ShouldCallvirtRuntime(this MethodBase method)
     {
         return method is { IsFinal: false, IsVirtual: true } || method.IsAbstract || method.DeclaringType is { IsInterface: true };
@@ -2848,14 +3304,18 @@ public static class Accessor
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
     /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TElementType[] GetUnderlyingArray<TElementType>(this List<TElementType> list) => ListInfo<TElementType>.GetUnderlyingArray(list);
 
     /// <summary>
     /// Get the underlying array from a list, or in the case of a reflection failure calls <see cref="List{TElementType}.ToArray"/> on <paramref name="list"/> and returns that.
     /// </summary>
     /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static TElementType[] GetUnderlyingArrayOrCopy<TElementType>(this List<TElementType> list) => ListInfo<TElementType>.TryGetUnderlyingArray(list, out TElementType[] array) ? array : list.ToArray();
 
     /// <summary>
@@ -2863,7 +3323,9 @@ public static class Accessor
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
     /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static int GetListVersion<TElementType>(this List<TElementType> list) => ListInfo<TElementType>.GetListVersion(list);
 
     /// <summary>
@@ -2882,14 +3344,18 @@ public static class Accessor
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <paramref name="queriedType"/>. 
     /// </summary>
     /// <returns><see langword="true"/> if <paramref name="actualType"/> is assignable from <paramref name="queriedType"/> or if <paramref name="queriedType"/> is assignable from <paramref name="actualType"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool CouldBeAssignedTo(this Type actualType, Type queriedType) => actualType.IsAssignableFrom(queriedType) || queriedType.IsAssignableFrom(actualType);
 
     /// <summary>
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <typeparamref name="T"/>. 
     /// </summary>
     /// <returns><see langword="true"/> if <paramref name="actualType"/> is assignable from <typeparamref name="T"/> or if <typeparamref name="T"/> is assignable from <paramref name="actualType"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool CouldBeAssignedTo<T>(this Type actualType) => actualType.CouldBeAssignedTo(typeof(T));
     private static class DelegateInfo<TDelegate> where TDelegate : Delegate
     {
