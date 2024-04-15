@@ -38,7 +38,7 @@ internal static class InternalUtil
             ++c;
         return c;
     }
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     internal static int CountDigits(uint num, bool commas = false)
@@ -60,7 +60,7 @@ internal static class InternalUtil
             c += (c - 1) / 3;
         return c;
     }
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     internal static int CountDigits(long num, bool commas = false)
@@ -112,7 +112,7 @@ internal static class InternalUtil
             ++c;
         return c;
     }
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     internal static int CountDigits(ulong num, bool commas = false)

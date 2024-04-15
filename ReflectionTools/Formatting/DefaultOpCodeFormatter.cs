@@ -2,18 +2,65 @@
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
+#if NETFRAMEWORK || (NETSTANDARD && !NETSTANDARD2_1_OR_GREATER)
+using System.Text;
+#endif
 
 namespace DanielWillett.ReflectionTools.Formatting;
 
 /// <inheritdoc cref="IOpCodeFormatter"/>
 public class DefaultOpCodeFormatter : IOpCodeFormatter
 {
-    private const string LitPrivate = "private";
-    private const string LitProtected = "protected";
-    private const string LitPublic = "public";
-    private const string LitInternal = "internal";
-    private const string LitPrivateProtected = "private protected";
-    private const string LitProtectedInternal = "protected internal";
+    /// <summary><see langword="private"/></summary>
+    protected const string LitPrivate = "private";
+    /// <summary><see langword="protected"/></summary>
+    protected const string LitProtected = "protected";
+    /// <summary><see langword="public"/></summary>
+    protected const string LitPublic = "public";
+    /// <summary><see langword="internal"/></summary>
+    protected const string LitInternal = "internal";
+    /// <summary><see langword="private protected"/></summary>
+    protected const string LitPrivateProtected = "private protected";
+    /// <summary><see langword="protected internal"/></summary>
+    protected const string LitProtectedInternal = "protected internal";
+    /// <summary><see langword="static"/></summary>
+    protected const string LitStatic = "static";
+    /// <summary><see langword="event"/></summary>
+    protected const string LitEvent = "event";
+    /// <summary><see langword="readonly"/></summary>
+    protected const string LitReadonly = "readonly";
+    /// <summary><see langword="const"/></summary>
+    protected const string LitConst = "const";
+    /// <summary><see langword="abstract"/></summary>
+    protected const string LitAbstract = "abstract";
+    /// <summary><see langword="ref"/></summary>
+    protected const string LitRef = "ref";
+    /// <summary><see langword="out"/></summary>
+    protected const string LitOut = "out";
+    /// <summary><see langword="enum"/></summary>
+    protected const string LitEnum = "enum";
+    /// <summary><see langword="class"/></summary>
+    protected const string LitClass = "class";
+    /// <summary><see langword="struct"/></summary>
+    protected const string LitStruct = "struct";
+    /// <summary><see langword="interface"/></summary>
+    protected const string LitInterface = "interface";
+    /// <summary><see langword="delegate"/></summary>
+    protected const string LitDelegate = "delegate";
+    /// <summary><see langword="this"/></summary>
+    protected const string LitThis = "this";
+    /// <summary><see langword="params"/></summary>
+    protected const string LitParams = "params";
+    /// <summary><see langword="get"/></summary>
+    protected const string LitGet = "get";
+    /// <summary><see langword="set"/></summary>
+    protected const string LitSet = "set";
+    /// <summary><see langword="add"/></summary>
+    protected const string LitAdd = "add";
+    /// <summary><see langword="remove"/></summary>
+    protected const string LitRemove = "remove";
+    /// <summary><see langword="raise"/></summary>
+    protected const string LitRaise = "raise";
 
     /// <summary>
     /// Should formatted members and types use their full (namespace-declared) names? Defaults to <see langword="false"/>.
@@ -21,9 +68,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     public bool UseFullTypeNames { get; set; }
 
     /// <summary>
-    /// Should formatted keywords for types instead of CLR type names, ex. <see langword="int"/> instead of <see langword="Int32"/>.
+    /// Should formatted keywords for types instead of CLR type names, ex. <see langword="int"/> instead of <see langword="Int32"/>. Defaults to <see langword="true"/>.
     /// </summary>
-    public bool UseTypeKeywords { get; set; }
+    public bool UseTypeKeywords { get; set; } = true;
 
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
@@ -45,7 +92,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     public virtual int Format(Label label, Span<char> output)
     {
         if (!((uint)label.GetLabelId()).TryFormat(output, out int chrsWritten, "N0", CultureInfo.InvariantCulture))
-            throw new ArgumentOutOfRangeException(nameof(output));
+            throw new IndexOutOfRangeException();
 
         return chrsWritten;
     }
@@ -67,10 +114,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not FieldInfo field)
                     break;
 
-                int fieldSize = field.Name.Length;
-                if (field.DeclaringType != null)
-                    fieldSize += field.DeclaringType.Name.Length + 1;
-                return fmtLen + 1 + fieldSize;
+                return fmtLen + 1 + GetFormatLength(field, includeDefinitionKeywords: false);
 
             case OperandType.ShortInlineI:
             case OperandType.InlineI8:
@@ -127,7 +171,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 fmtLen = fmtLen + 3 + Environment.NewLine.Length * (2 + jumps.Length) + jumps.Length * 14;
                 for (int i = 0; i < jumps.Length; ++i)
-                    fmtLen += InternalUtil.CountDigits((uint)jumps[i].GetLabelId());
+                    fmtLen += InternalUtil.CountDigits((uint)jumps[i].GetLabelId()) + InternalUtil.CountDigits(i);
 
                 return fmtLen;
 
@@ -135,11 +179,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 switch (operand)
                 {
                     case Type typeToken:
-                        return GetFormatLength(typeToken);
+                        return fmtLen + 1 + GetFormatLength(typeToken);
                     case MethodBase methodToken:
-                        return GetFormatLength(methodToken);
+                        return fmtLen + 1 + GetFormatLength(methodToken);
                     case FieldInfo fieldToken:
-                        return GetFormatLength(fieldToken);
+                        return fmtLen + 1 + GetFormatLength(fieldToken);
                 }
 
                 break;
@@ -175,7 +219,234 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     }
 
     /// <inheritdoc/>
-    public virtual int Format(OpCode opCode, object? operand, Span<char> output, OpCodeFormattingContext usageContext) => throw new NotImplementedException();
+    public virtual int Format(OpCode opCode, object? operand, Span<char> output, OpCodeFormattingContext usageContext)
+    {
+        int index = Format(opCode, output);
+        output[index] = ' ';
+        ++index;
+        switch (opCode.OperandType)
+        {
+            case OperandType.ShortInlineBrTarget:
+            case OperandType.InlineBrTarget:
+                if (operand is not Label lbl)
+                    break;
+
+                output[index] = ' ';
+                ++index;
+                uint lblId = (uint)lbl.GetLabelId();
+                if (!lblId.TryFormat(output[index..], out int charsWritten, "N0", CultureInfo.InvariantCulture))
+                    throw new IndexOutOfRangeException();
+
+                return index + charsWritten;
+
+            case OperandType.InlineField:
+                if (operand is not FieldInfo field)
+                    break;
+
+                output[index] = ' ';
+                ++index;
+                index += Format(field, output[index..], includeDefinitionKeywords: false);
+                return index;
+
+            case OperandType.ShortInlineI:
+            case OperandType.InlineI8:
+            case OperandType.InlineI:
+                long l64;
+                try
+                {
+                    l64 = Convert.ToInt64(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                output[index] = ' ';
+                ++index;
+                if (!l64.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                    throw new IndexOutOfRangeException();
+
+                return index + charsWritten;
+
+            case OperandType.InlineMethod:
+                if (operand is not MethodBase method)
+                    break;
+
+                output[index] = ' ';
+                ++index;
+                index += Format(method, output[index..], includeDefinitionKeywords: false);
+                return index;
+
+            case OperandType.ShortInlineR:
+            case OperandType.InlineR:
+                double r8;
+                try
+                {
+                    r8 = Convert.ToDouble(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                output[index] = ' ';
+                ++index;
+                if (!r8.TryFormat(output[index..], out charsWritten, "F6", CultureInfo.InvariantCulture))
+                    throw new IndexOutOfRangeException();
+
+                return index + charsWritten;
+
+            case OperandType.InlineSig:
+                try
+                {
+                    l64 = Convert.ToInt64(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                output[index] = ' ';
+                ++index;
+                if (!l64.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                    throw new IndexOutOfRangeException();
+
+                return index + charsWritten;
+
+            case OperandType.InlineString:
+                if (operand is not string str)
+                    break;
+
+                output[index] = ' ';
+                ++index;
+                output[index] = '"';
+                ++index;
+                str.AsSpan().CopyTo(output[index..]);
+                index += str.Length;
+                output[index] = '"';
+                return index + 1;
+
+            case OperandType.InlineSwitch:
+                if (operand is not Label[] jumps)
+                    break;
+
+                output[index] = ' ';
+                ++index;
+                ReadOnlySpan<char> nl = Environment.NewLine;
+                nl.CopyTo(output[index..]);
+                index += nl.Length;
+                output[index] = '{';
+                ++index;
+                for (int i = 0; i < jumps.Length; ++i)
+                {
+                    nl.CopyTo(output[index..]);
+                    index += nl.Length;
+                    output[index] = ' ';
+                    output[index + 1] = ' ';
+                    index += 2;
+
+                    if (!((uint)i).TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                        throw new IndexOutOfRangeException();
+
+                    index += charsWritten;
+                    output[index]     = ' ';
+                    output[index + 1] = '=';
+                    output[index + 2] = '>';
+                    output[index + 3] = ' ';
+                    output[index + 4] = 'L';
+                    output[index + 5] = 'a';
+                    output[index + 6] = 'b';
+                    output[index + 7] = 'e';
+                    output[index + 8] = 'l';
+                    output[index + 9] = ' ';
+                    output[index + 10] = '#';
+                    index += 11;
+
+                    lblId = (uint)jumps[i].GetLabelId();
+                    if (!lblId.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                        throw new IndexOutOfRangeException();
+
+                    index += charsWritten;
+                }
+                nl.CopyTo(output[index..]);
+                index += nl.Length;
+                output[index] = '}';
+                return index + 1;
+
+            case OperandType.InlineTok:
+                switch (operand)
+                {
+                    case Type typeToken:
+                        output[index] = ' ';
+                        ++index;
+                        index += Format(typeToken, output[index..]);
+                        return index;
+
+                    case MethodBase methodToken:
+                        output[index] = ' ';
+                        ++index;
+                        index += Format(methodToken, output[index..]);
+                        return index;
+
+                    case FieldInfo fieldToken:
+                        output[index] = ' ';
+                        ++index;
+                        index += Format(fieldToken, output[index..]);
+                        return index;
+                }
+
+                break;
+
+            case OperandType.InlineType:
+                if (operand is not Type type)
+                    break;
+
+                output[index] = ' ';
+                ++index;
+                index += Format(type, output[index..]);
+                return index;
+
+            case OperandType.ShortInlineVar:
+            case OperandType.InlineVar:
+                if (operand is LocalBuilder lb)
+                {
+                    output[index] = ' ';
+                    ++index;
+                    if (!((uint)lb.LocalIndex).TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                        throw new IndexOutOfRangeException();
+
+                    index += charsWritten;
+
+                    if (lb.LocalType == null)
+                        return index;
+
+                    output[index]     = ' ';
+                    output[index + 1] = ':';
+                    output[index + 2] = ' ';
+                    index += 3;
+                    index += Format(lb.LocalType, output[index..]);
+                    return index;
+                }
+
+                try
+                {
+                    l64 = Convert.ToInt64(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                output[index] = ' ';
+                ++index;
+                if (!l64.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                    throw new IndexOutOfRangeException();
+
+                return index + charsWritten;
+        }
+
+        return index;
+    }
 
     /// <inheritdoc/>
     public virtual int GetFormatLength(Type type, bool includeDefinitionKeywords = false, bool isOutType = false)
@@ -186,15 +457,15 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (type.IsPointer)
         {
-            return 1 + GetFormatLength(type.GetElementType()!);
+            return 1 + GetFormatLength(type.GetElementType()!, includeDefinitionKeywords);
         }
         if (type.IsArray)
         {
-            return 2 + GetFormatLength(type.GetElementType()!);
+            return 2 + GetFormatLength(type.GetElementType()!, includeDefinitionKeywords);
         }
         if (type.IsByRef && type.GetElementType() is { } elemType)
         {
-            return 4 + GetFormatLength(elemType);
+            return 4 + GetFormatLength(elemType, includeDefinitionKeywords);
         }
 
         int length = 0;
@@ -253,23 +524,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             if (!ReferenceEquals(nestingType, type))
                 ++length;
 
-            bool willBreakNext = nestingType.IsGenericTypeParameter || nestingType.IsGenericMethodParameter || nestingType.DeclaringType == null;
+            bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
 
-            ReadOnlySpan<char> name = willBreakNext && UseFullTypeNames ? nestingType.FullName ?? nestingType.Name : nestingType.Name;
-
-            if (nestingType.IsGenericType)
-            {
-                int graveIndex = name.IndexOf('`');
-                if (graveIndex != -1)
-                    length += graveIndex;
-                else length += name.Length;
-                Type[] types = nestingType.GetGenericArguments();
-                length += 2 + (types.Length - 1) * 2;
-
-                for (int i = 0; i < types.Length; ++i)
-                    length += GetFormatLength(types[i]);
-            }
-            else length += name.Length;
+            length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
 
             if (willBreakNext)
                 break;
@@ -290,14 +547,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (type.IsPointer)
         {
-            int c = Format(type.GetElementType()!, output);
+            int c = Format(type.GetElementType()!, output, includeDefinitionKeywords);
             output[c] = '*';
             return c + 1;
         }
 
         if (type.IsArray)
         {
-            int c = Format(type.GetElementType()!, output);
+            int c = Format(type.GetElementType()!, output, includeDefinitionKeywords);
             output[c] = '[';
             output[c + 1] = ']';
             return c + 2;
@@ -319,7 +576,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             }
 
             output[3] = ' ';
-            int c = Format(elemType, output[4..]);
+            int c = Format(elemType, output[4..], includeDefinitionKeywords);
             return c + 4;
         }
 
@@ -334,50 +591,21 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             {
                 if (type.IsReadOnly())
                 {
-                    output[index]     = 'r';
-                    output[index + 1] = 'e';
-                    output[index + 2] = 'a';
-                    output[index + 3] = 'd';
-                    output[index + 4] = 'o';
-                    output[index + 5] = 'n';
-                    output[index + 6] = 'l';
-                    output[index + 7] = 'y';
-                    output[index + 8] = ' ';
-                    index += 9;
+                    WriteKeyword(LitReadonly, ref index, output, spaceSuffix: true);
                 }
 
                 if (type.IsByRefLike)
                 {
-                    output[index]     = 'r';
-                    output[index + 1] = 'e';
-                    output[index + 2] = 'f';
-                    output[index + 3] = ' ';
-                    index += 4;
+                    WriteKeyword(LitRef, ref index, output, spaceSuffix: true);
                 }
             }
             else if (type.GetIsStatic())
             {
-                output[index]     = 's';
-                output[index + 1] = 't';
-                output[index + 2] = 'a';
-                output[index + 3] = 't';
-                output[index + 4] = 'i';
-                output[index + 5] = 'c';
-                output[index + 6] = ' ';
-                index += 7;
+                WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
             }
             else if (isDelegate)
             {
-                output[index]     = 'd';
-                output[index + 1] = 'e';
-                output[index + 2] = 'l';
-                output[index + 3] = 'e';
-                output[index + 4] = 'g';
-                output[index + 5] = 'a';
-                output[index + 6] = 't';
-                output[index + 7] = 'e';
-                output[index + 8] = ' ';
-                index += 9;
+                WriteKeyword(LitDelegate, ref index, output, spaceSuffix: true);
 
                 try
                 {
@@ -395,82 +623,46 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             {
                 if (type.IsEnum)
                 {
-                    output[index]     = 'e';
-                    output[index + 1] = 'n';
-                    output[index + 2] = 'u';
-                    output[index + 3] = 'm';
-                    output[index + 4] = ' ';
-                    index += 5;
+                    WriteKeyword(LitEnum, ref index, output, spaceSuffix: true);
                 }
                 else
                 {
-                    output[index]     = 's';
-                    output[index + 1] = 't';
-                    output[index + 2] = 'r';
-                    output[index + 3] = 'u';
-                    output[index + 4] = 'c';
-                    output[index + 5] = 't';
-                    output[index + 6] = ' ';
-                    index += 7;
+                    WriteKeyword(LitStruct, ref index, output, spaceSuffix: true);
                 }
             }
             else if (type.IsInterface)
             {
-                output[index]     = 'i';
-                output[index + 1] = 'n';
-                output[index + 2] = 't';
-                output[index + 3] = 'e';
-                output[index + 4] = 'r';
-                output[index + 5] = 'f';
-                output[index + 6] = 'a';
-                output[index + 7] = 'c';
-                output[index + 8] = 'e';
-                output[index + 9] = ' ';
-                index += 10;
+                WriteKeyword(LitInterface, ref index, output, spaceSuffix: true);
             }
             else
             {
                 if (type is { IsAbstract: true, IsSealed: false })
                 {
-                    output[index]     = 'a';
-                    output[index + 1] = 'b';
-                    output[index + 2] = 's';
-                    output[index + 3] = 't';
-                    output[index + 4] = 'r';
-                    output[index + 5] = 'a';
-                    output[index + 6] = 'c';
-                    output[index + 7] = 't';
-                    output[index + 8] = ' ';
-                    index += 9;
+                    WriteKeyword(LitAbstract, ref index, output, spaceSuffix: true);
                 }
 
                 if (!isDelegate)
                 {
-                    output[index] = 'c';
-                    output[index + 1] = 'l';
-                    output[index + 2] = 'a';
-                    output[index + 3] = 's';
-                    output[index + 4] = 's';
-                    output[index + 5] = ' ';
-                    index += 6;
+                    WriteKeyword(LitClass, ref index, output, spaceSuffix: true);
                 }
             }
         }
-        
-        // todo flip this somehow
+
+
+        int ct = 0;
         for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
         {
-            if (!ReferenceEquals(nestingType, type))
-            {
-                output[index] = '.';
-                ++index;
-            }
+            bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+            ++ct;
+            if (willBreakNext)
+                break;
+        }
 
-            bool willBreakNext = nestingType.IsGenericTypeParameter || nestingType.IsGenericMethodParameter || nestingType.DeclaringType == null;
+        if (ct == 1)
+        {
+            ReadOnlySpan<char> name = UseFullTypeNames ? type.FullName ?? type.Name : type.Name;
 
-            ReadOnlySpan<char> name = willBreakNext && UseFullTypeNames ? nestingType.FullName ?? nestingType.Name : nestingType.Name;
-
-            if (nestingType.IsGenericType)
+            if (type.IsGenericType)
             {
                 int graveIndex = name.IndexOf('`');
                 if (graveIndex != -1)
@@ -481,7 +673,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 output[index] = '<';
                 ++index;
 
-                Type[] types = nestingType.GetGenericArguments();
+                Type[] types = type.GetGenericArguments();
                 for (int i = 0; i < types.Length; ++i)
                 {
                     if (i != 0)
@@ -502,9 +694,77 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 name.CopyTo(output[index..]);
                 index += name.Length;
             }
+        }
+        else
+        {
+            Span<int> nestedSizes = stackalloc int[ct];
+            int nestedInd = -1;
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
 
-            if (willBreakNext)
-                break;
+                nestedSizes[++nestedInd] = GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+                if (willBreakNext)
+                    break;
+            }
+
+            nestedInd = 0;
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                int pos = index;
+                for (int i = nestedSizes.Length - 1; i > nestedInd; --i)
+                    pos += nestedSizes[i];
+                ++nestedInd;
+
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+                if (!willBreakNext)
+                {
+                    pos += nestedSizes.Length - nestedInd;
+                    output[pos - 1] = '.';
+                }
+
+                ReadOnlySpan<char> name = willBreakNext && UseFullTypeNames ? nestingType.FullName ?? nestingType.Name : nestingType.Name;
+
+                if (nestingType.IsGenericType)
+                {
+                    int graveIndex = name.IndexOf('`');
+                    if (graveIndex != -1)
+                        name = name[..graveIndex];
+                    name.CopyTo(output[pos..]);
+                    pos += name.Length;
+
+                    output[pos] = '<';
+                    ++pos;
+
+                    Type[] types = nestingType.GetGenericArguments();
+                    for (int i = 0; i < types.Length; ++i)
+                    {
+                        if (i != 0)
+                        {
+                            output[pos] = ',';
+                            output[pos + 1] = ' ';
+                            pos += 2;
+                        }
+
+                        pos += Format(types[i], output[pos..], false);
+                    }
+
+                    output[pos] = '>';
+                    ++pos;
+                }
+                else
+                {
+                    name.CopyTo(output[pos..]);
+                }
+
+                if (willBreakNext)
+                    break;
+            }
+
+            for (int i = nestedSizes.Length - 1; i >= 0; --i)
+                index += nestedSizes[i];
+
+            index += ct - 1;
         }
 
         return index;
@@ -562,38 +822,16 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (field.IsLiteral)
         {
-            output[index]     = 'c';
-            output[index + 1] = 'o';
-            output[index + 2] = 'n';
-            output[index + 3] = 's';
-            output[index + 4] = 't';
-            output[index + 5] = ' ';
-            index += 6;
+            WriteKeyword(LitConst, ref index, output, spaceSuffix: true);
         }
         else if (field.IsStatic)
         {
-            output[index]     = 's';
-            output[index + 1] = 't';
-            output[index + 2] = 'a';
-            output[index + 3] = 't';
-            output[index + 4] = 'i';
-            output[index + 5] = 'c';
-            output[index + 6] = ' ';
-            index += 7;
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
         }
 
         if (includeDefinitionKeywords && field is { IsLiteral: false, IsInitOnly: true })
         {
-            output[index]     = 'r';
-            output[index + 1] = 'e';
-            output[index + 2] = 'a';
-            output[index + 3] = 'd';
-            output[index + 4] = 'o';
-            output[index + 5] = 'n';
-            output[index + 6] = 'l';
-            output[index + 7] = 'y';
-            output[index + 8] = ' ';
-            index += 9;
+            WriteKeyword(LitReadonly, ref index, output, spaceSuffix: true);
         }
 
         index += Format(field.FieldType, output[index..]);
@@ -612,7 +850,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     }
 
     /// <inheritdoc/>
-    public virtual int GetFormatLength(PropertyInfo property, bool includeAccessors = false, bool includeDefinitionKeywords = false)
+    public virtual int GetFormatLength(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false)
     {
         int len = GetFormatLength(property.PropertyType, false) + 1;
 
@@ -646,38 +884,40 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 len += GetFormatLength(indexParameters[i]);
         }
 
-        len += 4; // { }
+        if (includeAccessors)
+        {
+            len += 4; // { }
 
-        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
+            MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
 
-        CountAccessorIfExists(3, defVis, getMethod, ref len);
+            CountAccessorIfExists(3, defVis, getMethod, ref len);
 
-        CountAccessorIfExists(3, defVis, setMethod, ref len);
+            CountAccessorIfExists(3, defVis, setMethod, ref len);
+        }
 
         return len;
     }
 
     /// <inheritdoc/>
-    public virtual int Format(PropertyInfo property, Span<char> output, bool includeAccessors = false, bool includeDefinitionKeywords = false)
+    public virtual int Format(PropertyInfo property, Span<char> output, bool includeAccessors = true, bool includeDefinitionKeywords = false)
     {
         ParameterInfo[] indexParameters = property.GetIndexParameters();
 
         MethodInfo? getMethod = property.GetGetMethod(true);
         MethodInfo? setMethod = property.GetSetMethod(true);
 
-        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod);
-
         int index = 0;
+        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod);
+        if (includeDefinitionKeywords)
+        {
+            WriteVisibility(vis, ref index, output);
+            output[index] = ' ';
+            ++index;
+        }
+
         if (getMethod != null && getMethod.IsStatic || setMethod != null && setMethod.IsStatic)
         {
-            output[0] = 's';
-            output[1] = 't';
-            output[2] = 'a';
-            output[3] = 't';
-            output[4] = 'i';
-            output[5] = 'c';
-            output[6] = ' ';
-            index += 7;
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
         }
 
         index += Format(property.PropertyType, output[index..]);
@@ -699,514 +939,198 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
         else
         {
-            output[index] = 't';
-            output[index + 1] = 'h';
-            output[index + 2] = 'i';
-            output[index + 3] = 's';
-            index += 4;
-        }
-
-        output[index] = ' ';
-        output[index + 1] = '{';
-        index += 2;
-
-        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
-
-        WriteAccessorIfExists("get", defVis, getMethod, ref index, output);
-
-        WriteAccessorIfExists("set", defVis, getMethod, ref index, output);
-
-        output[index] = ' ';
-        output[index + 1] = '}';
-
-        return index + 2;
-    }
-
-    /// <inheritdoc/>
-    public virtual string Format(PropertyInfo property, bool includeAccessors = false, bool includeDefinitionKeywords = false)
-    {
-        ParameterInfo[] indexParameters = property.GetIndexParameters();
-
-        MethodInfo? getMethod = property.GetGetMethod(true);
-        MethodInfo? setMethod = property.GetSetMethod(true);
-
-        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod);
-
-        Type propertyType = property.PropertyType;
-        Type? declaringType = property.DeclaringType;
-
-        bool isStatic = getMethod != null && getMethod.IsStatic || setMethod != null && setMethod.IsStatic;
-        int len = GetFormatLength(propertyType, false) + 1;
-        if (indexParameters.Length == 0)
-            len += property.Name.Length;
-        else
-            len += 4; // this
-
-        if (declaringType != null)
-            len += GetFormatLength(declaringType) + 1;
-
-        if (isStatic)
-            len += 7;
-
-        if (indexParameters.Length > 0)
-        {
-            len += 2 + (indexParameters.Length - 1) * 2;
+            WriteKeyword(LitThis, ref index, output);
+            output[index] = '[';
+            ++index;
             for (int i = 0; i < indexParameters.Length; ++i)
-                len += GetFormatLength(indexParameters[i]);
-        }
+            {
+                if (i != 0)
+                {
+                    output[index] = ',';
+                    output[index + 1] = ' ';
+                    index += 2;
+                }
 
-        len += 4; // { }
-
-        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
-
-        CountAccessorIfExists(3, defVis, getMethod, ref len);
-
-        CountAccessorIfExists(3, defVis, setMethod, ref len);
-
-        Span<char> output = stackalloc char[len];
-
-        int index = 0;
-        if (isStatic)
-        {
-            output[0] = 's';
-            output[1] = 't';
-            output[2] = 'a';
-            output[3] = 't';
-            output[4] = 'i';
-            output[5] = 'c';
-            output[6] = ' ';
-            index += 7;
-        }
-
-        index += Format(propertyType, output[index..]);
-        output[index] = ' ';
-        ++index;
-
-        if (declaringType != null)
-        {
-            index += Format(declaringType, output[index..]);
-            output[index] = '.';
+                index += Format(indexParameters[i], output[index..]);
+            }
+            output[index] = ']';
             ++index;
         }
 
-        if (indexParameters.Length == 0)
-        {
-            ReadOnlySpan<char> name = property.Name;
-            name.CopyTo(output[index..]);
-            index += name.Length;
-        }
-        else
-        {
-            output[index] = 't';
-            output[index + 1] = 'h';
-            output[index + 2] = 'i';
-            output[index + 3] = 's';
-            index += 4;
-        }
-
-        output[index] = ' ';
-        output[index + 1] = '{';
-        index += 2;
-
-        WriteAccessorIfExists("get", defVis, getMethod, ref index, output);
-
-        WriteAccessorIfExists("set", defVis, getMethod, ref index, output);
-
-        output[index] = ' ';
-        output[index + 1] = '}';
-
-        index += 2;
-        return new string(output[..index]);
-    }
-
-    /// <inheritdoc/>
-    public virtual int GetFormatLength(EventInfo @event, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
-    {
-        MethodInfo? addMethod = @event.GetAddMethod(true);
-        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
-        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
-
-        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
-
-        // get delegate type
-        Type delegateType = typeof(Delegate);
-        MethodInfo? methodToUse = addMethod ?? removeMethod;
-        if (methodToUse != null)
-        {
-            ParameterInfo[] addParameters = methodToUse.GetParameters();
-            for (int i = 0; i < addParameters.Length; i++)
-            {
-                Type c = addParameters[i].ParameterType;
-                if (!c.IsSubclassOf(delegateType))
-                    continue;
-
-                delegateType = c;
-                break;
-            }
-        }
-
-        int len = 6 + GetFormatLength(delegateType, false) + 1;
-
-        len += @event.Name.Length;
-
-        if (@event.DeclaringType != null)
-            len += GetFormatLength(@event.DeclaringType) + 1;
-
-        if (addMethod != null && addMethod.IsStatic || removeMethod != null && removeMethod.IsStatic || raiseMethod != null && raiseMethod.IsStatic)
-            len += 7;
-
-        len += 4; // { }
-
-        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
-
-        CountAccessorIfExists(3, defVis, addMethod, ref len);
-
-        CountAccessorIfExists(6, defVis, removeMethod, ref len);
-
-        CountAccessorIfExists(5, defVis, raiseMethod, ref len);
-
-        return len;
-    }
-
-    /// <inheritdoc/>
-    public virtual int Format(EventInfo @event, Span<char> output, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
-    {
-        MethodInfo? addMethod = @event.GetAddMethod(true);
-        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
-        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
-
-        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
-
-        // get delegate type
-        Type delegateType = typeof(Delegate);
-        MethodInfo? methodToUse = addMethod ?? removeMethod;
-        if (methodToUse != null)
-        {
-            ParameterInfo[] addParameters = methodToUse.GetParameters();
-            for (int i = 0; i < addParameters.Length; i++)
-            {
-                Type c = addParameters[i].ParameterType;
-                if (!c.IsSubclassOf(delegateType))
-                    continue;
-
-                delegateType = c;
-                break;
-            }
-        }
-
-        int index = 0;
-        if (addMethod != null && addMethod.IsStatic || removeMethod != null && removeMethod.IsStatic || raiseMethod != null && raiseMethod.IsStatic)
-        {
-            output[0] = 's';
-            output[1] = 't';
-            output[2] = 'a';
-            output[3] = 't';
-            output[4] = 'i';
-            output[5] = 'c';
-            output[6] = ' ';
-            index += 7;
-        }
-
-        output[index] = 'e';
-        output[index + 1] = 'v';
-        output[index + 2] = 'e';
-        output[index + 3] = 'n';
-        output[index + 4] = 't';
-        output[index + 5] = ' ';
-        index += 6;
-
-        index += Format(delegateType, output[index..]);
-        output[index] = ' ';
-        ++index;
-
-        if (@event.DeclaringType != null)
-        {
-            index += Format(@event.DeclaringType, output[index..]);
-            output[index] = '.';
-            ++index;
-        }
-
-        ReadOnlySpan<char> name = @event.Name;
-        name.CopyTo(output[index..]);
-        index += name.Length;
-
-        output[index] = ' ';
-        output[index + 1] = '{';
-        index += 2;
-
-        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
-
-        WriteAccessorIfExists("add", defVis, addMethod, ref index, output);
-
-        WriteAccessorIfExists("remove", defVis, removeMethod, ref index, output);
-
-        WriteAccessorIfExists("raise", defVis, raiseMethod, ref index, output);
-
-        output[index] = ' ';
-        output[index + 1] = '}';
-
-        return index + 2;
-    }
-
-    /// <inheritdoc/>
-    public virtual string Format(EventInfo @event, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
-    {
-        MethodInfo? addMethod = @event.GetAddMethod(true);
-        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
-        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
-
-        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
-
-        // get delegate type
-        Type delegateType = typeof(Delegate);
-        MethodInfo? methodToUse = addMethod ?? removeMethod;
-        if (methodToUse != null)
-        {
-            ParameterInfo[] addParameters = methodToUse.GetParameters();
-            for (int i = 0; i < addParameters.Length; i++)
-            {
-                Type c = addParameters[i].ParameterType;
-                if (!c.IsSubclassOf(delegateType))
-                    continue;
-
-                delegateType = c;
-                break;
-            }
-        }
-
-        int len = 6 + GetFormatLength(delegateType, false) + 1;
-
-        len += @event.Name.Length;
-
-        if (@event.DeclaringType != null)
-            len += GetFormatLength(@event.DeclaringType) + 1;
-
-        if (addMethod != null && addMethod.IsStatic || removeMethod != null && removeMethod.IsStatic || raiseMethod != null && raiseMethod.IsStatic)
-            len += 7;
-
-        len += 4; // { }
-
-        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
-
-        CountAccessorIfExists(3, defVis, addMethod, ref len);
-
-        CountAccessorIfExists(6, defVis, removeMethod, ref len);
-
-        CountAccessorIfExists(5, defVis, raiseMethod, ref len);
-
-        Span<char> output = stackalloc char[len];
-
-        int index = 0;
-        if (addMethod != null && addMethod.IsStatic || removeMethod != null && removeMethod.IsStatic || raiseMethod != null && raiseMethod.IsStatic)
-        {
-            output[0] = 's';
-            output[1] = 't';
-            output[2] = 'a';
-            output[3] = 't';
-            output[4] = 'i';
-            output[5] = 'c';
-            output[6] = ' ';
-            index += 7;
-        }
-
-        output[index] = 'e';
-        output[index + 1] = 'v';
-        output[index + 2] = 'e';
-        output[index + 3] = 'n';
-        output[index + 4] = 't';
-        output[index + 5] = ' ';
-        index += 6;
-
-        index += Format(delegateType, output[index..]);
-        output[index] = ' ';
-        ++index;
-
-        if (@event.DeclaringType != null)
-        {
-            index += Format(@event.DeclaringType, output[index..]);
-            output[index] = '.';
-            ++index;
-        }
-
-        ReadOnlySpan<char> name = @event.Name;
-        name.CopyTo(output[index..]);
-        index += name.Length;
-
-        output[index] = ' ';
-        output[index + 1] = '{';
-        index += 2;
-
-        WriteAccessorIfExists("add", defVis, addMethod, ref index, output);
-
-        WriteAccessorIfExists("remove", defVis, removeMethod, ref index, output);
-
-        WriteAccessorIfExists("raise", defVis, raiseMethod, ref index, output);
-
-        output[index] = ' ';
-        output[index + 1] = '}';
-
-        index += 2;
-        return new string(output[..index]);
-    }
-
-    /// <inheritdoc/>
-    public virtual int GetFormatLength(ParameterInfo parameter, bool isExtensionThisParameter = false)
-    {
-        Type type = parameter.ParameterType;
-        bool isParamsArray = type.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
-        string? name = parameter.Name;
-        int length = 0;
-
-        if (isExtensionThisParameter)
-            length += 5;
-
-        if (!string.IsNullOrEmpty(name))
-            length += name.Length + 1;
-
-        if (isParamsArray)
-            length += 7;
-
-        length += GetFormatLength(type, isOutType: parameter.IsOut);
-        return length;
-    }
-
-    /// <inheritdoc/>
-    public virtual int Format(ParameterInfo parameter, Span<char> output, bool isExtensionThisParameter = false)
-    {
-        Type type = parameter.ParameterType;
-        bool isParamsArray = type.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
-        string? name = parameter.Name;
-        int index = 0;
-
-        if (isExtensionThisParameter)
-        {
-            output[0] = 't';
-            output[1] = 'h';
-            output[2] = 'i';
-            output[3] = 's';
-            output[4] = ' ';
-            index += 5;
-        }
-
-        if (isParamsArray)
-        {
-            output[index] = 'p';
-            output[index + 1] = 'a';
-            output[index + 2] = 'r';
-            output[index + 3] = 'a';
-            output[index + 4] = 'm';
-            output[index + 5] = 's';
-            output[index + 6] = ' ';
-            index += 7;
-        }
-
-        index += Format(type, output[index..], isOutType: parameter.IsOut);
-
-        if (!string.IsNullOrEmpty(name))
+        if (includeAccessors)
         {
             output[index] = ' ';
-            ReadOnlySpan<char> nameSpan = name;
-            nameSpan.CopyTo(output[(index + 1)..]);
-            index += nameSpan.Length + 1;
+            output[index + 1] = '{';
+            output[index + 2] = ' ';
+            index += 3;
+
+            MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
+
+            WriteAccessorIfExists(LitGet, defVis, getMethod, ref index, output);
+
+            WriteAccessorIfExists(LitSet, defVis, setMethod, ref index, output);
+
+            output[index] = '}';
+            ++index;
         }
 
         return index;
     }
 
     /// <inheritdoc/>
-    public virtual string Format(ParameterInfo parameter, bool isExtensionThisParameter)
+    public virtual int GetFormatLength(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
     {
-        Type type = parameter.ParameterType;
-        bool isParamsArray = type.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
-        string? name = parameter.Name;
-        int index = 0, length = 0;
-        bool isOut = parameter.IsOut;
+        MethodInfo? addMethod = @event.GetAddMethod(true);
+        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
+        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
 
-        if (isExtensionThisParameter)
-            length += 5;
+        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
 
-        if (!string.IsNullOrEmpty(name))
-            length += name.Length + 1;
-
-        if (isParamsArray)
-            length += 7;
-
-        length += GetFormatLength(type, isOut);
-        Span<char> output = stackalloc char[length];
-
-        if (isExtensionThisParameter)
+        // get delegate type
+        Type delegateType = typeof(Delegate);
+        MethodInfo? methodToUse = addMethod ?? removeMethod;
+        if (methodToUse != null)
         {
-            output[0] = 't';
-            output[1] = 'h';
-            output[2] = 'i';
-            output[3] = 's';
-            output[4] = ' ';
-            index += 5;
+            ParameterInfo[] addParameters = methodToUse.GetParameters();
+            for (int i = 0; i < addParameters.Length; i++)
+            {
+                Type c = addParameters[i].ParameterType;
+                if (!c.IsSubclassOf(delegateType))
+                    continue;
+
+                delegateType = c;
+                break;
+            }
         }
 
-        if (isParamsArray)
+        int len = 6 + GetFormatLength(delegateType, false) + 1;
+
+        len += @event.Name.Length;
+
+        if (@event.DeclaringType != null)
+            len += GetFormatLength(@event.DeclaringType) + 1;
+
+        if (addMethod != null && addMethod.IsStatic || removeMethod != null && removeMethod.IsStatic || raiseMethod != null && raiseMethod.IsStatic)
+            len += 7;
+
+        if (includeAccessors)
         {
-            output[index] = 'p';
-            output[index + 1] = 'a';
-            output[index + 2] = 'r';
-            output[index + 3] = 'a';
-            output[index + 4] = 'm';
-            output[index + 5] = 's';
-            output[index + 6] = ' ';
-            index += 7;
+            len += 4; // { }
+
+            MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
+
+            CountAccessorIfExists(3, defVis, addMethod, ref len);
+
+            CountAccessorIfExists(6, defVis, removeMethod, ref len);
+
+            CountAccessorIfExists(5, defVis, raiseMethod, ref len);
         }
 
-        index += Format(type, output[index..], isOutType: isOut);
+        return len;
+    }
 
-        if (string.IsNullOrEmpty(name))
-            return new string(output[..index]);
+    /// <inheritdoc/>
+    public virtual int Format(EventInfo @event, Span<char> output, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
+    {
+        MethodInfo? addMethod = @event.GetAddMethod(true);
+        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
+        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
 
+        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
+
+        // get delegate type
+        Type delegateType = typeof(Delegate);
+        MethodInfo? methodToUse = addMethod ?? removeMethod;
+        if (methodToUse != null)
+        {
+            ParameterInfo[] addParameters = methodToUse.GetParameters();
+            for (int i = 0; i < addParameters.Length; i++)
+            {
+                Type c = addParameters[i].ParameterType;
+                if (!c.IsSubclassOf(delegateType))
+                    continue;
+
+                delegateType = c;
+                break;
+            }
+        }
+
+        int index = 0;
+        if (addMethod != null && addMethod.IsStatic || removeMethod != null && removeMethod.IsStatic || raiseMethod != null && raiseMethod.IsStatic)
+        {
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+        }
+
+        WriteKeyword(LitEvent, ref index, output, spaceSuffix: true);
+
+        index += Format(delegateType, output[index..]);
         output[index] = ' ';
-        ReadOnlySpan<char> nameSpan = name;
-        nameSpan.CopyTo(output[(index + 1)..]);
-        index += nameSpan.Length;
+        ++index;
 
-        return new string(output[..index]);
-    }
-
-    /// <summary>
-    /// Counts the length of a property or event method with the given <paramref name="keywordLength"/>.
-    /// </summary>
-    protected virtual void CountAccessorIfExists(int keywordLength, MemberVisibility defVis, MethodInfo? method, ref int length)
-    {
-        if (method == null)
-            return;
-
-        MemberVisibility vis = method.GetVisibility();
-        if (vis != defVis)
+        if (@event.DeclaringType != null)
         {
-            length += GetVisibilityLength(vis) + 1;
-        }
-
-        length += keywordLength + 2;
-    }
-
-    /// <summary>
-    /// Writes a property or event method with the given <paramref name="keyword"/>.
-    /// </summary>
-    protected virtual void WriteAccessorIfExists(ReadOnlySpan<char> keyword, MemberVisibility defVis, MethodInfo? method, ref int index, Span<char> output)
-    {
-        if (method == null)
-            return;
-
-        MemberVisibility vis = method.GetVisibility();
-        if (vis != defVis)
-        {
-            WriteVisibility(vis, ref index, output);
-            output[index] = ' ';
+            index += Format(@event.DeclaringType, output[index..]);
+            output[index] = '.';
             ++index;
         }
 
-        keyword.CopyTo(output[index..]);
-        index += keyword.Length;
-        output[index] = ';';
-        output[index + 1] = ' ';
-        index += 2;
+        ReadOnlySpan<char> name = @event.Name;
+        name.CopyTo(output[index..]);
+        index += name.Length;
+
+        if (includeAccessors)
+        {
+            output[index] = ' ';
+            output[index + 1] = '{';
+            output[index + 2] = ' ';
+            index += 3;
+
+            MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
+
+            WriteAccessorIfExists(LitAdd, defVis, addMethod, ref index, output);
+
+            WriteAccessorIfExists(LitRemove, defVis, removeMethod, ref index, output);
+
+            WriteAccessorIfExists(LitRaise, defVis, raiseMethod, ref index, output);
+
+            output[index] = '}';
+            ++index;
+        }
+
+        return index;
+    }
+
+    /// <inheritdoc/>
+    public virtual int GetFormatLength(ParameterInfo parameter, bool isExtensionThisParameter = false)
+    {
+        TypeMetaInfo meta = default;
+        int length = GetParmeterLength(parameter, ref meta, out _, isExtensionThisParameter);
+        return length;
+    }
+
+    /// <inheritdoc/>
+    public virtual int Format(ParameterInfo parameter, Span<char> output, bool isExtensionThisParameter = false)
+    {
+        TypeMetaInfo meta = default;
+        Type type = parameter.ParameterType;
+        meta.IsParams = type.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
+        meta.Init(ref type, out string? elementKeyword, this);
+        int index = 0;
+        WriteParameter(parameter, output, ref index, in meta, elementKeyword, isExtensionThisParameter);
+        return index;
+    }
+
+    /// <inheritdoc/>
+    public virtual string Format(ParameterInfo parameter, bool isExtensionThisParameter = false)
+    {
+        TypeMetaInfo meta = default;
+        int length = GetParmeterLength(parameter, ref meta, out string? elementKeyword, isExtensionThisParameter);
+
+        Span<char> output = stackalloc char[length];
+        int index = 0;
+
+        WriteParameter(parameter, output, ref index, in meta, elementKeyword, isExtensionThisParameter);
+        return new string(output[..index]);
     }
 
     /// <summary>
@@ -1233,6 +1157,347 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     }
 
     /// <summary>
+    /// Write the passed literal to the output, incrimenting index.
+    /// </summary>
+    protected void WriteKeyword(ReadOnlySpan<char> keyword, ref int index, Span<char> output, bool spacePrefix = false, bool spaceSuffix = false)
+    {
+        if (keyword.Length == 0)
+        {
+            if (!spacePrefix || !spaceSuffix)
+                return;
+
+            output[index] = ' ';
+            ++index;
+            return;
+        }
+
+        if (spacePrefix)
+        {
+            output[index] = ' ';
+            ++index;
+        }
+        keyword.CopyTo(output[index..]);
+        index += keyword.Length;
+        if (!spaceSuffix)
+            return;
+        output[index] = ' ';
+        ++index;
+    }
+#else
+
+    /// <summary>
+    /// Write the visibilty keyword for the given visibility.
+    /// </summary>
+    protected virtual unsafe void WriteVisibility(MemberVisibility visibility, ref int index, char* output)
+    {
+        string? span = visibility switch
+        {
+            MemberVisibility.Private => LitPrivate,
+            MemberVisibility.PrivateProtected => LitPrivateProtected,
+            MemberVisibility.Protected => LitProtected,
+            MemberVisibility.ProtectedInternal => LitProtectedInternal,
+            MemberVisibility.Internal => LitInternal,
+            MemberVisibility.Public => LitPublic,
+            _ => default
+        };
+
+        if (span == null)
+            return;
+
+        for (int i = 0; i < span.Length; ++i)
+            output[index + i] = span[i];
+
+        index += span.Length;
+    }
+
+    /// <inheritdoc/>
+    public virtual string Format(OpCode opCode) => opCode.Name;
+    
+    /// <inheritdoc/>
+    public virtual string Format(Label label) => ((uint)label.GetLabelId()).ToString("N0", CultureInfo.InvariantCulture);
+    
+    /// <inheritdoc/>
+    public virtual string Format(OpCode opCode, object? operand, OpCodeFormattingContext usageContext)
+    {
+        string name = opCode.Name;
+        switch (opCode.OperandType)
+        {
+            case OperandType.ShortInlineBrTarget:
+            case OperandType.InlineBrTarget:
+                if (operand is not Label lbl)
+                    break;
+
+                return name + " " + ((uint)lbl.GetLabelId()).ToString("N0", CultureInfo.InvariantCulture);
+
+            case OperandType.InlineField:
+                if (operand is not FieldInfo field)
+                    break;
+
+                return name + " " + Format(field);
+
+            case OperandType.ShortInlineI:
+            case OperandType.InlineI8:
+            case OperandType.InlineI:
+                long l64;
+                try
+                {
+                    l64 = Convert.ToInt64(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                return name + " " + l64.ToString("N0", CultureInfo.InvariantCulture);
+
+            case OperandType.InlineMethod:
+                if (operand is not MethodBase method)
+                    break;
+
+                return name + " " + Format(method);
+
+            case OperandType.ShortInlineR:
+            case OperandType.InlineR:
+                double r8;
+                try
+                {
+                    r8 = Convert.ToDouble(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                return name + " " + r8.ToString("F6", CultureInfo.InvariantCulture);
+
+            case OperandType.InlineSig:
+                try
+                {
+                    l64 = Convert.ToInt64(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                return name + " " + l64.ToString("N0", CultureInfo.InvariantCulture);
+
+            case OperandType.InlineString:
+                if (operand is not string str)
+                    break;
+
+                return name + " \"" + str + "\"";
+
+            case OperandType.InlineSwitch:
+                if (operand is not Label[] jumps)
+                    break;
+
+                StringBuilder switchBuilder = new StringBuilder(name)
+                    .Append(' ')
+                    .Append(Environment.NewLine)
+                    .Append('{');
+
+                for (int i = 0; i < jumps.Length; ++i)
+                {
+                    switchBuilder.Append(Environment.NewLine)
+                        .Append(' ', 2)
+                        .Append(((uint)i).ToString("N0", CultureInfo.InvariantCulture))
+                        .Append(" => Label #")
+                        .Append(((uint)jumps[i].GetLabelId()).ToString("N0", CultureInfo.InvariantCulture));
+                }
+                switchBuilder
+                    .Append(Environment.NewLine)
+                    .Append('}');
+
+                return switchBuilder.ToString();
+
+            case OperandType.InlineTok:
+                switch (operand)
+                {
+                    case Type typeToken:
+                        return name + " " + Format(typeToken);
+
+                    case MethodBase methodToken:
+                        return name + " " + Format(methodToken);
+
+                    case FieldInfo fieldToken:
+                        return name + " " + Format(fieldToken);
+                }
+
+                break;
+
+            case OperandType.InlineType:
+                if (operand is not Type type)
+                    break;
+
+                return name + " " + Format(type);
+
+            case OperandType.ShortInlineVar:
+            case OperandType.InlineVar:
+                if (operand is LocalBuilder lb)
+                {
+                    name += " " + ((uint)lb.LocalIndex).ToString("N0", CultureInfo.InvariantCulture);
+                    if (lb.LocalType == null)
+                        return name;
+
+                    return name + " : " + Format(lb.LocalType);
+                }
+
+                try
+                {
+                    l64 = Convert.ToInt64(operand);
+                }
+                catch
+                {
+                    break;
+                }
+
+                return name + " " + l64.ToString("N0", CultureInfo.InvariantCulture);
+        }
+
+        return name;
+    }
+
+    /// <inheritdoc/>
+    public virtual string Format(MethodBase method, bool includeDefinitionKeywords = false) => throw new NotImplementedException();
+
+    /// <inheritdoc/>
+    public virtual string Format(FieldInfo field, bool includeDefinitionKeywords = false) => throw new NotImplementedException();
+
+    /// <inheritdoc/>
+    public virtual unsafe string Format(ParameterInfo parameter, bool isExtensionThisParameter = false)
+    {
+        TypeMetaInfo meta = default;
+        int length = GetParmeterLength(parameter, ref meta, out string? elementKeyword, isExtensionThisParameter);
+
+        char* output = stackalloc char[length];
+        int index = 0;
+
+        WriteParameter(parameter, output, ref index, in meta, elementKeyword, isExtensionThisParameter);
+        return new string(output, 0, index);
+    }
+
+    /// <summary>
+    /// Write the passed literal to the output, incrimenting index.
+    /// </summary>
+    protected unsafe void WriteKeyword(string keyword, ref int index, char* output, bool spacePrefix = false, bool spaceSuffix = false)
+    {
+        if (keyword.Length == 0)
+        {
+            if (!spacePrefix || !spaceSuffix)
+                return;
+
+            output[index] = ' ';
+            ++index;
+            return;
+        }
+
+        if (spacePrefix)
+        {
+            output[index] = ' ';
+            ++index;
+        }
+        for (int i = 0; i < keyword.Length; ++i)
+            output[i + index] = keyword[i];
+        index += keyword.Length;
+        if (!spaceSuffix)
+            return;
+        output[index] = ' ';
+        ++index;
+    }
+#endif
+
+    /// <summary>
+    /// Counts the length of a property or event method with the given <paramref name="keywordLength"/>.
+    /// </summary>
+    protected virtual void CountAccessorIfExists(int keywordLength, MemberVisibility defVis, MethodInfo? method, ref int length)
+    {
+        if (method == null)
+            return;
+
+        MemberVisibility vis = method.GetVisibility();
+        if (vis != defVis)
+        {
+            length += GetVisibilityLength(vis) + 1;
+        }
+
+        length += keywordLength + 2;
+    }
+
+    /// <summary>
+    /// Calculate the length of a type name without adding declaring (nesting parent) types.
+    /// </summary>
+    protected virtual int GetNestedInvariantTypeNameLength(Type nestingType, bool allowFullTypeName)
+    {
+        int length = 0;
+        string name = allowFullTypeName && UseFullTypeNames ? nestingType.FullName ?? nestingType.Name : nestingType.Name;
+
+        if (nestingType.IsGenericType)
+        {
+            int graveIndex = name.IndexOf('`');
+            if (graveIndex != -1)
+                length += graveIndex;
+            else length += name.Length;
+            Type[] types = nestingType.GetGenericArguments();
+            length += 2 + (types.Length - 1) * 2;
+
+            for (int i = 0; i < types.Length; ++i)
+            {
+                Type type = types[i];
+                if (type.IsArray)
+                {
+                    type = type.GetElementType()!;
+                    length += 2;
+                }
+                string? s = GetTypeKeyword(type);
+                if (s != null)
+                    length += s.Length;
+                else
+                    length += GetNestedInvariantTypeNameLength(type, true);
+            }
+        }
+        else length += name.Length;
+
+        return length;
+    }
+
+    /// <summary>
+    /// Calculate the length of a type name without adding definition keywords.
+    /// </summary>
+    protected virtual int GetNonDeclaritiveTypeNameLength(ref Type type, ref TypeMetaInfo metaInfo, out string? elementKeyword)
+    {
+        elementKeyword = GetTypeKeyword(type);
+        if (elementKeyword != null)
+            return elementKeyword.Length;
+        
+        metaInfo.Init(ref type, out elementKeyword, this);
+
+        int length = metaInfo.LengthToAdd;
+
+        if (elementKeyword != null)
+        {
+            length += elementKeyword.Length;
+        }
+        else
+        {
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                if (!ReferenceEquals(nestingType, type))
+                    ++length;
+
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+
+                length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+
+                if (willBreakNext)
+                    break;
+            }
+        }
+
+        return length;
+    }
+
+    /// <summary>
     /// Get the length of the visibilty keyword for the given visibility.
     /// </summary>
     protected virtual int GetVisibilityLength(MemberVisibility visibility)
@@ -1248,37 +1513,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             _ => 0
         };
     }
-#else
-
-    /// <inheritdoc/>
-    public virtual string Format(OpCode opCode) => opCode.Name;
-    
-    /// <inheritdoc/>
-    public virtual string Format(Label label) => ((uint)label.GetLabelId()).ToString("N0", CultureInfo.InvariantCulture);
-    
-    /// <inheritdoc/>
-    public virtual string Format(OpCode opCode, object? operand, OpCodeFormattingContext usageContext) => throw new NotImplementedException();
-
-    public string Format(Type type, bool includeDefinitionKeywords = false, bool isOutType = false) => throw new NotImplementedException();
-
-    public string Format(MethodBase method, bool includeDefinitionKeywords = false) => throw new NotImplementedException();
-
-    public string Format(FieldInfo field, bool includeDefinitionKeywords = false) => throw new NotImplementedException();
-
-    public string Format(PropertyInfo property, bool includeAccessors = false, bool includeDefinitionKeywords = false) => throw new NotImplementedException();
-
-    public string Format(EventInfo @event, bool includeAccessors = false, bool includeEventKeyword = true,
-        bool includeDefinitionKeywords = false) =>
-        throw new NotImplementedException();
-
-    public string Format(ParameterInfo parameter, bool isExtensionThisParameter = false) => throw new NotImplementedException();
-#endif
 
     /// <summary>
     /// Gets the language keyword for the type instead of the CLR type name, or <see langword="null"/> if the type doesn't have a keyword.
     /// </summary>
     protected virtual string? GetTypeKeyword(Type type)
     {
+        if (!UseTypeKeywords)
+            return null;
         if (type.IsPrimitive)
         {
             if (type == typeof(byte))
@@ -1323,5 +1565,832 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
 
         return null;
+    }
+
+    /// <inheritdoc/>
+    public virtual unsafe string Format(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false)
+    {
+        ParameterInfo[] indexParameters = property.GetIndexParameters();
+        TypeMetaInfo* indexInfo = stackalloc TypeMetaInfo[indexParameters.Length];
+        string?[]? parameterTypeNames = null;
+            
+        MethodInfo? getMethod = property.GetGetMethod(true);
+        MethodInfo? setMethod = property.GetSetMethod(true);
+
+        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod);
+
+        Type? declaringType = property.DeclaringType;
+        string? declTypeElementKeyword = null;
+        bool isStatic = getMethod is { IsStatic: true } || setMethod is { IsStatic: true };
+        Type returnType = property.PropertyType;
+        bool isIndexer = indexParameters.Length > 0;
+        TypeMetaInfo declTypeMetaInfo = default;
+        TypeMetaInfo returnTypeMetaInfo = default;
+
+        int length = GetNonDeclaritiveTypeNameLength(ref returnType, ref returnTypeMetaInfo, out string? returnElementKeyword) + 1;
+
+        if (declaringType != null)
+            length += GetNonDeclaritiveTypeNameLength(ref declaringType, ref declTypeMetaInfo, out declTypeElementKeyword) + 1;
+
+        if (includeDefinitionKeywords)
+            length += GetVisibilityLength(vis) + 1;
+
+        if (!isIndexer)
+            length += property.Name.Length;
+        else
+            length += 4; // this
+
+        if (isStatic)
+            length += 7;
+
+        if (isIndexer)
+        {
+            length += 2 + (indexParameters.Length - 1) * 2;
+            for (int i = 0; i < indexParameters.Length; ++i)
+            {
+                length += GetParmeterLength(indexParameters[i], ref indexInfo[i], out string? elementKeyword);
+                if (elementKeyword != null)
+                    (parameterTypeNames ??= new string[indexParameters.Length])[i] = elementKeyword;
+            }
+        }
+
+        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
+
+        if (includeAccessors)
+        {
+            length += 4; // { }
+
+            CountAccessorIfExists(3, defVis, getMethod, ref length);
+
+            CountAccessorIfExists(3, defVis, setMethod, ref length);
+        }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        Span<char> output = stackalloc char[length];
+#else
+        char* output = stackalloc char[length];
+#endif
+        int index = 0;
+        if (includeDefinitionKeywords)
+        {
+            WriteVisibility(vis, ref index, output);
+            output[index] = ' ';
+            ++index;
+        }
+        if (isStatic)
+        {
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+        }
+
+        FormatType(returnType, in returnTypeMetaInfo, returnElementKeyword, output, ref index);
+        
+        output[index] = ' ';
+        ++index;
+
+        if (declaringType != null)
+        {
+            FormatType(declaringType, in declTypeMetaInfo, declTypeElementKeyword, output, ref index);
+            output[index] = '.';
+            ++index;
+        }
+
+        if (indexParameters.Length == 0)
+        {
+            string name = property.Name;
+            for (int i = 0; i < name.Length; ++i)
+                output[index + i] = name[i];
+            index += name.Length;
+        }
+        else
+        {
+            WriteKeyword(LitThis, ref index, output);
+            output[index] = '[';
+            ++index;
+            for (int i = 0; i < indexParameters.Length; ++i)
+            {
+                if (i != 0)
+                {
+                    output[index] = ',';
+                    output[index + 1] = ' ';
+                    index += 2;
+                }
+
+                WriteParameter(indexParameters[i], output, ref index, in indexInfo[i], parameterTypeNames?[i], false);
+            }
+            output[index] = ']';
+            ++index;
+        }
+
+        if (includeAccessors)
+        {
+            output[index] = ' ';
+            output[index + 1] = '{';
+            output[index + 2] = ' ';
+            index += 3;
+
+            WriteAccessorIfExists(LitGet, defVis, getMethod, ref index, output);
+
+            WriteAccessorIfExists(LitSet, defVis, setMethod, ref index, output);
+
+            output[index] = '}';
+            ++index;
+        }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        return new string(output[..index]);
+#else
+        return new string(output, 0, index);
+#endif
+    }
+
+    /// <inheritdoc/>
+    public virtual unsafe string Format(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
+    {
+        MethodInfo? addMethod = @event.GetAddMethod(true);
+        MethodInfo? removeMethod = @event.GetRemoveMethod(true);
+        MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
+
+        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
+
+        // get delegate type
+        Type delegateType = typeof(Delegate);
+        MethodInfo? methodToUse = addMethod ?? removeMethod;
+        if (methodToUse != null)
+        {
+            ParameterInfo[] addParameters = methodToUse.GetParameters();
+            for (int i = 0; i < addParameters.Length; i++)
+            {
+                Type c = addParameters[i].ParameterType;
+                if (!c.IsSubclassOf(delegateType))
+                    continue;
+
+                delegateType = c;
+                break;
+            }
+        }
+
+
+        Type? declaringType = @event.DeclaringType;
+        string? declTypeElementKeyword = null;
+        bool isStatic = addMethod is { IsStatic: true } || removeMethod is { IsStatic: true } || raiseMethod is { IsStatic: true };
+        TypeMetaInfo declTypeMetaInfo = default;
+        TypeMetaInfo handlerTypeMetaInfo = default;
+
+        int length = GetNonDeclaritiveTypeNameLength(ref delegateType, ref handlerTypeMetaInfo, out _) + 1;
+
+        if (declaringType != null)
+            length += GetNonDeclaritiveTypeNameLength(ref declaringType, ref declTypeMetaInfo, out declTypeElementKeyword) + 1;
+
+        if (includeDefinitionKeywords)
+            length += GetVisibilityLength(vis) + 1;
+
+        if (isStatic)
+            length += 7;
+
+        if (includeEventKeyword)
+            length += 6;
+
+        length += @event.Name.Length;
+
+        MemberVisibility defVis = includeDefinitionKeywords ? vis : MemberVisibility.Public;
+
+        if (includeAccessors)
+        {
+            length += 4; // { }
+
+            CountAccessorIfExists(3, defVis, addMethod, ref length);
+
+            CountAccessorIfExists(6, defVis, removeMethod, ref length);
+
+            CountAccessorIfExists(5, defVis, raiseMethod, ref length);
+        }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        Span<char> output = stackalloc char[length];
+#else
+        char* output = stackalloc char[length];
+#endif
+        int index = 0;
+        if (includeDefinitionKeywords)
+        {
+            WriteVisibility(vis, ref index, output);
+            output[index] = ' ';
+            ++index;
+        }
+        if (isStatic)
+        {
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+        }
+
+        if (includeEventKeyword)
+        {
+            WriteKeyword(LitEvent, ref index, output, spaceSuffix: true);
+        }
+
+        FormatType(delegateType, in handlerTypeMetaInfo, null, output, ref index);
+        
+        output[index] = ' ';
+        ++index;
+
+        if (declaringType != null)
+        {
+            FormatType(declaringType, in declTypeMetaInfo, declTypeElementKeyword, output, ref index);
+            output[index] = '.';
+            ++index;
+        }
+
+        string name = @event.Name;
+        for (int i = 0; i < name.Length; ++i)
+            output[index + i] = name[i];
+        index += name.Length;
+
+        if (includeAccessors)
+        {
+            output[index] = ' ';
+            output[index + 1] = '{';
+            output[index + 2] = ' ';
+            index += 3;
+
+            WriteAccessorIfExists(LitAdd, defVis, addMethod, ref index, output);
+
+            WriteAccessorIfExists(LitRemove, defVis, removeMethod, ref index, output);
+
+            WriteAccessorIfExists(LitRaise, defVis, raiseMethod, ref index, output);
+
+            output[index] = ' ';
+            ++index;
+        }
+        
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        return new string(output[..index]);
+#else
+        return new string(output, 0, index);
+#endif
+    }
+
+    /// <inheritdoc/>
+    public virtual unsafe string Format(Type type, bool includeDefinitionKeywords = false, bool isOutType = false)
+    {
+        string? s = GetTypeKeyword(type);
+        if (s != null)
+            return s;
+
+        TypeMetaInfo main = default;
+        main.Init(ref type, out string? elementKeyword, this);
+
+        TypeMetaInfo delegateRtnType = default;
+
+        MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
+        bool isValueType = type.IsValueType;
+        bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false };
+        bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
+        bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
+        bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
+        bool isByRefType = false;
+        Type? delegateReturnType = null;
+#if NETCOREAPP2_1_OR_GREATER || NET || NETSTANDARD2_1_OR_GREATER
+        isByRefType = includeDefinitionKeywords && type.IsByRefLike;
+#endif
+
+        int length = main.LengthToAdd;
+        if (includeDefinitionKeywords && elementKeyword is null)
+        {
+            length += GetVisibilityLength(vis) + 1;
+            if (isValueType)
+            {
+                if (isReadOnly)
+                    length += 9;
+                if (isByRefType)
+                    length += 4;
+
+                length += type.IsEnum ? 5 : 7;
+            }
+            else if (isDelegate)
+            {
+                length += 9;
+
+                try
+                {
+                    delegateReturnType = Accessor.GetReturnType(type);
+                    delegateRtnType.Init(ref delegateReturnType, out _, this);
+
+                    ++length;
+                    length += delegateRtnType.LengthToAdd;
+                    for (Type? nestingType = delegateReturnType; nestingType != null; nestingType = nestingType.DeclaringType)
+                    {
+                        if (!ReferenceEquals(nestingType, delegateReturnType))
+                            ++length;
+
+                        bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+
+                        length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+
+                        if (willBreakNext)
+                            break;
+                    }
+                }
+                catch (NotSupportedException)
+                {
+                    // ignored
+                }
+            }
+            else
+            {
+                length += type.IsInterface ? 10 : 6;
+                if (isStatic)
+                    length += 7;
+                else if (isAbstract)
+                    length += 9;
+            }
+
+        }
+
+        if (elementKeyword != null)
+        {
+            length += elementKeyword.Length;
+        }
+        else
+        {
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                if (!ReferenceEquals(nestingType, type))
+                    ++length;
+
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+
+                length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+
+                if (willBreakNext)
+                    break;
+            }
+        }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        Span<char> output = stackalloc char[length];
+#else
+        char* output = stackalloc char[length];
+#endif
+        int index = 0;
+        if (main.IsByRef)
+        {
+            if (isOutType)
+            {
+                output[0] = 'o';
+                output[1] = 'u';
+                output[2] = 't';
+            }
+            else
+            {
+                output[0] = 'r';
+                output[1] = 'e';
+                output[2] = 'f';
+            }
+
+            output[3] = ' ';
+            index += 4;
+        }
+        if (includeDefinitionKeywords && elementKeyword is null)
+        {
+            WriteVisibility(vis, ref index, output);
+            output[index] = ' ';
+            ++index;
+            if (isValueType)
+            {
+                if (isReadOnly)
+                {
+                    WriteKeyword(LitReadonly, ref index, output, spaceSuffix: true);
+                }
+
+                if (isByRefType)
+                {
+                    WriteKeyword(LitRef, ref index, output, spaceSuffix: true);
+                }
+            }
+            else if (isStatic)
+            {
+                WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            }
+            else if (isDelegate)
+            {
+                WriteKeyword(LitDelegate, ref index, output, spaceSuffix: true);
+
+                if (delegateRtnType.IsByRef)
+                {
+                    WriteKeyword(LitRef, ref index, output, spaceSuffix: true);
+                }
+                FormatType(delegateReturnType!, output, ref index);
+                if (delegateRtnType.PointerDepth > 0)
+                {
+                    for (int i = 0; i < delegateRtnType.PointerDepth; ++i)
+                    {
+                        output[index] = '*';
+                        ++index;
+                    }
+                }
+                if (delegateRtnType.IsArray)
+                {
+                    output[index] = '[';
+                    output[index + 1] = ']';
+                    index += 2;
+                }
+                output[index] = ' ';
+                ++index;
+            }
+            if (isValueType)
+            {
+                if (type.IsEnum)
+                {
+                    WriteKeyword(LitEnum, ref index, output, spaceSuffix: true);
+                }
+                else
+                {
+                    WriteKeyword(LitStruct, ref index, output, spaceSuffix: true);
+                }
+            }
+            else if (type.IsInterface)
+            {
+                WriteKeyword(LitInterface, ref index, output, spaceSuffix: true);
+            }
+            else
+            {
+                if (isAbstract)
+                {
+                    WriteKeyword(LitAbstract, ref index, output, spaceSuffix: true);
+                }
+
+                if (!isDelegate)
+                {
+                    WriteKeyword(LitClass, ref index, output, spaceSuffix: true);
+                }
+            }
+        }
+
+        if (elementKeyword != null)
+        {
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+            elementKeyword.AsSpan().CopyTo(output[index..]);
+#else
+            for (int i = 0; i < elementKeyword.Length; ++i)
+                output[index + i] = elementKeyword[i];
+#endif
+            index += elementKeyword.Length;
+        }
+        else
+        {
+            FormatType(type, output, ref index);
+        }
+
+        if (main.PointerDepth > 0)
+        {
+            for (int i = 0; i < main.PointerDepth; ++i)
+            {
+                output[index] = '*';
+                ++index;
+            }
+        }
+        if (main.IsArray)
+        {
+            output[index] = '[';
+            output[index + 1] = ']';
+            index += 2;
+        }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        return new string(output[..index]);
+#else
+        return new string(output, 0, index);
+#endif
+    }
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    private unsafe void FormatType(Type type, in TypeMetaInfo metaInfo, string? elementKeyword, Span<char> output, ref int index)
+#else
+    private unsafe void FormatType(Type type, in TypeMetaInfo metaInfo, string? elementKeyword, char* output, ref int index)
+#endif
+    {
+        if (elementKeyword != null)
+        {
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+            elementKeyword.AsSpan().CopyTo(output[index..]);
+#else
+            for (int i = 0; i < elementKeyword.Length; ++i)
+                output[index + i] = elementKeyword[i];
+#endif
+            index += elementKeyword.Length;
+        }
+        else
+        {
+            FormatType(type, output, ref index);
+        }
+
+        if (metaInfo.PointerDepth > 0)
+        {
+            for (int i = 0; i < metaInfo.PointerDepth; ++i)
+            {
+                output[index] = '*';
+                ++index;
+            }
+        }
+        if (metaInfo.IsArray)
+        {
+            output[index] = '[';
+            output[index + 1] = ']';
+            index += 2;
+        }
+    }
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    private unsafe void FormatType(Type type, Span<char> output, ref int index)
+#else
+    private unsafe void FormatType(Type type, char* output, ref int index)
+#endif
+    {
+        string? keyword = GetTypeKeyword(type);
+        if (keyword != null)
+        {
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+            keyword.AsSpan().CopyTo(output[index..]);
+#else
+            for (int i = 0; i < keyword.Length; ++i)
+                output[index + i] = keyword[i];
+#endif
+            index += keyword.Length;
+            return;
+        }
+
+        int ct = 0;
+        for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+        {
+            bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+            ++ct;
+            if (willBreakNext)
+                break;
+        }
+
+        if (ct == 1)
+        {
+            string name = UseFullTypeNames ? type.FullName ?? type.Name : type.Name;
+
+            if (type.IsGenericType)
+            {
+                int graveIndex = name.IndexOf('`');
+                if (graveIndex == -1) graveIndex = name.Length;
+                for (int i = 0; i < graveIndex; ++i)
+                    output[i + index] = name[i];
+                index += graveIndex;
+
+                output[index] = '<';
+                ++index;
+
+                Type[] types = type.GetGenericArguments();
+                for (int i = 0; i < types.Length; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    FormatType(types[i], output, ref index);
+                }
+
+                output[index] = '>';
+                ++index;
+            }
+            else
+            {
+                for (int i = 0; i < name.Length; ++i)
+                    output[i + index] = name[i];
+                index += name.Length;
+            }
+        }
+        else
+        {
+            int* nestedSizes = stackalloc int[ct];
+            int nestedInd = -1;
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+
+                nestedSizes[++nestedInd] = GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+                if (willBreakNext)
+                    break;
+            }
+
+            nestedInd = 0;
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                int pos = index;
+                for (int i = ct - 1; i > nestedInd; --i)
+                    pos += nestedSizes[i];
+                ++nestedInd;
+
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+                if (!willBreakNext)
+                {
+                    pos += ct - nestedInd;
+                    output[pos - 1] = '.';
+                }
+
+                string name = willBreakNext && UseFullTypeNames ? nestingType.FullName ?? nestingType.Name : nestingType.Name;
+
+                if (nestingType.IsGenericType)
+                {
+                    int graveIndex = name.IndexOf('`');
+                    if (graveIndex == -1) graveIndex = name.Length;
+                    for (int i = 0; i < graveIndex; ++i)
+                        output[i + pos] = name[i];
+                    pos += graveIndex;
+
+                    output[pos] = '<';
+                    ++pos;
+
+                    Type[] types = nestingType.GetGenericArguments();
+                    for (int i = 0; i < types.Length; ++i)
+                    {
+                        if (i != 0)
+                        {
+                            output[pos] = ',';
+                            output[pos + 1] = ' ';
+                            pos += 2;
+                        }
+
+                        FormatType(types[i], output, ref pos);
+                    }
+
+                    output[pos] = '>';
+                    ++pos;
+                }
+                else
+                {
+                    for (int i = 0; i < name.Length; ++i)
+                        output[i + pos] = name[i];
+                }
+
+                if (willBreakNext)
+                    break;
+            }
+
+            for (int i = ct - 1; i >= 0; --i)
+                index += nestedSizes[i];
+
+            index += ct - 1;
+        }
+    }
+    /// <summary>
+    /// Calculate the length of a parameter.
+    /// </summary>
+    protected virtual int GetParmeterLength(ParameterInfo parameter, ref TypeMetaInfo paramMetaInfo, out string? parameterElementKeyword, bool isExtensionThisParameter = false)
+    {
+        Type type = parameter.ParameterType;
+        paramMetaInfo.IsParams = type.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
+        string? name = parameter.Name;
+        int length = 0;
+
+        if (isExtensionThisParameter)
+            length += 5;
+
+        if (!string.IsNullOrEmpty(name))
+            length += name.Length + 1;
+
+        length += GetNonDeclaritiveTypeNameLength(ref type, ref paramMetaInfo, out parameterElementKeyword);
+        return length;
+    }
+
+    /// <summary>
+    /// Write parameter to buffer.
+    /// </summary>
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    protected virtual void WriteParameter(ParameterInfo parameter, Span<char> output, ref int index, in TypeMetaInfo paramMetaInfo, string? parameterElementKeyword, bool isExtensionThisParameter = false)
+#else
+    protected virtual unsafe void WriteParameter(ParameterInfo parameter, char* output, ref int index, in TypeMetaInfo paramMetaInfo, string? parameterElementKeyword, bool isExtensionThisParameter = false)
+#endif
+    {
+        Type type = parameter.ParameterType;
+        string? name = parameter.Name;
+        if (isExtensionThisParameter)
+        {
+            WriteKeyword(LitThis, ref index, output, spaceSuffix: true);
+        }
+        if (paramMetaInfo.IsParams)
+        {
+            WriteKeyword(LitParams, ref index, output, spaceSuffix: true);
+        }
+
+        FormatType(type, in paramMetaInfo, parameterElementKeyword, output, ref index);
+
+        if (string.IsNullOrEmpty(name))
+            return;
+
+        output[index] = ' ';
+        ++index;
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        name.AsSpan().CopyTo(output[index..]);
+#else
+        for (int i = 0; i < name.Length; ++i)
+        {
+            output[index + i] = name[i];
+        }
+#endif
+        index += name.Length;
+    }
+
+    /// <summary>
+    /// Writes a property or event method with the given <paramref name="keyword"/>.
+    /// </summary>
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    protected virtual void WriteAccessorIfExists(ReadOnlySpan<char> keyword, MemberVisibility defVis, MethodInfo? method, ref int index, Span<char> output)
+#else
+    protected virtual unsafe void WriteAccessorIfExists(string keyword, MemberVisibility defVis, MethodInfo? method, ref int index, char* output)
+#endif
+    {
+        if (method == null)
+            return;
+
+        MemberVisibility vis = method.GetVisibility();
+        if (vis != defVis)
+        {
+            WriteVisibility(vis, ref index, output);
+            output[index] = ' ';
+            ++index;
+        }
+
+        for (int i = 0; i < keyword.Length; ++i)
+            output[i + index] = keyword[i];
+        index += keyword.Length;
+        output[index] = ';';
+        output[index + 1] = ' ';
+        index += 2;
+    }
+
+    /// <summary>
+    /// Represents info about a type for writing.
+    /// </summary>
+    protected struct TypeMetaInfo
+    {
+        /// <summary>
+        /// Number of pointers on the type.
+        /// </summary>
+        /// <remarks>May refer to the number of pointers on the array or ref type's element type.</remarks>
+        public int PointerDepth;
+
+        /// <summary>
+        /// If this type is an array.
+        /// </summary>
+        public bool IsArray;
+
+        /// <summary>
+        /// If this type is passed by-ref.
+        /// </summary>
+        public bool IsByRef;
+
+        /// <summary>
+        /// If this type is a params array.
+        /// </summary>
+        public bool IsParams;
+
+        /// <summary>
+        /// If this type has an element type.
+        /// </summary>
+        public bool HasElementType => PointerDepth > 0 || IsArray || IsByRef;
+
+        /// <summary>
+        /// Length of extra characters.
+        /// </summary>
+        public int LengthToAdd => (IsArray ? 1 : 0) * 2 + (IsByRef ? 1 : 0) * 4 + (IsParams ? 1 : 0) * 7 + PointerDepth;
+
+        /// <summary>
+        /// Initialize the values with the given type.
+        /// </summary>
+        public void Init(ref Type type, out string? elementKeyword, DefaultOpCodeFormatter formatter)
+        {
+            Type? elementType = type.GetElementType();
+            PointerDepth = type.IsPointer ? 1 : 0;
+            if (PointerDepth == 1)
+            {
+                while (elementType!.IsPointer)
+                {
+                    elementType = elementType.GetElementType()!;
+                    ++PointerDepth;
+                }
+            }
+
+            IsArray = PointerDepth == 0 && type.IsArray;
+            IsByRef = type.IsByRef && elementType is not null;
+            if ((IsByRef || IsArray) && elementType!.IsPointer)
+            {
+                while (elementType.IsPointer)
+                {
+                    elementType = elementType.GetElementType()!;
+                    ++PointerDepth;
+                }
+            }
+
+            elementKeyword = null;
+            if (PointerDepth <= 0 && !IsArray && !IsByRef)
+                return;
+
+            type = elementType!;
+            elementKeyword = formatter.GetTypeKeyword(type);
+        }
     }
 }

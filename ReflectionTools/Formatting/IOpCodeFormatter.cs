@@ -20,7 +20,7 @@ public interface IOpCodeFormatter
     /// Format <paramref name="opCode"/> into a string representation. Use <see cref="GetFormatLength(OpCode)"/> to get the desired length of <paramref name="output"/>.
     /// </summary>
     /// <returns>The length in characters of <paramref name="opCode"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(OpCode opCode, Span<char> output);
 
     /// <summary>
@@ -33,7 +33,7 @@ public interface IOpCodeFormatter
     /// Format <paramref name="label"/> into a string representation. Use <see cref="GetFormatLength(Label)"/> to get the desired length of <paramref name="output"/>.
     /// </summary>
     /// <returns>The length in characters of <paramref name="label"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(Label label, Span<char> output);
 
     /// <summary>
@@ -46,7 +46,7 @@ public interface IOpCodeFormatter
     /// Format <paramref name="opCode"/> and <paramref name="operand"/> into a string representation. Use <see cref="GetFormatLength(OpCode, object?, OpCodeFormattingContext)"/> to get the desired length of <paramref name="output"/>.
     /// </summary>
     /// <returns>The length in characters of <paramref name="opCode"/> and <paramref name="operand"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(OpCode opCode, object? operand, Span<char> output, OpCodeFormattingContext usageContext);
 
     /// <summary>
@@ -63,7 +63,7 @@ public interface IOpCodeFormatter
     /// <returns>The length in characters of <paramref name="type"/> as a string that were written to <paramref name="output"/>.</returns>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
     /// <param name="isOutType">Should by-ref types be formatted as 'out' instead of 'ref'.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, bool isOutType = false);
 
     /// <summary>
@@ -78,7 +78,7 @@ public interface IOpCodeFormatter
     /// </summary>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     /// <returns>The length in characters of <paramref name="method"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(MethodBase method, Span<char> output, bool includeDefinitionKeywords = false);
 
     /// <summary>
@@ -93,7 +93,7 @@ public interface IOpCodeFormatter
     /// </summary>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'const', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     /// <returns>The length in characters of <paramref name="field"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(FieldInfo field, Span<char> output, bool includeDefinitionKeywords = false);
 
     /// <summary>
@@ -102,7 +102,7 @@ public interface IOpCodeFormatter
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     /// <returns>The length in characters of <paramref name="property"/> as a string.</returns>
-    int GetFormatLength(PropertyInfo property, bool includeAccessors = false, bool includeDefinitionKeywords = false);
+    int GetFormatLength(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false);
 
     /// <summary>
     /// Format <paramref name="property"/> into a string representation. Use <see cref="GetFormatLength(PropertyInfo, bool, bool)"/> to get the desired length of <paramref name="output"/>.
@@ -110,8 +110,8 @@ public interface IOpCodeFormatter
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     /// <returns>The length in characters of <paramref name="property"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
-    int Format(PropertyInfo property, Span<char> output, bool includeAccessors = false, bool includeDefinitionKeywords = false);
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(PropertyInfo property, Span<char> output, bool includeAccessors = true, bool includeDefinitionKeywords = false);
 
     /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(EventInfo, Span{char}, bool, bool, bool)"/>.
@@ -120,7 +120,7 @@ public interface IOpCodeFormatter
     /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     /// <returns>The length in characters of <paramref name="event"/> as a string.</returns>
-    int GetFormatLength(EventInfo @event, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
+    int GetFormatLength(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
 
     /// <summary>
     /// Format <paramref name="@event"/> into a string representation. Use <see cref="GetFormatLength(EventInfo, bool, bool, bool)"/> to get the desired length of <paramref name="output"/>.
@@ -129,8 +129,8 @@ public interface IOpCodeFormatter
     /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     /// <returns>The length in characters of <paramref name="event"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
-    int Format(EventInfo @event, Span<char> output, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(EventInfo @event, Span<char> output, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
 
     /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(ParameterInfo, Span{char}, bool)"/>.
@@ -144,7 +144,7 @@ public interface IOpCodeFormatter
     /// </summary>
     /// <param name="isExtensionThisParameter">Append a 'this' in front of the parameter like an extension method.</param>
     /// <returns>The length in characters of <paramref name="parameter"/> as a string that were written to <paramref name="output"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(ParameterInfo parameter, Span<char> output, bool isExtensionThisParameter = false);
 
     /// <summary>
@@ -222,7 +222,7 @@ public interface IOpCodeFormatter
     /// </summary>
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
-    public string Format(PropertyInfo property, bool includeAccessors = false, bool includeDefinitionKeywords = false)
+    public string Format(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false)
     {
         int formatLength = GetFormatLength(property, includeAccessors, includeDefinitionKeywords);
         Span<char> span = stackalloc char[formatLength];
@@ -236,7 +236,7 @@ public interface IOpCodeFormatter
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
-    public string Format(EventInfo @event, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
+    public string Format(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
     {
         int formatLength = GetFormatLength(@event, includeAccessors, includeEventKeyword, includeDefinitionKeywords);
         Span<char> span = stackalloc char[formatLength];
@@ -295,7 +295,7 @@ public interface IOpCodeFormatter
     /// </summary>
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
-    string Format(PropertyInfo property, bool includeAccessors = false, bool includeDefinitionKeywords = false);
+    string Format(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false);
 
     /// <summary>
     /// Format <paramref name="event"/> into a string representation.
@@ -303,7 +303,7 @@ public interface IOpCodeFormatter
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
-    string Format(EventInfo @event, bool includeAccessors = false, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
+    string Format(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
 
     /// <summary>
     /// Format <paramref name="parameter"/> into a string representation.
