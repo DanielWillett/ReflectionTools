@@ -92,34 +92,35 @@ public class DefaultOpCodeFormatter_Types
 #endif
     }
 
-    [DataRow(typeof(int), "ref int", false)]
-    [DataRow(typeof(int), "out int", true)]
-    [DataRow(typeof(int*), "ref int*", false)]
-    [DataRow(typeof(int*), "out int*", true)]
-    [DataRow(typeof(int**), "ref int**", false)]
-    [DataRow(typeof(int**), "out int**", true)]
-    [DataRow(typeof(Version), "ref Version", false)]
-    [DataRow(typeof(Version), "out Version", true)]
+    [DataRow(typeof(int), "int")]
+    [DataRow(typeof(int*), "int*")]
+    [DataRow(typeof(int**), "int**")]
+    [DataRow(typeof(Version), "Version")]
     [TestMethod]
-    public void TestFormatTypeRef(Type type, string expectedResult, bool useOut)
+    public void TestFormatTypeRef(Type type, string expectedResult)
     {
         type = type.MakeByRefType();
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
-        string fullFormat = formatter.Format(type, isOutType: useOut);
+        for (ByRefTypeMode mode = ByRefTypeMode.RefReadonly; mode <= ByRefTypeMode.Out; ++mode)
+        {
+            string refExpectedResult = (mode == ByRefTypeMode.RefReadonly ? "ref readonly" : mode.ToString().ToLower()) + " " + expectedResult;
+            string fullFormat = formatter.Format(type, refMode: mode);
 
-        Assert.AreEqual(expectedResult, fullFormat);
+            Assert.AreEqual(refExpectedResult, fullFormat);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
-        int formatLength = formatter.GetFormatLength(type, isOutType: useOut);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..formatter.Format(type, span, isOutType: useOut)];
-        string separateFormat = new string(span);
+            int formatLength = formatter.GetFormatLength(type, refMode: mode);
+            // ReSharper disable once StackAllocInsideLoop
+            Span<char> span = stackalloc char[formatLength];
+            span = span[..formatter.Format(type, span, refMode: mode)];
+            string separateFormat = new string(span);
 
-        Assert.AreEqual(expectedResult, separateFormat);
-        Assert.AreEqual(formatLength, separateFormat.Length);
+            Assert.AreEqual(refExpectedResult, separateFormat);
+            Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
+        }
     }
 
     [DataRow(typeof(int), "int")]

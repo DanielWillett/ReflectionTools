@@ -50,21 +50,21 @@ public interface IOpCodeFormatter
     int Format(OpCode opCode, object? operand, Span<char> output, OpCodeFormattingContext usageContext);
 
     /// <summary>
-    /// Calculate the length of the string returned by <see cref="Format(Type, Span{char}, bool, bool)"/>.
+    /// Calculate the length of the string returned by <see cref="Format(Type, Span{char}, bool, ByRefTypeMode)"/>.
     /// </summary>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
-    /// <param name="isOutType">Should by-ref types be formatted as 'out' instead of 'ref'.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
     /// <returns>The length in characters of <paramref name="type"/> as a string.</returns>
-    int GetFormatLength(Type type, bool includeDefinitionKeywords = false, bool isOutType = false);
+    int GetFormatLength(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref);
 
     /// <summary>
-    /// Format <paramref name="type"/> into a string representation. Use <see cref="GetFormatLength(Type, bool, bool)"/> to get the desired length of <paramref name="output"/>.
+    /// Format <paramref name="type"/> into a string representation. Use <see cref="GetFormatLength(Type, bool, ByRefTypeMode)"/> to get the desired length of <paramref name="output"/>.
     /// </summary>
     /// <returns>The length in characters of <paramref name="type"/> as a string that were written to <paramref name="output"/>.</returns>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
-    /// <param name="isOutType">Should by-ref types be formatted as 'out' instead of 'ref'.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
     /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
-    int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, bool isOutType = false);
+    int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref);
 
     /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(MethodBase, Span{char}, bool)"/>.
@@ -184,12 +184,12 @@ public interface IOpCodeFormatter
     /// Format <paramref name="type"/> into a string representation.
     /// </summary>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
-    /// <param name="isOutType">Should by-ref types be formatted as 'out' instead of 'ref'.</param>
-    public string Format(Type type, bool includeDefinitionKeywords = false, bool isOutType = false)
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    public string Format(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
-        int formatLength = GetFormatLength(type, includeDefinitionKeywords, isOutType);
+        int formatLength = GetFormatLength(type, includeDefinitionKeywords, refMode);
         Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(type, span, includeDefinitionKeywords, isOutType)];
+        span = span[..Format(type, span, includeDefinitionKeywords, refMode)];
         return new string(span);
     }
 
@@ -275,8 +275,8 @@ public interface IOpCodeFormatter
     /// Format <paramref name="type"/> into a string representation.
     /// </summary>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
-    /// <param name="isOutType">Should by-ref types be formatted as 'out' instead of 'ref'.</param>
-    string Format(Type type, bool includeDefinitionKeywords = false, bool isOutType = false);
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    string Format(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref);
 
     /// <summary>
     /// Format <paramref name="method"/> into a string representation.

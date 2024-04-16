@@ -2739,9 +2739,16 @@ public static class Accessor
     public static bool IsReadOnly(this ICustomAttributeProvider member)
     {
         if (member is FieldInfo field)
-        {
             return field.IsInitOnly;
+        
+        if (member is MethodBase)
+        {
+            if (member is not MethodInfo info || info.DeclaringType == null || !info.DeclaringType.IsValueType)
+                return false;
         }
+        else if (member is Type t && !t.IsValueType)
+            return false;
+
         return member.IsDefinedSafe(_readonlyAttribute ??= typeof(IsReadOnlyAttribute));
     }
 #else

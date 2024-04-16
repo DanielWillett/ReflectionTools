@@ -1,5 +1,5 @@
-﻿using System.Reflection;
-using DanielWillett.ReflectionTools.Formatting;
+﻿using DanielWillett.ReflectionTools.Formatting;
+using System.Reflection;
 
 namespace DanielWillett.ReflectionTools.Tests;
 
@@ -31,6 +31,38 @@ public class DefaultOpCodeFormatter_Properties
         Assert.IsNotNull(property);
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(property);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(property);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(property, span)];
+        string separateFormat = new string(span);
+
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
+    }
+
+    [TestMethod]
+    [DataRow(nameof(Property1), "int DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties.Property1 { get; set; }")]
+    [DataRow(nameof(Property2), "System.Version DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties.Property2 { get; }")]
+    [DataRow(nameof(Property5), "ulong DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties.Property5 { private protected get; set; }")]
+    [DataRow(nameof(Property6), "string DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties.Property6 { private get; private set; }")]
+    [DataRow(nameof(StaticProperty1), "static int DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties.StaticProperty1 { protected internal get; set; }")]
+    [DataRow("Item", "string DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties.this[DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Properties otherValue, int** val2, System.ArraySegment<char> arr] { get; private set; }")]
+    public void WriteNormalPropertyNamespaces(string propertyName, string expectedResult)
+    {
+        PropertyInfo? property = typeof(DefaultOpCodeFormatter_Properties).GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.IsNotNull(property);
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter
+        {
+            UseFullTypeNames = true
+        };
 
         string format = formatter.Format(property);
 
