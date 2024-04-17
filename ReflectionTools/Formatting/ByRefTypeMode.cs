@@ -28,5 +28,20 @@ public enum ByRefTypeMode
     /// <summary>
     /// Represents a parameter passed with <see langword="out"/>.
     /// </summary>
-    Out
+    Out,
+
+    /// <summary>
+    /// Represents a parameter passed with <see langword="scoped ref"/>.
+    /// </summary>
+    ScopedRef,
+
+    /// <summary>
+    /// Represents a parameter passed with <see langword="scoped in"/>.
+    /// </summary>
+    ScopedIn,
+
+    /// <summary>
+    /// Represents a parameter passed with <see langword="scoped ref readonly"/>.
+    /// </summary>
+    ScopedRefReadonly
 }

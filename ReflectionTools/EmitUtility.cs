@@ -1,23 +1,71 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
 #if NET40_OR_GREATER || !NETFRAMEWORK
 using System.Diagnostics.Contracts;
 #endif
+#if NET45_OR_GREATER || !NETFRAMEWORK
+using System.Collections.Generic;
+#endif
 
 namespace DanielWillett.ReflectionTools;
 
 /// <summary>
-/// Utilities for <see cref="ILGenerator"/>.
+/// Utilities for creating dynamically generated code.
 /// </summary>
 public static class EmitUtility
 {
+    private static Type? _opCodeEnumType;
+    private static OpCode[]? _allOpCodes;
+    private static OpCode[]? _opCodesByValue;
+    private static ReadOnlyCollection<OpCode>? _allOpCodesReadonly;
+
+    /// <summary>
+    /// A list of all op-codes sorted by their value code.
+    /// </summary>
+#if NET45_OR_GREATER || !NETFRAMEWORK
+    public static IReadOnlyList<OpCode> AllOpCodes
+#else
+    public static ReadOnlyCollection<OpCode> AllOpCodes
+#endif
+    {
+        get
+        {
+            if (_allOpCodesReadonly == null)
+                SetupOpCodeInfo();
+
+            return _allOpCodesReadonly!;
+        }
+    }
+
+    /// <summary>
+    /// Get an op-code from it's value code, or <see langword="null"/> if the value is invalid.
+    /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static OpCode? GetOpCodeFromValue(short opCodeValue)
+    {
+        if (_opCodesByValue == null)
+            SetupOpCodeInfo();
+
+        ushort index = unchecked( (ushort)opCodeValue );
+
+        if (index >= _opCodesByValue!.Length)
+        {
+            return null;
+        }
+
+        return _opCodesByValue[index];
+    }
+
     /// <summary>
     /// Get the label ID from a <see cref="Label"/> object.
     /// </summary>
-    /// <remarks>Not CLR compliant.</remarks>
-#if NET40_OR_GREATER
+    /// <remarks>Uses an unsafe cast to an integer, may not work in some non-standard .NET implementations.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static unsafe int GetLabelId(this Label label) => *(int*)&label;
@@ -231,7 +279,7 @@ public static class EmitUtility
     /// <param name="opcode">Original <see cref="OpCode"/>.</param>
     /// <param name="comparand"><see cref="OpCode"/> to compare to <paramref name="opcode"/>.</param>
     /// <param name="fuzzy">Changes how similar <see cref="OpCode"/>s are compared (<c>br</c> and <c>ble</c> will match, for example).</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsOfType(this OpCode opcode, OpCode comparand, bool fuzzy = false)
@@ -326,7 +374,7 @@ public static class EmitUtility
     /// Is this opcode any variants of <c>stloc</c>.
     /// </summary>
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsStLoc(this OpCode opcode)
@@ -340,7 +388,7 @@ public static class EmitUtility
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
     /// <param name="byRef">Only match instructions that load by address.</param>
     /// <param name="either">Match instructions that load by value or address.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsLdLoc(this OpCode opcode, bool byRef = false, bool either = false)
@@ -361,7 +409,7 @@ public static class EmitUtility
     /// <param name="either">Match instructions that load by value or address.</param>
     /// <param name="static">Only match instructions that load static fields.</param>
     /// <param name="staticOrInstance">Match instructions that load static or instance fields.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsLdFld(this OpCode opcode, bool byRef = false, bool either = false, bool @static = false, bool staticOrInstance = false)
@@ -382,7 +430,7 @@ public static class EmitUtility
     /// Is this opcode any variants of <c>starg</c>.
     /// </summary>
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsStArg(this OpCode opcode)
@@ -396,7 +444,7 @@ public static class EmitUtility
     /// <param name="opcode"><see cref="OpCode"/> to check.</param>
     /// <param name="byRef">Only match instructions that load by address.</param>
     /// <param name="either">Match instructions that load by value or address.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsLdArg(this OpCode opcode, bool byRef = false, bool either = false)
@@ -423,7 +471,7 @@ public static class EmitUtility
     /// <param name="ble">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ble</c>.</param>
     /// <param name="bgt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>bgt</c>.</param>
     /// <param name="blt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>blt</c>.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsBrAny(this OpCode opcode, bool br = true, bool brtrue = true, bool brfalse = true,
@@ -444,7 +492,7 @@ public static class EmitUtility
     /// <param name="ble">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ble</c>.</param>
     /// <param name="bgt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>bgt</c>.</param>
     /// <param name="blt">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>blt</c>.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsBr(this OpCode opcode, bool br = false, bool brtrue = false, bool brfalse = false,
@@ -483,7 +531,7 @@ public static class EmitUtility
     /// <param name="double">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ldc.r8</c>.</param>
     /// <param name="string">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ldstr</c>.</param>
     /// <param name="null">Return <see langword="true"/> if <paramref name="opcode"/> is any variant of <c>ldnull</c>.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsLdc(this OpCode opcode, bool @int = true, bool @long = false, bool @float = false, bool @double = false, bool @string = false, bool @null = false)
@@ -524,7 +572,7 @@ public static class EmitUtility
     /// <param name="signed">Allow converting to signed checks.</param>
     /// <param name="overflowCheck">Allow overflow checks.</param>
     /// <param name="noOverflowCheck">Allow no overflow checks.</param>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static bool IsConv(this OpCode opcode, bool nint = true, bool @byte = true, bool @short = true, bool @int = true, bool @long = true, bool @float = true, bool @double = true,
@@ -552,7 +600,7 @@ public static class EmitUtility
     /// Return the correct call <see cref="OpCode"/> to use depending on the method. Usually you will use <see cref="GetCallRuntime"/> instead as it doesn't account for possible future keyword changes.
     /// </summary>
     /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static OpCode GetCall(this MethodBase method)
@@ -564,11 +612,173 @@ public static class EmitUtility
     /// Return the correct call <see cref="OpCode"/> to use depending on the method at runtime. Doesn't account for future changes.
     /// </summary>
     /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
-#if NET40_OR_GREATER
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
     public static OpCode GetCallRuntime(this MethodBase method)
     {
         return method.ShouldCallvirtRuntime() ? OpCodes.Callvirt : OpCodes.Call;
+    }
+
+    /// <summary>
+    /// Parse an op-code in <see langword="ilasm"/> style, ex. <c>ldarg.1</c>. Case and culture insensitive.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Given string was <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Given string was empty.</exception>
+    /// <exception cref="FormatException">Failed to find a matching op-code.</exception>
+#if NET6_0_OR_GREATER
+    public static OpCode ParseOpCode(ReadOnlySpan<char> opCodeString)
+#else
+    public static OpCode ParseOpCode(string opCodeString)
+#endif
+    {
+#if !NET6_0_OR_GREATER
+        if (opCodeString == null)
+            throw new ArgumentNullException(nameof(opCodeString));
+#endif
+        if (opCodeString.Length == 0)
+            throw new ArgumentException("String was empty.", nameof(opCodeString));
+
+        if (!TryParseOpCode(opCodeString, out OpCode opCode))
+            throw new FormatException("Failed to parse OpCode.");
+
+        return opCode;
+    }
+
+    /// <summary>
+    /// Parse an op-code in <see langword="ilasm"/> style, ex. <c>ldarg.1</c>. Case and culture insensitive.
+    /// </summary>
+    /// <returns><see langword="true"/> if a matching op-code was found, otherwise <see langword="false"/>.</returns>
+#if NET6_0_OR_GREATER
+    public static bool TryParseOpCode(ReadOnlySpan<char> opCodeString, out OpCode opCode)
+#else
+    public static bool TryParseOpCode(string opCodeString, out OpCode opCode)
+#endif
+    {
+        opCode = default;
+
+#if NET6_0_OR_GREATER
+        if (opCodeString.Length == 0)
+            return false;
+
+        scoped ReadOnlySpan<char> stringToCheck;
+#else
+        if (string.IsNullOrEmpty(opCodeString))
+            return false;
+
+        string stringToCheck = opCodeString;
+#endif
+        if (opCodeString.IndexOf('.') != -1)
+        {
+#if NET6_0_OR_GREATER
+            Span<char> toReplace = stackalloc char[opCodeString.Length];
+            stringToCheck = toReplace;
+            opCodeString.CopyTo(toReplace);
+            for (int i = 0; i < toReplace.Length; ++i)
+            {
+                ref char c = ref toReplace[i];
+                if (c == '.') c = '_';
+            }
+#else
+            stringToCheck = opCodeString.Replace('.', '_');
+#endif
+        }
+#if NET6_0_OR_GREATER
+        else
+        {
+            stringToCheck = opCodeString;
+        }
+#endif
+
+        if (_opCodeEnumType == null || _opCodesByValue == null)
+        {
+            SetupOpCodeInfo();
+            if (_opCodeEnumType == null)
+            {
+                if (Accessor.LogWarningMessages)
+                {
+                    Accessor.Logger.LogWarning(
+                        "EmitUtility.TryParseOpCode",
+                        "The type 'System.Reflection.Emit.OpCodeValues' could not be found in the current environment."
+                    );
+                }
+                return false;
+            }
+        }
+
+        ushort value;
+#if NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        if (Enum.TryParse(_opCodeEnumType, stringToCheck, true, out object? resultEnum))
+        {
+            value = unchecked( (ushort)Convert.ToInt16(resultEnum) );
+        }
+        else
+        {
+            return false;
+        }
+#else
+        try
+        {
+            object resultEnum = Enum.Parse(_opCodeEnumType, stringToCheck, true);
+            value = unchecked( (ushort)Convert.ToInt16(resultEnum) );
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+#endif
+
+        if (value >= _opCodesByValue!.Length)
+            return false;
+
+        opCode = _opCodesByValue[value];
+        return true;
+
+    }
+    private static void SetupOpCodeInfo()
+    {
+        if (_allOpCodes == null || _opCodesByValue == null)
+        {
+            FieldInfo?[] opCodeFields = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static);
+            int c = 0;
+            for (int i = 0; i < opCodeFields.Length; ++i)
+            {
+                ref FieldInfo? field = ref opCodeFields[i];
+                if (field != null && field.FieldType == typeof(OpCode))
+                    ++c;
+                else
+                {
+                    field = null;
+                    for (int j = i + 1; j < opCodeFields.Length; ++j)
+                        opCodeFields[j - 1] = opCodeFields[j];
+                }
+            }
+
+            OpCode[] opCodes = new OpCode[c];
+            int maxValue = 0;
+            for (int i = 0; i < opCodes.Length; ++i)
+            {
+                ref OpCode opCode = ref opCodes[i];
+                opCode = (OpCode)opCodeFields[i]!.GetValue(null)!;
+                int val = unchecked( (ushort)opCode.Value );
+                if (maxValue < val)
+                    maxValue = val;
+            }
+
+            Array.Sort(opCodes, (a, b) => a.Value.CompareTo(b.Value));
+
+            OpCode[] opCodesByValue = new OpCode[maxValue + 1];
+            for (int i = 0; i < opCodes.Length; ++i)
+            {
+                ref OpCode opCode = ref opCodes[i];
+                opCodesByValue[unchecked( (ushort)opCode.Value) ] = opCode;
+            }
+
+            _allOpCodes = opCodes;
+            _allOpCodesReadonly = new ReadOnlyCollection<OpCode>(opCodes);
+            _opCodesByValue = opCodesByValue;
+        }
+
+        _opCodeEnumType ??= typeof(OpCode).Assembly.GetType("System.Reflection.Emit.OpCodeValues", false, false);
     }
 }

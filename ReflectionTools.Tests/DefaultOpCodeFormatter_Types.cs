@@ -18,6 +18,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(SpinLock[]), "SpinLock[]")]
     [DataRow(typeof(SpinLock*[]), "SpinLock*[]")]
     [DataRow(typeof(SpinLock**[]), "SpinLock**[]")]
+    [DataRow(typeof(SpinLock[,][][]**[][,,][,]), "SpinLock[,][][]**[][,,][,]")]
     [DataRow(typeof(int*[]), "int*[]")]
     [DataRow(typeof(int**[]), "int**[]")]
     [DataRow(typeof(NestedClass.DblNestedClass.TplNestedType[]), "DefaultOpCodeFormatter_Types.NestedClass.DblNestedClass.TplNestedType[]")]
@@ -36,6 +37,7 @@ public class DefaultOpCodeFormatter_Types
         string fullFormat = formatter.Format(type);
 
         Assert.AreEqual(expectedResult, fullFormat);
+        Console.WriteLine(fullFormat);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         int formatLength = formatter.GetFormatLength(type);
@@ -43,6 +45,7 @@ public class DefaultOpCodeFormatter_Types
         span = span[..formatter.Format(type, span)];
         string separateFormat = new string(span);
 
+        Console.WriteLine(separateFormat);
         Assert.AreEqual(expectedResult, separateFormat);
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
@@ -59,6 +62,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(SpinLock[]), "System.Threading.SpinLock[]")]
     [DataRow(typeof(SpinLock*[]), "System.Threading.SpinLock*[]")]
     [DataRow(typeof(SpinLock**[]), "System.Threading.SpinLock**[]")]
+    [DataRow(typeof(SpinLock[,][][]**[][,,][,]), "System.Threading.SpinLock[,][][]**[][,,][,]")]
     [DataRow(typeof(int*[]), "int*[]")]
     [DataRow(typeof(int**[]), "int**[]")]
     [DataRow(typeof(NestedClass.DblNestedClass.TplNestedType[]), "DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.NestedClass.DblNestedClass.TplNestedType[]")]
@@ -80,6 +84,7 @@ public class DefaultOpCodeFormatter_Types
         string fullFormat = formatter.Format(type);
 
         Assert.AreEqual(expectedResult, fullFormat);
+        Console.WriteLine(fullFormat);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         int formatLength = formatter.GetFormatLength(type);
@@ -87,6 +92,7 @@ public class DefaultOpCodeFormatter_Types
         span = span[..formatter.Format(type, span)];
         string separateFormat = new string(span);
 
+        Console.WriteLine(separateFormat);
         Assert.AreEqual(expectedResult, separateFormat);
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
@@ -96,6 +102,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(int*), "int*")]
     [DataRow(typeof(int**), "int**")]
     [DataRow(typeof(Version), "Version")]
+    [DataRow(typeof(SpinLock[,][][]**[][,,][,]), "SpinLock[,][][]**[][,,][,]")]
     [TestMethod]
     public void TestFormatTypeRef(Type type, string expectedResult)
     {
@@ -109,6 +116,7 @@ public class DefaultOpCodeFormatter_Types
             string fullFormat = formatter.Format(type, refMode: mode);
 
             Assert.AreEqual(refExpectedResult, fullFormat);
+            Console.WriteLine(fullFormat);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
             int formatLength = formatter.GetFormatLength(type, refMode: mode);
@@ -117,12 +125,14 @@ public class DefaultOpCodeFormatter_Types
             span = span[..formatter.Format(type, span, refMode: mode)];
             string separateFormat = new string(span);
 
+            Console.WriteLine(separateFormat);
             Assert.AreEqual(refExpectedResult, separateFormat);
             Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
         }
     }
 
+    [DataRow(typeof(TestDelegate3), "public delegate ref int* DefaultOpCodeFormatter_Types.TestDelegate3")]
     [DataRow(typeof(int), "int")]
     [DataRow(typeof(IComparable<>), "public interface IComparable<T>")]
     [DataRow(typeof(IComparable<IComparable<IComparable<string>>>), "public interface IComparable<IComparable<IComparable<string>>>")]
@@ -137,7 +147,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(void*), "void*")]
     [DataRow(typeof(int*), "int*")]
     [DataRow(typeof(int**), "int**")]
-    [DataRow(typeof(TestDelegate3), "public delegate ref int* DefaultOpCodeFormatter_Types.TestDelegate3")]
+    [DataRow(typeof(SpinLock[,][][]**[][,,][,]), "public struct SpinLock[,][][]**[][,,][,]")]
     [DataRow(typeof(TestDelegate1), "public delegate void DefaultOpCodeFormatter_Types.TestDelegate1")]
     [DataRow(typeof(TestDelegate0), "public delegate int* TestDelegate0")]
 #if NET || NETCOREAPP || NETSTANDARD2_1_OR_GREATER
@@ -146,7 +156,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(TestRefStruct), "private ref struct DefaultOpCodeFormatter_Types.TestRefStruct")]
     [DataRow(typeof(TestRefStruct*), "private ref struct DefaultOpCodeFormatter_Types.TestRefStruct*")]
     [DataRow(typeof(TestRefStruct**), "private ref struct DefaultOpCodeFormatter_Types.TestRefStruct**")]
-    [DataRow(typeof(TestDelegate2), "private delegate ref DefaultOpCodeFormatter_Types.TestRefStruct DefaultOpCodeFormatter_Types.TestDelegate2")]
+    [DataRow(typeof(TestDelegate2), "private delegate ref readonly DefaultOpCodeFormatter_Types.TestRefStruct DefaultOpCodeFormatter_Types.TestDelegate2")]
 #endif
     [TestMethod]
     public void TestFormatTypeDefinitionKeywords(Type type, string expectedResult)
@@ -156,6 +166,7 @@ public class DefaultOpCodeFormatter_Types
         string format = formatter.Format(type, includeDefinitionKeywords: true);
 
         Assert.AreEqual(expectedResult, format);
+        Console.WriteLine(format);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         int formatLength = formatter.GetFormatLength(type, includeDefinitionKeywords: true);
@@ -163,6 +174,7 @@ public class DefaultOpCodeFormatter_Types
         span = span[..formatter.Format(type, span, includeDefinitionKeywords: true)];
         string separateFormat = new string(span);
 
+        Console.WriteLine(separateFormat);
         Assert.AreEqual(expectedResult, separateFormat);
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
@@ -182,6 +194,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(void*), "void*")]
     [DataRow(typeof(int*), "int*")]
     [DataRow(typeof(int**), "int**")]
+    [DataRow(typeof(SpinLock[,][][]**[][,,][,]), "public struct System.Threading.SpinLock[,][][]**[][,,][,]")]
     [DataRow(typeof(TestDelegate3), "public delegate ref int* DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestDelegate3")]
     [DataRow(typeof(TestDelegate1), "public delegate void DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestDelegate1")]
     [DataRow(typeof(TestDelegate0), "public delegate int* DanielWillett.ReflectionTools.Tests.TestDelegate0")]
@@ -191,7 +204,7 @@ public class DefaultOpCodeFormatter_Types
     [DataRow(typeof(TestRefStruct), "private ref struct DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestRefStruct")]
     [DataRow(typeof(TestRefStruct*), "private ref struct DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestRefStruct*")]
     [DataRow(typeof(TestRefStruct**), "private ref struct DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestRefStruct**")]
-    [DataRow(typeof(TestDelegate2), "private delegate ref DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestRefStruct DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestDelegate2")]
+    [DataRow(typeof(TestDelegate2), "private delegate ref readonly DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestRefStruct DanielWillett.ReflectionTools.Tests.DefaultOpCodeFormatter_Types.TestDelegate2")]
 #endif
     [TestMethod]
     public void TestFormatTypeDefinitionKeywordsNamespaces(Type type, string expectedResult)
@@ -204,6 +217,7 @@ public class DefaultOpCodeFormatter_Types
         string format = formatter.Format(type, includeDefinitionKeywords: true);
 
         Assert.AreEqual(expectedResult, format);
+        Console.WriteLine(format);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         int formatLength = formatter.GetFormatLength(type, includeDefinitionKeywords: true);
@@ -211,6 +225,7 @@ public class DefaultOpCodeFormatter_Types
         span = span[..formatter.Format(type, span, includeDefinitionKeywords: true)];
         string separateFormat = new string(span);
 
+        Console.WriteLine(separateFormat);
         Assert.AreEqual(expectedResult, separateFormat);
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif

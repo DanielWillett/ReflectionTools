@@ -426,7 +426,7 @@ public class Accessor_GenerateInstanceCaller
     public void TestVTBasicDelegateAction()
     {
         const string methodName = "NotImplementedNoParams";
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
+
         using LogListener listener = new LogListener("Created dynamic method");
 
         Action<SampleStruct> caller = Accessor.GenerateInstanceCaller<SampleStruct, Action<SampleStruct>>(methodName, throwOnError: true)!;
@@ -438,12 +438,6 @@ public class Accessor_GenerateInstanceCaller
         SampleStruct sampleClass = new SampleStruct();
 
         Assert.ThrowsException<NotImplementedException>(() => caller(sampleClass), "Method did not run.");
-#else // unable to check for readonly methods in lower versions
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceCaller<SampleStruct, Action<SampleStruct>>(methodName, throwOnError: true)!;
-        }, "Threw correct exception for non-readonly method as a value type.");
-#endif
     }
     [TestMethod]
     public void TestVTBasicDelegateActionRTArg()

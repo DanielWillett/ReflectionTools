@@ -29,9 +29,6 @@ public static class Accessor
 
     internal static Type[]? FuncTypes;
     internal static Type[]? ActionTypes;
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
-    private static Type? _readonlyAttribute;
-#endif
     private static Type? _ignoreAttribute;
     private static Type? _priorityAttribute;
     private static bool _castExCtorCalc;
@@ -2276,7 +2273,7 @@ public static class Accessor
             throw new ArgumentNullException(nameof(property));
 
         MethodInfo? getMethod = property.GetGetMethod(true);
-        if (getMethod != null && getMethod.IsPublic)
+        if (getMethod is { IsPublic: true })
             return MemberVisibility.Public;
 
         MethodInfo? setMethod = property.GetSetMethod(true);
@@ -2296,11 +2293,11 @@ public static class Accessor
             throw new ArgumentNullException(nameof(@event));
 
         MethodInfo? getMethod = @event.GetAddMethod(true);
-        if (getMethod != null && getMethod.IsPublic)
+        if (getMethod is { IsPublic: true })
             return MemberVisibility.Public;
 
         MethodInfo? removeMethod = @event.GetRemoveMethod(true);
-        if (removeMethod != null && removeMethod.IsPublic)
+        if (removeMethod is { IsPublic: true })
             return MemberVisibility.Public;
 
         MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
@@ -2491,6 +2488,7 @@ public static class Accessor
     /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
     /// </summary>
+    /// <remarks>Alias of <see cref="HasAttributeSafe{TAttribute}"/>.</remarks>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
@@ -2499,6 +2497,7 @@ public static class Accessor
     /// <summary>
     /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
     /// </summary>
+    /// <remarks>Alias of <see cref="HasAttributeSafe"/>.</remarks>
     /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
     /// <param name="attributeType">Type of the attribute to check for.</param>
     /// <param name="inherit">Also check parent members.</param>
@@ -2529,8 +2528,54 @@ public static class Accessor
     }
 
     /// <summary>
+    /// Checks for the attribute of type <c>System.Runtime.CompilerServices.<paramref name="typeName"/></c> on <paramref name="member"/>.
+    /// </summary>
+    /// <remarks>Alias of <see cref="HasCompilerAttributeSafe"/>. In some older versions of .NET Framework, attributes not available in the API at that version will be added to the assembly on compile. This checks for those.</remarks>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <param name="typeName">Type name of the attribute in <c>System.Runtime.CompilerServices</c> to check for.</param>
+    /// <param name="inherit">Also check parent members.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static bool IsCompilerAttributeDefinedSafe(this ICustomAttributeProvider member, string typeName, bool inherit = false)
+    {
+        typeName = "System.Runtime.CompilerServices." + typeName;
+        try
+        {
+            object[] attributes = member.GetCustomAttributes(inherit);
+            for (int i = 0; i < attributes.Length; ++i)
+            {
+                object attribute = attributes[i];
+                if (attribute == null)
+                    continue;
+
+                Type type = attribute.GetType();
+                if (string.Equals(type.FullName, typeName, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+        catch (TypeLoadException ex)
+        {
+            if (LogDebugMessages)
+                LogTypeLoadException(ex, "Accessor.IsCompilerAttributeDefinedSafe", $"Failed to check {member} for attribute {typeName}.");
+
+            return false;
+        }
+        catch (FileNotFoundException ex)
+        {
+            if (LogDebugMessages)
+                LogFileNotFoundException(ex, "Accessor.IsCompilerAttributeDefinedSafe", $"Failed to check {member} for attribute {typeName}.");
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
     /// </summary>
+    /// <remarks>Alias of <see cref="IsDefinedSafe{TAttribute}"/>.</remarks>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
@@ -2539,6 +2584,7 @@ public static class Accessor
     /// <summary>
     /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
     /// </summary>
+    /// <remarks>Alias of <see cref="IsDefinedSafe"/>.</remarks>
     /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
     /// <param name="attributeType">Type of the attribute to check for.</param>
     /// <param name="inherit">Also check parent members.</param>
@@ -2563,6 +2609,51 @@ public static class Accessor
         {
             if (LogDebugMessages)
                 LogFileNotFoundException(ex, "Accessor.HasAttributeSafe", $"Failed to check {member} for attribute {attributeType.Name}.");
+
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks for the attribute of type <c>System.Runtime.CompilerServices.<paramref name="typeName"/></c> on <paramref name="member"/>.
+    /// </summary>
+    /// <remarks>Alias of <see cref="IsCompilerAttributeDefinedSafe"/>. In some older versions of .NET Framework, attributes not available in the API at that version will be added to the assembly on compile. This checks for those.</remarks>
+    /// <param name="member">Member to check for attributes. This can be <see cref="Module"/>, <see cref="Assembly"/>, <see cref="MemberInfo"/>, or <see cref="ParameterInfo"/>.</param>
+    /// <param name="typeName">Type name of the attribute in <c>System.Runtime.CompilerServices</c> to check for.</param>
+    /// <param name="inherit">Also check parent members.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static bool HasCompilerAttributeSafe(this ICustomAttributeProvider member, string typeName, bool inherit = false)
+    {
+        typeName = "System.Runtime.CompilerServices." + typeName;
+        try
+        {
+            object[] attributes = member.GetCustomAttributes(inherit);
+            for (int i = 0; i < attributes.Length; ++i)
+            {
+                object attribute = attributes[i];
+                if (attribute == null)
+                    continue;
+
+                Type type = attribute.GetType();
+                if (string.Equals(type.FullName, typeName, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+        catch (TypeLoadException ex)
+        {
+            if (LogDebugMessages)
+                LogTypeLoadException(ex, "Accessor.HasCompilerAttributeSafe", $"Failed to check {member} for attribute {typeName}.");
+
+            return false;
+        }
+        catch (FileNotFoundException ex)
+        {
+            if (LogDebugMessages)
+                LogFileNotFoundException(ex, "Accessor.HasCompilerAttributeSafe", $"Failed to check {member} for attribute {typeName}.");
 
             return false;
         }
@@ -2730,12 +2821,14 @@ public static class Accessor
         attribute = (member.GetAttributeSafe(typeof(TAttribute), inherit) as TAttribute)!;
         return attribute != null;
     }
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
+
     /// <summary>
-    /// Checks for the <see cref="IsReadOnlyAttribute"/> on <paramref name="member"/>, which signifies the readonly value.
+    /// Checks for the <see cref="T:System.Runtime.CompilerServices.IsReadOnlyAttribute"/> on <paramref name="member"/>, which signifies the readonly value.
     /// <remarks>This behavior is overridden on fields to check <see cref="FieldInfo.IsInitOnly"/>.</remarks>
     /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
+#endif
     public static bool IsReadOnly(this ICustomAttributeProvider member)
     {
         if (member is FieldInfo field)
@@ -2743,31 +2836,35 @@ public static class Accessor
         
         if (member is MethodBase)
         {
-            if (member is not MethodInfo info || info.DeclaringType == null || !info.DeclaringType.IsValueType)
+            if (member is not MethodInfo { DeclaringType.IsValueType: true })
                 return false;
         }
-        else if (member is Type t && !t.IsValueType)
+        else if (member is Type { IsValueType: false })
             return false;
 
-        return member.IsDefinedSafe(_readonlyAttribute ??= typeof(IsReadOnlyAttribute));
+        if (member.HasCompilerAttributeSafe("IsReadOnlyAttribute", inherit: false))
+            return true;
+
+        if (member is MethodInfo { DeclaringType: not null } method && method.DeclaringType.IsReadOnly())
+            return true;
+
+        return false;
     }
-#else
+
     /// <summary>
-    /// Checks for <see cref="FieldInfo.IsInitOnly"/> on <paramref name="member"/> if it is a field.
+    /// Checks for the <see cref="T:System.Runtime.CompilerServices.IsByRefLikeAttribute"/> on <paramref name="type"/>, or <see cref="P:System.Type.IsByRefLike"/> on newer platforms.
     /// </summary>
-    /// <remarks>.NET Framework 4.7.1 and lower, .NET Standard 2.0, or .NET Core 2.0 and lower do not support the <c>IsReadOnlyAttribute</c> to check for readonly methods and structs.</remarks>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsReadOnly(this ICustomAttributeProvider member)
+    public static bool IsByRefLikeType(this Type type)
     {
-        if (member is FieldInfo field)
-        {
-            return field.IsInitOnly;
-        }
-        return false;
-    }
+#if NETCOREAPP2_1_OR_GREATER || NET || NETSTANDARD2_1_OR_GREATER
+        return type.IsByRefLike;
+#else
+        return type.HasCompilerAttributeSafe("IsByRefLikeAttribute", inherit: false);
 #endif
+    }
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="type"/>.
@@ -3164,6 +3261,16 @@ public static class Accessor
     }
 
     /// <summary>
+    /// Gets the (cached) <paramref name="returnParameter"/> and <paramref name="parameters"/> of a <typeparamref name="TDelegate"/> delegate type.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    public static void GetDelegateSignature<TDelegate>(out ParameterInfo? returnParameter, out ParameterInfo[] parameters) where TDelegate : Delegate
+    {
+        returnParameter = DelegateInfo<TDelegate>.ReturnParameter;
+        parameters = DelegateInfo<TDelegate>.Parameters;
+    }
+
+    /// <summary>
     /// Gets the (cached) return type of a <typeparamref name="TDelegate"/> delegate type.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
@@ -3171,6 +3278,15 @@ public static class Accessor
     [Pure]
 #endif
     public static Type GetReturnType<TDelegate>() where TDelegate : Delegate => DelegateInfo<TDelegate>.ReturnType;
+
+    /// <summary>
+    /// Gets the (cached) return parameter info of a <typeparamref name="TDelegate"/> delegate type.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static ParameterInfo? GetReturnParameter<TDelegate>() where TDelegate : Delegate => DelegateInfo<TDelegate>.ReturnParameter;
 
     /// <summary>
     /// Gets the (cached) parameters of a <typeparamref name="TDelegate"/> delegate type.
@@ -3202,9 +3318,21 @@ public static class Accessor
     }
 
     /// <summary>
+    /// Gets the <paramref name="returnParameter"/> and <paramref name="parameters"/> of a <paramref name="delegateType"/>.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    public static void GetDelegateSignature(Type delegateType, out ParameterInfo? returnParameter, out ParameterInfo[] parameters)
+    {
+        MethodInfo invokeMethod = GetInvokeMethod(delegateType);
+        returnParameter = invokeMethod.ReturnParameter;
+        parameters = invokeMethod.GetParameters();
+    }
+
+    /// <summary>
     /// Gets the return type of a <paramref name="delegateType"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentException"><paramref name="delegateType"/> is not a <see langword="delegate"/>.</exception>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
@@ -3218,9 +3346,28 @@ public static class Accessor
     }
 
     /// <summary>
+    /// Gets the return parameter info of a <paramref name="delegateType"/>.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentException"><paramref name="delegateType"/> is not a <see langword="delegate"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static ParameterInfo? GetReturnParameter(Type delegateType)
+    {
+        if (!typeof(Delegate).IsAssignableFrom(delegateType))
+            throw new ArgumentException(delegateType.Name + " is not a delegate type.", nameof(delegateType));
+
+        return (delegateType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                ?? throw new NotSupportedException($"Unable to find Invoke method in delegate {delegateType.Name}."))
+            .ReturnParameter;
+    }
+
+    /// <summary>
     /// Gets the parameters of a <paramref name="delegateType"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentException"><paramref name="delegateType"/> is not a <see langword="delegate"/>.</exception>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
@@ -3237,6 +3384,7 @@ public static class Accessor
     /// Gets the (cached) <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentException"><paramref name="delegateType"/> is not a <see langword="delegate"/>.</exception>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
@@ -3369,6 +3517,7 @@ public static class Accessor
         public static MethodInfo InvokeMethod { get; }
         public static ParameterInfo[] Parameters { get; }
         public static Type ReturnType { get; }
+        public static ParameterInfo? ReturnParameter { get; }
         static DelegateInfo()
         {
             InvokeMethod = typeof(TDelegate).GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
@@ -3377,6 +3526,7 @@ public static class Accessor
 
             Parameters = InvokeMethod.GetParameters();
             ReturnType = InvokeMethod.ReturnType;
+            ReturnParameter = InvokeMethod.ReturnParameter;
         }
     }
     private static class ListInfo<TElementType>
@@ -3496,12 +3646,14 @@ public delegate T StaticGetter<out T>();
 /// <summary>
 /// Used with <see cref="Accessor.ForEachBaseType(Type, ForEachBaseType, bool, bool)"/>
 /// </summary>
+/// <param name="type">The current type in the hierarchy.</param>
 /// <param name="depth">Number of types below the provided type this base type is. Will be zero if the type returned is the provided type, 1 for its base type, and so on.</param>
 public delegate void ForEachBaseType(Type type, int depth);
 
 /// <summary>
 /// Used with <see cref="Accessor.ForEachBaseType(Type, ForEachBaseTypeWhile, bool, bool)"/>
 /// </summary>
+/// <param name="type">The current type in the hierarchy.</param>
 /// <param name="depth">Number of types below the provided type this base type is. Will be zero if the type returned is the provided type, 1 for its base type, and so on.</param>
 /// <returns><see langword="True"/> to continue, <see langword="false"/> to break.</returns>
 public delegate bool ForEachBaseTypeWhile(Type type, int depth);

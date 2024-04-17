@@ -8,61 +8,65 @@ using System.Text;
 #endif
 
 namespace DanielWillett.ReflectionTools.Formatting;
-
-/// <inheritdoc cref="IOpCodeFormatter"/>
+#pragma warning disable CA2014
+/// <summary>
+/// Default plain-text low-alloc formatter for reflection members and op-codes.
+/// </summary>
 public class DefaultOpCodeFormatter : IOpCodeFormatter
 {
-    /// <summary><see langword="private"/></summary>
+    /// <summary>Keyword: <see langword="private"/>.</summary>
     protected const string LitPrivate = "private";
-    /// <summary><see langword="protected"/></summary>
+    /// <summary>Keyword: <see langword="protected"/>.</summary>
     protected const string LitProtected = "protected";
-    /// <summary><see langword="public"/></summary>
+    /// <summary>Keyword: <see langword="public"/>.</summary>
     protected const string LitPublic = "public";
-    /// <summary><see langword="internal"/></summary>
+    /// <summary>Keyword: <see langword="internal"/>.</summary>
     protected const string LitInternal = "internal";
-    /// <summary><see langword="private protected"/></summary>
+    /// <summary>Keyword: <see langword="private protected"/>.</summary>
     protected const string LitPrivateProtected = "private protected";
-    /// <summary><see langword="protected internal"/></summary>
+    /// <summary>Keyword: <see langword="protected internal"/>.</summary>
     protected const string LitProtectedInternal = "protected internal";
-    /// <summary><see langword="static"/></summary>
+    /// <summary>Keyword: <see langword="static"/>.</summary>
     protected const string LitStatic = "static";
-    /// <summary><see langword="event"/></summary>
+    /// <summary>Keyword: <see langword="event"/>.</summary>
     protected const string LitEvent = "event";
-    /// <summary><see langword="readonly"/></summary>
+    /// <summary>Keyword: <see langword="readonly"/>.</summary>
     protected const string LitReadonly = "readonly";
-    /// <summary><see langword="const"/></summary>
+    /// <summary>Keyword: <see langword="const"/>.</summary>
     protected const string LitConst = "const";
-    /// <summary><see langword="abstract"/></summary>
+    /// <summary>Keyword: <see langword="abstract"/>.</summary>
     protected const string LitAbstract = "abstract";
-    /// <summary><see langword="ref"/></summary>
+    /// <summary>Keyword: <see langword="ref"/>.</summary>
     protected const string LitRef = "ref";
-    /// <summary><see langword="out"/></summary>
+    /// <summary>Keyword: <see langword="scoped"/>.</summary>
+    protected const string LitScoped = "scoped";
+    /// <summary>Keyword: <see langword="out"/>.</summary>
     protected const string LitOut = "out";
-    /// <summary><see langword="enum"/></summary>
+    /// <summary>Keyword: <see langword="enum"/>.</summary>
     protected const string LitEnum = "enum";
-    /// <summary><see langword="class"/></summary>
+    /// <summary>Keyword: <see langword="class"/>.</summary>
     protected const string LitClass = "class";
-    /// <summary><see langword="struct"/></summary>
+    /// <summary>Keyword: <see langword="struct"/>.</summary>
     protected const string LitStruct = "struct";
-    /// <summary><see langword="interface"/></summary>
+    /// <summary>Keyword: <see langword="interface"/>.</summary>
     protected const string LitInterface = "interface";
-    /// <summary><see langword="delegate"/></summary>
+    /// <summary>Keyword: <see langword="delegate"/>.</summary>
     protected const string LitDelegate = "delegate";
-    /// <summary><see langword="this"/></summary>
+    /// <summary>Keyword: <see langword="this"/>.</summary>
     protected const string LitThis = "this";
-    /// <summary><see langword="params"/></summary>
+    /// <summary>Keyword: <see langword="params"/>.</summary>
     protected const string LitParams = "params";
-    /// <summary><see langword="in"/></summary>
+    /// <summary>Keyword: <see langword="in"/>.</summary>
     protected const string LitIn = "in";
-    /// <summary><see langword="get"/></summary>
+    /// <summary>Keyword: <see langword="get"/>.</summary>
     protected const string LitGet = "get";
-    /// <summary><see langword="set"/></summary>
+    /// <summary>Keyword: <see langword="set"/>.</summary>
     protected const string LitSet = "set";
-    /// <summary><see langword="add"/></summary>
+    /// <summary>Keyword: <see langword="add"/>.</summary>
     protected const string LitAdd = "add";
-    /// <summary><see langword="remove"/></summary>
+    /// <summary>Keyword: <see langword="remove"/>.</summary>
     protected const string LitRemove = "remove";
-    /// <summary><see langword="raise"/></summary>
+    /// <summary>Keyword: <see langword="raise"/>.</summary>
     protected const string LitRaise = "raise";
 
     /// <summary>
@@ -94,7 +98,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual int Format(Label label, Span<char> output)
     {
-        if (!((uint)label.GetLabelId()).TryFormat(output, out int chrsWritten, "N0", CultureInfo.InvariantCulture))
+        if (!((uint)label.GetLabelId()).TryFormat(output, out int chrsWritten, "D0", CultureInfo.InvariantCulture))
             throw new IndexOutOfRangeException();
 
         return chrsWritten;
@@ -111,7 +115,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not Label lbl)
                     break;
 
-                return fmtLen + 1 + InternalUtil.CountDigits((uint)lbl.GetLabelId());
+                return fmtLen + 5 + InternalUtil.CountDigits((uint)lbl.GetLabelId());
 
             case OperandType.InlineField:
                 if (operand is not FieldInfo field)
@@ -172,10 +176,20 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not Label[] jumps)
                     break;
 
-                fmtLen = fmtLen + 3 + Environment.NewLine.Length * (2 + jumps.Length) + jumps.Length * 14;
-                for (int i = 0; i < jumps.Length; ++i)
-                    fmtLen += InternalUtil.CountDigits((uint)jumps[i].GetLabelId()) + InternalUtil.CountDigits(i);
-
+                if (jumps.Length == 0)
+                    fmtLen += 4;
+                else if (usageContext == OpCodeFormattingContext.InLine)
+                {
+                    fmtLen += 3 + (Math.Max(jumps.Length, 1) - 1) * 2 + jumps.Length * 4;
+                    for (int i = 0; i < jumps.Length; ++i)
+                        fmtLen += InternalUtil.CountDigits((uint)jumps[i].GetLabelId());
+                }
+                else
+                {
+                    fmtLen += 2 + Environment.NewLine.Length * (2 + jumps.Length) + jumps.Length * 10;
+                    for (int i = 0; i < jumps.Length; ++i)
+                        fmtLen += InternalUtil.CountDigits((uint)jumps[i].GetLabelId()) + InternalUtil.CountDigits(i);
+                }
                 return fmtLen;
 
             case OperandType.InlineTok:
@@ -225,8 +239,6 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     public virtual int Format(OpCode opCode, object? operand, Span<char> output, OpCodeFormattingContext usageContext)
     {
         int index = Format(opCode, output);
-        output[index] = ' ';
-        ++index;
         switch (opCode.OperandType)
         {
             case OperandType.ShortInlineBrTarget:
@@ -235,9 +247,13 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     break;
 
                 output[index] = ' ';
-                ++index;
+                output[index + 1] = 'l';
+                output[index + 2] = 'b';
+                output[index + 3] = 'l';
+                output[index + 4] = '.';
+                index += 5;
                 uint lblId = (uint)lbl.GetLabelId();
-                if (!lblId.TryFormat(output[index..], out int charsWritten, "N0", CultureInfo.InvariantCulture))
+                if (!lblId.TryFormat(output[index..], out int charsWritten, "D0", CultureInfo.InvariantCulture))
                     throw new IndexOutOfRangeException();
 
                 return index + charsWritten;
@@ -266,7 +282,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 output[index] = ' ';
                 ++index;
-                if (!l64.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                if (!l64.TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
                     throw new IndexOutOfRangeException();
 
                 return index + charsWritten;
@@ -311,7 +327,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 output[index] = ' ';
                 ++index;
-                if (!l64.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                if (!l64.TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
                     throw new IndexOutOfRangeException();
 
                 return index + charsWritten;
@@ -333,48 +349,85 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not Label[] jumps)
                     break;
 
-                output[index] = ' ';
-                ++index;
-                ReadOnlySpan<char> nl = Environment.NewLine;
-                nl.CopyTo(output[index..]);
-                index += nl.Length;
-                output[index] = '{';
-                ++index;
-                for (int i = 0; i < jumps.Length; ++i)
+                if (jumps.Length == 0)
                 {
+                    output[index] = ' ';
+                    output[index + 1] = usageContext == OpCodeFormattingContext.InLine ? '(' : '{';
+                    output[index + 2] = ' ';
+                    output[index + 3] = usageContext == OpCodeFormattingContext.InLine ? ')' : '}';
+                    index += 4;
+                }
+                else if (usageContext == OpCodeFormattingContext.InLine)
+                {
+                    output[index] = ' ';
+                    output[index + 1] = '(';
+                    index += 2;
+                    for (int i = 0; i < jumps.Length; ++i)
+                    {
+                        if (i != 0)
+                        {
+                            output[index] = ',';
+                            output[index + 1] = ' ';
+                            index += 2;
+                        }
+
+                        output[index] = 'l';
+                        output[index + 1] = 'b';
+                        output[index + 2] = 'l';
+                        output[index + 3] = '.';
+                        index += 4;
+
+                        if (!((uint)jumps[i].GetLabelId()).TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
+                            throw new IndexOutOfRangeException();
+
+                        index += charsWritten;
+                    }
+
+                    output[index] = ')';
+                    ++index;
+                }
+                else
+                {
+                    ReadOnlySpan<char> nl = Environment.NewLine;
                     nl.CopyTo(output[index..]);
                     index += nl.Length;
-                    output[index] = ' ';
-                    output[index + 1] = ' ';
-                    index += 2;
+                    output[index] = '{';
+                    ++index;
+                    for (int i = 0; i < jumps.Length; ++i)
+                    {
+                        nl.CopyTo(output[index..]);
+                        index += nl.Length;
+                        output[index] = ' ';
+                        output[index + 1] = ' ';
+                        index += 2;
 
-                    if (!((uint)i).TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
-                        throw new IndexOutOfRangeException();
+                        if (!((uint)i).TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
+                            throw new IndexOutOfRangeException();
 
-                    index += charsWritten;
-                    output[index]     = ' ';
-                    output[index + 1] = '=';
-                    output[index + 2] = '>';
-                    output[index + 3] = ' ';
-                    output[index + 4] = 'L';
-                    output[index + 5] = 'a';
-                    output[index + 6] = 'b';
-                    output[index + 7] = 'e';
-                    output[index + 8] = 'l';
-                    output[index + 9] = ' ';
-                    output[index + 10] = '#';
-                    index += 11;
+                        index += charsWritten;
+                        output[index] = ' ';
+                        output[index + 1] = '=';
+                        output[index + 2] = '>';
+                        output[index + 3] = ' ';
+                        output[index + 4] = 'l';
+                        output[index + 5] = 'b';
+                        output[index + 6] = 'l';
+                        output[index + 7] = '.';
+                        index += 8;
 
-                    lblId = (uint)jumps[i].GetLabelId();
-                    if (!lblId.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
-                        throw new IndexOutOfRangeException();
+                        lblId = (uint)jumps[i].GetLabelId();
+                        if (!lblId.TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
+                            throw new IndexOutOfRangeException();
 
-                    index += charsWritten;
+                        index += charsWritten;
+                    }
+                    nl.CopyTo(output[index..]);
+                    index += nl.Length;
+                    output[index] = '}';
+                    ++index;
                 }
-                nl.CopyTo(output[index..]);
-                index += nl.Length;
-                output[index] = '}';
-                return index + 1;
+
+                return index;
 
             case OperandType.InlineTok:
                 switch (operand)
@@ -415,7 +468,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 {
                     output[index] = ' ';
                     ++index;
-                    if (!((uint)lb.LocalIndex).TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                    if (!((uint)lb.LocalIndex).TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
                         throw new IndexOutOfRangeException();
 
                     index += charsWritten;
@@ -442,7 +495,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 output[index] = ' ';
                 ++index;
-                if (!l64.TryFormat(output[index..], out charsWritten, "N0", CultureInfo.InvariantCulture))
+                if (!l64.TryFormat(output[index..], out charsWritten, "D0", CultureInfo.InvariantCulture))
                     throw new IndexOutOfRangeException();
 
                 return index + charsWritten;
@@ -452,97 +505,122 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     }
 
     /// <inheritdoc/>
-    public virtual int GetFormatLength(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
+    public virtual unsafe int GetFormatLength(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
         string? s = GetTypeKeyword(type);
         if (s != null)
             return s.Length;
 
-        if (type.IsPointer)
+        TypeMetaInfo main = default;
+        Type originalType = type;
+        main.Init(ref type, out string? elementKeyword, this);
+        if (main.ElementTypesLength != 0)
         {
-            return 1 + GetFormatLength(type.GetElementType()!, includeDefinitionKeywords);
-        }
-        if (type.IsArray)
-        {
-            return 2 + (type.GetArrayRank() - 1) + GetFormatLength(type.GetElementType()!, includeDefinitionKeywords);
-        }
-        while (type.IsByRef && type.GetElementType() is { } elemType)
-        {
-            if (refMode == ByRefTypeMode.Ignore)
-                type = elemType;
-            else 
-                return GetRefTypeLength(refMode) + GetFormatLength(elemType, includeDefinitionKeywords);
+            int* elementTypes = stackalloc int[main.ElementTypesLength];
+            main.ElementTypes = elementTypes;
+            main.SetupDimensionsAndOrdering(originalType);
+            main.LoadRefType(refMode, this);
         }
 
-        int length = 0;
+        TypeMetaInfo delegateRtnType = default;
 
-        if (includeDefinitionKeywords)
+        MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
+        bool isValueType = type.IsValueType;
+        bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false, IsInterface: false };
+        bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
+        bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
+        bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
+        bool isByRefType = includeDefinitionKeywords && type.IsByRefLike;
+
+        int length = main.Length;
+        if (includeDefinitionKeywords && elementKeyword is null)
         {
-            length += GetVisibilityLength(type.GetVisibility()) + 1;
-            if (type.IsValueType)
+            length += GetVisibilityLength(vis) + 1;
+            if (isValueType)
             {
-                if (type.IsByRefLike)
-                {
-                    length += 4;
-                }
-                if (type.IsReadOnly())
-                {
+                if (isReadOnly)
                     length += 9;
-                }
+                if (isByRefType)
+                    length += 4;
 
                 length += type.IsEnum ? 5 : 7;
             }
-            else
+            else if (isDelegate)
             {
-                bool isDelegate = type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
-                if (type.IsInterface)
-                    length += 10;
-                else if (!isDelegate)
-                {
-                    if (type is { IsAbstract: true, IsSealed: false })
-                        length += 9;
+                length += 9;
 
-                    length += 6;
-                }
-                if (type.GetIsStatic())
+                try
                 {
-                    length += 7;
-                }
-                else if (isDelegate)
-                {
-                    length += 9;
+                    MethodInfo invokeMethod = Accessor.GetInvokeMethod(type);
+                    Type delegateReturnType = invokeMethod.ReturnType;
+                    Type originalDelegateReturnType = delegateReturnType;
+                    delegateRtnType.Init(ref delegateReturnType, out string? delegateKeyword, this);
+                    int* delegateReturnTypeElementStack = stackalloc int[delegateRtnType.ElementTypesLength];
+                    delegateRtnType.ElementTypes = delegateReturnTypeElementStack;
+                    delegateRtnType.SetupDimensionsAndOrdering(originalDelegateReturnType);
+                    delegateRtnType.LoadReturnType(invokeMethod, this);
 
-                    try
+                    ++length;
+                    length += delegateRtnType.Length;
+                    if (delegateKeyword != null)
+                        length += delegateKeyword.Length;
+                    else
                     {
-                        Type returnType = Accessor.GetReturnType(type);
-                        length += GetFormatLength(returnType) + 1;
+                        for (Type? nestingType = delegateReturnType; nestingType != null; nestingType = nestingType.DeclaringType)
+                        {
+                            if (!ReferenceEquals(nestingType, delegateReturnType))
+                                ++length;
+
+                            bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+
+                            length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+
+                            if (willBreakNext)
+                                break;
+                        }
                     }
-                    catch (NotSupportedException)
-                    {
-                        // ignored
-                    }
+                }
+                catch (NotSupportedException)
+                {
+                    // ignored
                 }
             }
+            else
+            {
+                length += type.IsInterface ? 10 : 6;
+                if (isStatic)
+                    length += 7;
+                else if (isAbstract)
+                    length += 9;
+            }
+
         }
 
-        for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+        if (elementKeyword != null)
         {
-            if (!ReferenceEquals(nestingType, type))
-                ++length;
+            length += elementKeyword.Length;
+        }
+        else
+        {
+            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+            {
+                if (!ReferenceEquals(nestingType, type))
+                    ++length;
 
-            bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
+                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
 
-            length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
+                length += GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
 
-            if (willBreakNext)
-                break;
+                if (willBreakNext)
+                    break;
+            }
         }
 
         return length;
     }
 
     /// <inheritdoc/>
-    public virtual int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
+    public virtual unsafe int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
         string? s = GetTypeKeyword(type);
         if (s != null)
@@ -551,81 +629,62 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             return s.Length;
         }
 
-        if (type.IsPointer)
-        {
-            int c = Format(type.GetElementType()!, output, includeDefinitionKeywords);
-            output[c] = '*';
-            return c + 1;
-        }
+        TypeMetaInfo main = default;
+        Type originalType = type;
+        main.Init(ref type, out string? elementKeyword, this);
+        int* elementTypes = stackalloc int[main.ElementTypesLength];
+        main.ElementTypes = elementTypes;
+        main.SetupDimensionsAndOrdering(originalType);
+        main.LoadRefType(refMode, this);
 
-        if (type.IsArray)
-        {
-            int c = Format(type.GetElementType()!, output, includeDefinitionKeywords);
-            output[c] = '[';
-            ++c;
-            int rank = type.GetArrayRank();
-            for (int i = 1; i < rank; ++i)
-            {
-                output[c] = ',';
-                ++c;
-            }
-            output[c] = ']';
-            return c + 1;
-        }
+        TypeMetaInfo delegateRtnType = default;
 
+        MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
+        bool isValueType = type.IsValueType;
+        bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false, IsInterface: false };
+        bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
+        bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
+        bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
+        bool isByRefType = includeDefinitionKeywords && type.IsByRefLike;
         int index = 0;
-        while (type.IsByRef && type.GetElementType() is { } elemType)
+        WritePreDimensionsAndOrdering(in main, output, ref index);
+        if (includeDefinitionKeywords && elementKeyword is null)
         {
-            if (refMode == ByRefTypeMode.Ignore)
-                type = elemType;
-            else
-            {
-                WriteRefType(refMode, ref index, output);
-
-                int c = Format(elemType, output[index..], includeDefinitionKeywords);
-                return c + index;
-            }
-        }
-
-        if (includeDefinitionKeywords)
-        {
-            WriteVisibility(type.GetVisibility(), ref index, output);
+            WriteVisibility(vis, ref index, output);
             output[index] = ' ';
             ++index;
-            bool isDelegate = type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
-            if (type.IsValueType)
+            if (isValueType)
             {
-                if (type.IsReadOnly())
+                if (isReadOnly)
                 {
                     WriteKeyword(LitReadonly, ref index, output, spaceSuffix: true);
                 }
 
-                if (type.IsByRefLike)
+                if (isByRefType)
                 {
                     WriteKeyword(LitRef, ref index, output, spaceSuffix: true);
                 }
             }
-            else if (type.GetIsStatic())
+            else if (isStatic)
             {
                 WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
             }
             else if (isDelegate)
             {
+                MethodInfo invokeMethod = Accessor.GetInvokeMethod(type);
+                Type delegateReturnType = invokeMethod.ReturnType;
+                originalType = delegateReturnType;
+                delegateRtnType.Init(ref delegateReturnType, out string? delegateKeyword, this);
+                int* intlDelegateElementTypes = stackalloc int[delegateRtnType.ElementTypesLength];
+                delegateRtnType.ElementTypes = intlDelegateElementTypes;
+                delegateRtnType.SetupDimensionsAndOrdering(originalType);
+                delegateRtnType.LoadReturnType(invokeMethod, this);
                 WriteKeyword(LitDelegate, ref index, output, spaceSuffix: true);
-
-                try
-                {
-                    Type returnType = Accessor.GetReturnType(type);
-                    index += Format(returnType, output[index..]);
-                    output[index] = ' ';
-                    ++index;
-                }
-                catch (NotSupportedException)
-                {
-                    // ignored
-                }
+                FormatType(delegateReturnType, in delegateRtnType, delegateKeyword, output, ref index);
+                output[index] = ' ';
+                ++index;
             }
-            if (type.IsValueType)
+            if (isValueType)
             {
                 if (type.IsEnum)
                 {
@@ -642,7 +701,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             }
             else
             {
-                if (type is { IsAbstract: true, IsSealed: false })
+                if (isAbstract)
                 {
                     WriteKeyword(LitAbstract, ref index, output, spaceSuffix: true);
                 }
@@ -654,124 +713,16 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             }
         }
 
-
-        int ct = 0;
-        for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
+        if (elementKeyword != null)
         {
-            bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
-            ++ct;
-            if (willBreakNext)
-                break;
-        }
-
-        if (ct == 1)
-        {
-            ReadOnlySpan<char> name = UseFullTypeNames ? type.FullName ?? type.Name : type.Name;
-
-            if (type.IsGenericType)
-            {
-                int graveIndex = name.IndexOf('`');
-                if (graveIndex != -1)
-                    name = name[..graveIndex];
-                name.CopyTo(output[index..]);
-                index += name.Length;
-
-                output[index] = '<';
-                ++index;
-
-                Type[] types = type.GetGenericArguments();
-                for (int i = 0; i < types.Length; ++i)
-                {
-                    if (i != 0)
-                    {
-                        output[index] = ',';
-                        output[index + 1] = ' ';
-                        index += 2;
-                    }
-
-                    index += Format(types[i], output[index..], false);
-                }
-
-                output[index] = '>';
-                ++index;
-            }
-            else
-            {
-                name.CopyTo(output[index..]);
-                index += name.Length;
-            }
+            elementKeyword.AsSpan().CopyTo(output[index..]);
+            index += elementKeyword.Length;
         }
         else
         {
-            Span<int> nestedSizes = stackalloc int[ct];
-            int nestedInd = -1;
-            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
-            {
-                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
-
-                nestedSizes[++nestedInd] = GetNestedInvariantTypeNameLength(nestingType, willBreakNext);
-                if (willBreakNext)
-                    break;
-            }
-
-            nestedInd = 0;
-            for (Type? nestingType = type; nestingType != null; nestingType = nestingType.DeclaringType)
-            {
-                int pos = index;
-                for (int i = nestedSizes.Length - 1; i > nestedInd; --i)
-                    pos += nestedSizes[i];
-                ++nestedInd;
-
-                bool willBreakNext = nestingType.IsGenericParameter || nestingType.DeclaringType == null;
-                if (!willBreakNext)
-                {
-                    pos += nestedSizes.Length - nestedInd;
-                    output[pos - 1] = '.';
-                }
-
-                ReadOnlySpan<char> name = willBreakNext && UseFullTypeNames ? nestingType.FullName ?? nestingType.Name : nestingType.Name;
-
-                if (nestingType.IsGenericType)
-                {
-                    int graveIndex = name.IndexOf('`');
-                    if (graveIndex != -1)
-                        name = name[..graveIndex];
-                    name.CopyTo(output[pos..]);
-                    pos += name.Length;
-
-                    output[pos] = '<';
-                    ++pos;
-
-                    Type[] types = nestingType.GetGenericArguments();
-                    for (int i = 0; i < types.Length; ++i)
-                    {
-                        if (i != 0)
-                        {
-                            output[pos] = ',';
-                            output[pos + 1] = ' ';
-                            pos += 2;
-                        }
-
-                        pos += Format(types[i], output[pos..], false);
-                    }
-
-                    output[pos] = '>';
-                    ++pos;
-                }
-                else
-                {
-                    name.CopyTo(output[pos..]);
-                }
-
-                if (willBreakNext)
-                    break;
-            }
-
-            for (int i = nestedSizes.Length - 1; i >= 0; --i)
-                index += nestedSizes[i];
-
-            index += ct - 1;
+            FormatType(type, output, ref index);
         }
+        WritePostDimensionsAndOrdering(in main, output, ref index);
 
         return index;
     }
@@ -783,19 +734,13 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         ParameterInfo[] parameters = method.GetParameters();
         string methodName = method.Name;
         int len = 0;
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
         bool isReadOnly = method.IsReadOnly();
-#else
-        const bool isReadOnly = false;
-#endif
         if (includeDefinitionKeywords)
             len += GetVisibilityLength(vis) + 1;
 
         Type? declType = method.DeclaringType;
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
         if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
             isReadOnly = true;
-#endif
         bool isCtor = method.IsConstructor;
 
         if (method.IsStatic)
@@ -867,18 +812,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             output[index] = ' ';
             ++index;
         }
-
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
+        
         bool isReadOnly = method.IsReadOnly();
-#else
-        const bool isReadOnly = false;
-#endif
         Type? declType = method.DeclaringType;
         Type? originalDeclType = declType;
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
+
         if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
             isReadOnly = true;
-#endif
+
         if (method.IsStatic)
         {
             WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
@@ -919,14 +860,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             ++index;
         }
 
-#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         methodName.AsSpan().CopyTo(output[index..]);
-#else
-        for (int i = 0; i < methodName.Length; ++i)
-        {
-            output[index + i] = methodName[i];
-        }
-#endif
         index += methodName.Length;
         output[index] = '(';
         ++index;
@@ -949,7 +883,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             paramMeta.ElementTypes = parameterElementStack;
             paramMeta.SetupDimensionsAndOrdering(originalParameterType);
             paramMeta.LoadParameter(parameter, this);
-            WriteParameter(parameters[i], output, ref index, in paramMeta, elementKeyword,
+            WriteParameter(parameters[i], parameterType, elementKeyword, output, ref index, in paramMeta,
                 isExtensionThisParameter: i == 0 && method.IsStatic && declType != null && declType.GetIsStatic() && method.IsDefinedSafe<ExtensionAttribute>());
         }
         output[index] = ')';
@@ -1152,7 +1086,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 paramMeta.ElementTypes = parameterElementStack;
                 paramMeta.SetupDimensionsAndOrdering(originalParameterType);
                 paramMeta.LoadParameter(parameter, this);
-                WriteParameter(indexParameters[i], output, ref index, in paramMeta, elementKeyword);
+                WriteParameter(indexParameters[i], parameterType, elementKeyword, output, ref index, in paramMeta);
             }
             output[index] = ']';
             ++index;
@@ -1338,7 +1272,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         paramMetaInfo.SetupDimensionsAndOrdering(originalParameterType);
         paramMetaInfo.LoadParameter(parameter, this);
 
-        GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
+        len += GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
         return len;
     }
 
@@ -1356,7 +1290,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         int index = 0;
 
-        WriteParameter(parameter, output, ref index, in paramMetaInfo, elementKeyword, isExtensionThisParameter);
+        WriteParameter(parameter, parameterType, elementKeyword, output, ref index, in paramMetaInfo, isExtensionThisParameter);
         return index;
     }
 
@@ -1441,7 +1375,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     public virtual string Format(OpCode opCode) => opCode.Name;
     
     /// <inheritdoc/>
-    public virtual string Format(Label label) => ((uint)label.GetLabelId()).ToString("N0", CultureInfo.InvariantCulture);
+    public virtual string Format(Label label) => ((uint)label.GetLabelId()).ToString("D0", CultureInfo.InvariantCulture);
     
     /// <inheritdoc/>
     public virtual string Format(OpCode opCode, object? operand, OpCodeFormattingContext usageContext)
@@ -1454,7 +1388,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not Label lbl)
                     break;
 
-                return name + " " + ((uint)lbl.GetLabelId()).ToString("N0", CultureInfo.InvariantCulture);
+                return name + " lbl." + ((uint)lbl.GetLabelId()).ToString("D0", CultureInfo.InvariantCulture);
 
             case OperandType.InlineField:
                 if (operand is not FieldInfo field)
@@ -1475,7 +1409,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     break;
                 }
 
-                return name + " " + l64.ToString("N0", CultureInfo.InvariantCulture);
+                return name + " " + l64.ToString("D0", CultureInfo.InvariantCulture);
 
             case OperandType.InlineMethod:
                 if (operand is not MethodBase method)
@@ -1507,7 +1441,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     break;
                 }
 
-                return name + " " + l64.ToString("N0", CultureInfo.InvariantCulture);
+                return name + " " + l64.ToString("D0", CultureInfo.InvariantCulture);
 
             case OperandType.InlineString:
                 if (operand is not string str)
@@ -1519,22 +1453,52 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not Label[] jumps)
                     break;
 
-                StringBuilder switchBuilder = new StringBuilder(name)
-                    .Append(' ')
-                    .Append(Environment.NewLine)
-                    .Append('{');
-
-                for (int i = 0; i < jumps.Length; ++i)
+                if (jumps.Length == 0)
                 {
-                    switchBuilder.Append(Environment.NewLine)
-                        .Append(' ', 2)
-                        .Append(((uint)i).ToString("N0", CultureInfo.InvariantCulture))
-                        .Append(" => Label #")
-                        .Append(((uint)jumps[i].GetLabelId()).ToString("N0", CultureInfo.InvariantCulture));
+                    return name + (usageContext == OpCodeFormattingContext.InLine ? " ( )" : " { }");
                 }
-                switchBuilder
-                    .Append(Environment.NewLine)
-                    .Append('}');
+
+                StringBuilder switchBuilder = new StringBuilder(name);
+
+                if (usageContext == OpCodeFormattingContext.InLine)
+                {
+                    switchBuilder
+                        .Append(' ')
+                        .Append('(');
+
+                    for (int i = 0; i < jumps.Length; ++i)
+                    {
+                        if (i != 0)
+                            switchBuilder.Append(',').Append(' ');
+
+                        switchBuilder
+                            .Append("lbl.")
+                            .Append(((uint)jumps[i].GetLabelId()).ToString("D0", CultureInfo.InvariantCulture));
+                    }
+
+                    switchBuilder
+                        .Append(')');
+                }
+                else
+                {
+                    switchBuilder
+                        .Append(Environment.NewLine)
+                        .Append('{');
+
+                    for (int i = 0; i < jumps.Length; ++i)
+                    {
+                        switchBuilder.Append(Environment.NewLine)
+                            .Append(' ', 2)
+                            .Append(((uint)i).ToString("D0", CultureInfo.InvariantCulture))
+                            .Append(" => lbl.")
+                            .Append(((uint)jumps[i].GetLabelId()).ToString("D0", CultureInfo.InvariantCulture));
+                    }
+
+                    switchBuilder
+                        .Append(Environment.NewLine)
+                        .Append('}');
+                }
+
 
                 return switchBuilder.ToString();
 
@@ -1563,7 +1527,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             case OperandType.InlineVar:
                 if (operand is LocalBuilder lb)
                 {
-                    name += " " + ((uint)lb.LocalIndex).ToString("N0", CultureInfo.InvariantCulture);
+                    name += " " + ((uint)lb.LocalIndex).ToString("D0", CultureInfo.InvariantCulture);
                     if (lb.LocalType == null)
                         return name;
 
@@ -1579,7 +1543,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     break;
                 }
 
-                return name + " " + l64.ToString("N0", CultureInfo.InvariantCulture);
+                return name + " " + l64.ToString("D0", CultureInfo.InvariantCulture);
         }
 
         return name;
@@ -1615,9 +1579,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     }
 #endif
 
-        /// <summary>
-        /// Counts the length of a property or event method with the given <paramref name="keywordLength"/>.
-        /// </summary>
+    /// <summary>
+    /// Counts the length of a property or event method with the given <paramref name="keywordLength"/>.
+    /// </summary>
     protected virtual void CountAccessorIfExists(int keywordLength, MemberVisibility defVis, MethodInfo? method, ref int length)
     {
         if (method == null)
@@ -1817,8 +1781,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         paramMetaInfo.Init(ref parameterType, out string? elementKeyword, this);
         int* parameterElementStack = stackalloc int[paramMetaInfo.ElementTypesLength];
         paramMetaInfo.ElementTypes = parameterElementStack;
+        paramMetaInfo.SetupDimensionsAndOrdering(originalParameterType);
         paramMetaInfo.LoadParameter(parameter, this);
-        len += GetNonDeclaritiveTypeNameLength(parameterType, originalParameterType, ref paramMetaInfo, elementKeyword);
+        len += GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
 
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
@@ -1828,7 +1793,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 #endif
         int index = 0;
 
-        WriteParameter(parameter, output, ref index, in paramMetaInfo, elementKeyword, isExtensionThisParameter);
+        WriteParameter(parameter, parameterType, elementKeyword, output, ref index, in paramMetaInfo, isExtensionThisParameter);
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         return new string(output[..index]);
 #else
@@ -1841,7 +1806,6 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     {
         ParameterInfo[] indexParameters = property.GetIndexParameters();
         TypeMetaInfo* indexInfo = stackalloc TypeMetaInfo[indexParameters.Length];
-        string?[]? parameterTypeNames = null;
             
         MethodInfo? getMethod = property.GetGetMethod(true);
         MethodInfo? setMethod = property.GetSetMethod(true);
@@ -1903,8 +1867,6 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 paramMetaInfo.SetupDimensionsAndOrdering(originalParameterType);
                 paramMetaInfo.LoadParameter(parameter, this);
                 length += GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
-                if (elementKeyword != null)
-                    (parameterTypeNames ??= new string[indexParameters.Length])[i] = elementKeyword;
             }
         }
 
@@ -1969,7 +1931,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     index += 2;
                 }
 
-                WriteParameter(indexParameters[i], output, ref index, in indexInfo[i], parameterTypeNames?[i], false);
+                WriteParameter(indexParameters[i], output, ref index, in indexInfo[i], false);
             }
             output[index] = ']';
             ++index;
@@ -2143,20 +2105,19 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         int* elementTypes = stackalloc int[main.ElementTypesLength];
         main.ElementTypes = elementTypes;
         main.SetupDimensionsAndOrdering(originalType);
+        main.LoadRefType(refMode, this);
 
         TypeMetaInfo delegateRtnType = default;
 
         MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
         bool isValueType = type.IsValueType;
-        bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false };
+        bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false, IsInterface: false };
         bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
         bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
         bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
         bool isByRefType = false;
         Type? delegateReturnType = null;
-#if NETCOREAPP2_1_OR_GREATER || NET || NETSTANDARD2_1_OR_GREATER
-        isByRefType = includeDefinitionKeywords && type.IsByRefLike;
-#endif
+        isByRefType = includeDefinitionKeywords && type.IsByRefLikeType();
 
         int length = main.Length;
         if (includeDefinitionKeywords && elementKeyword is null)
@@ -2177,12 +2138,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 try
                 {
-                    delegateReturnType = Accessor.GetReturnType(type);
+                    MethodInfo invokeMethod = Accessor.GetInvokeMethod(type);
+                    delegateReturnType = invokeMethod.ReturnType;
                     originalType = delegateReturnType;
                     delegateRtnType.Init(ref delegateReturnType, out _, this);
                     int* intlDelegateElementTypes = stackalloc int[delegateRtnType.ElementTypesLength];
                     delegateRtnType.ElementTypes = intlDelegateElementTypes;
                     delegateRtnType.SetupDimensionsAndOrdering(originalType);
+                    delegateRtnType.LoadReturnType(invokeMethod, this);
 
                     ++length;
                     length += delegateRtnType.Length;
@@ -2334,6 +2297,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             ByRefTypeMode.In => 3,
             ByRefTypeMode.RefReadonly => 13,
             ByRefTypeMode.Out => 4,
+            ByRefTypeMode.ScopedRef => 11,
+            ByRefTypeMode.ScopedIn => 10,
+            ByRefTypeMode.ScopedRefReadonly => 20,
             _ => 0
         };
     }
@@ -2361,6 +2327,19 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 break;
             case ByRefTypeMode.Out:
                 WriteKeyword(LitOut, ref index, output, spaceSuffix: true);
+                break;
+            case ByRefTypeMode.ScopedRef:
+                WriteKeyword(LitScoped, ref index, output, spaceSuffix: true);
+                WriteKeyword(LitRef, ref index, output, spaceSuffix: true);
+                break;
+            case ByRefTypeMode.ScopedIn:
+                WriteKeyword(LitScoped, ref index, output, spaceSuffix: true);
+                WriteKeyword(LitIn, ref index, output, spaceSuffix: true);
+                break;
+            case ByRefTypeMode.ScopedRefReadonly:
+                WriteKeyword(LitScoped, ref index, output, spaceSuffix: true);
+                WriteKeyword(LitRef, ref index, output, spaceSuffix: true);
+                WriteKeyword(LitReadonly, ref index, output, spaceSuffix: true);
                 break;
         }
     }
@@ -2532,12 +2511,32 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// Write parameter to buffer.
     /// </summary>
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
-    protected virtual void WriteParameter(ParameterInfo parameter, Span<char> output, ref int index, in TypeMetaInfo paramMetaInfo, string? parameterElementKeyword, bool isExtensionThisParameter = false)
+    protected virtual void WriteParameter(ParameterInfo parameter, Span<char> output, ref int index, in TypeMetaInfo paramMetaInfo, bool isExtensionThisParameter = false)
 #else
-    protected virtual unsafe void WriteParameter(ParameterInfo parameter, char* output, ref int index, in TypeMetaInfo paramMetaInfo, string? parameterElementKeyword, bool isExtensionThisParameter = false)
+    protected virtual unsafe void WriteParameter(ParameterInfo parameter, char* output, ref int index, in TypeMetaInfo paramMetaInfo, bool isExtensionThisParameter = false)
 #endif
     {
         Type type = parameter.ParameterType;
+        string? parameterElementKeyword = null;
+        if (paramMetaInfo.ElementTypesLength > 0)
+        {
+            for (Type? elemType = type.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                type = elemType;
+            parameterElementKeyword = GetTypeKeyword(type);
+        }
+
+        WriteParameter(parameter, type, parameterElementKeyword, output, ref index, in paramMetaInfo, isExtensionThisParameter);
+    }
+
+    /// <summary>
+    /// Write parameter to buffer.
+    /// </summary>
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    protected virtual void WriteParameter(ParameterInfo parameter, Type parameterType, string? parameterElementKeyword, Span<char> output, ref int index, in TypeMetaInfo paramMetaInfo, bool isExtensionThisParameter = false)
+#else
+    protected virtual unsafe void WriteParameter(ParameterInfo parameter, Type parameterType, string? parameterElementKeyword, char* output, ref int index, in TypeMetaInfo paramMetaInfo, bool isExtensionThisParameter = false)
+#endif
+    {
         string? name = parameter.Name;
         if (isExtensionThisParameter)
         {
@@ -2548,7 +2547,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             WriteKeyword(LitParams, ref index, output, spaceSuffix: true);
         }
 
-        FormatType(type, in paramMetaInfo, parameterElementKeyword, output, ref index);
+        FormatType(parameterType, in paramMetaInfo, parameterElementKeyword, output, ref index);
 
         if (string.IsNullOrEmpty(name))
             return;
@@ -2650,23 +2649,19 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MemberVisibility vis = method.GetVisibility();
         ParameterInfo[] parameters = method.GetParameters();
         TypeMetaInfo* paramInfo = stackalloc TypeMetaInfo[parameters.Length];
-        string?[]? parameterTypeNames = null;
         string methodName = method.Name;
         int len = 0;
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
         bool isReadOnly = method.IsReadOnly();
-#else
-        const bool isReadOnly = false;
-#endif
+
         if (includeDefinitionKeywords)
             len += GetVisibilityLength(vis) + 1;
         
         Type? declType = method.DeclaringType;
         Type? originalDeclType = declType;
-#if NET471_OR_GREATER || NET || NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1
+
         if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
             isReadOnly = true;
-#endif
+
         bool isCtor = method.IsConstructor;
         bool isExtensionMethod = !isCtor && method.IsStatic && declType != null && declType.GetIsStatic() && method.IsDefinedSafe<ExtensionAttribute>();
 
@@ -2724,8 +2719,6 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             paramMetaInfo.SetupDimensionsAndOrdering(originalParameterType);
             paramMetaInfo.LoadParameter(parameter, this);
             len += GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
-            if (elementKeyword != null)
-                (parameterTypeNames ??= new string[parameters.Length])[i] = elementKeyword;
         }
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
@@ -2788,7 +2781,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 index += 2;
             }
 
-            WriteParameter(parameters[i], output, ref index, in paramInfo[i], parameterTypeNames?[i], isExtensionThisParameter: isExtensionMethod && i == 0);
+            WriteParameter(parameters[i], output, ref index, in paramInfo[i], isExtensionThisParameter: isExtensionMethod && i == 0);
         }
         output[index] = ')';
         ++index;
@@ -2898,7 +2891,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <summary>
     /// Represents info about a type for writing.
     /// </summary>
-    protected struct TypeMetaInfo
+    protected ref struct TypeMetaInfo
     {
         /// <summary>
         /// Required size of <see cref="ElementTypes"/>.
@@ -2928,21 +2921,51 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         {
             Type parameterType = parameter.ParameterType;
             IsParams = parameterType.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
+            if (IsParams)
+                Length += 7;
 
             if (!parameterType.IsByRef)
                 return;
 
+            bool isScoped = !parameter.IsOut && parameter.IsCompilerAttributeDefinedSafe("ScopedRefAttribute");
+
             if (parameter.IsIn)
             {
-                Length += 3 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
-                ElementTypes[0] = -(int)ByRefTypeMode.In - 1;
+                ByRefTypeMode mode = isScoped ? ByRefTypeMode.ScopedIn : ByRefTypeMode.In;
+                Length += formatter.GetRefTypeLength(mode) - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)mode - 1;
             }
             else if (parameter.IsOut)
             {
                 Length += 4 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
                 ElementTypes[0] = -(int)ByRefTypeMode.Out - 1;
             }
+            else if (isScoped)
+            {
+                Length += 11 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)ByRefTypeMode.ScopedRef - 1;
+            }
         }
+
+        /// <summary>
+        /// Initialize the values with the given by-ref type.
+        /// </summary>
+        public unsafe void LoadRefType(ByRefTypeMode mode, DefaultOpCodeFormatter formatter)
+        {
+            if (ElementTypesLength == 0 || ElementTypes[0] >= -1)
+                return;
+            if (mode == ByRefTypeMode.Ignore)
+            {
+                Length -= formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = 0;
+            }
+            else
+            {
+                Length += formatter.GetRefTypeLength(mode) - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)mode - 1;
+            }
+        }
+
         /// <summary>
         /// Initialize the values with the given method return value.
         /// </summary>
@@ -2951,10 +2974,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             if (method is MethodInfo returnableMEthod
                 && ElementTypesLength > 0
                 && returnableMEthod.ReturnType.IsByRef
+                && returnableMEthod.ReturnParameter != null
                 && returnableMEthod.ReturnParameter.IsReadOnly())
             {
-                Length += 13 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[ElementTypesLength - 1] - 1));
-                ElementTypes[ElementTypesLength - 1] = -(int)ByRefTypeMode.RefReadonly - 1;
+                Length += 13 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)ByRefTypeMode.RefReadonly - 1;
             }
         }
 
@@ -2984,6 +3008,44 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 else
                 {
                     ElementTypes[++index] = nextElementType.GetArrayRank();
+                }
+            }
+
+            int startIndex = -1;
+
+            // flip array groups
+            for (int i = 0; i < ElementTypesLength; ++i)
+            {
+                int dim = ElementTypes[i];
+                if (dim <= 0)
+                {
+                    if (startIndex != -1)
+                    {
+                        ProcessArrayGroup(ElementTypes, startIndex, i - startIndex);
+                        startIndex = -1;
+                    }
+                    continue;
+                }
+
+                if (startIndex == -1)
+                    startIndex = i;
+            }
+
+            if (startIndex != -1)
+                ProcessArrayGroup(ElementTypes, startIndex, ElementTypesLength - startIndex);
+
+            return;
+
+            static void ProcessArrayGroup(int* ptr, int startIndex, int length)
+            {
+                for (int i = 0; i < length / 2; ++i)
+                {
+                    int* index1 = ptr + (startIndex + i);
+                    int* index2 = ptr + (startIndex + (length - i - 1));
+
+                    int tmp = *index1;
+                    *index1 = *index2;
+                    *index2 = tmp;
                 }
             }
         }
@@ -3042,3 +3104,4 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
     }
 }
+#pragma warning restore CA2014
