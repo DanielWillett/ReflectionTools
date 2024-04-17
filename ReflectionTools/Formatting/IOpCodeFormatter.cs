@@ -7,7 +7,7 @@ namespace DanielWillett.ReflectionTools.Formatting;
 /// <summary>
 /// Formats op-codes and their operands into string values.
 /// </summary>
-public interface IOpCodeFormatter
+public interface IOpCodeFormatter : ICloneable
 {
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
     /// <summary>

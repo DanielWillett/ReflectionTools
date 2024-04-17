@@ -3,8 +3,10 @@ using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using DanielWillett.ReflectionTools.Emit;
 #if NETFRAMEWORK || (NETSTANDARD && !NETSTANDARD2_1_OR_GREATER)
 using System.Text;
+using DanielWillett.ReflectionTools.Emit;
 #endif
 
 namespace DanielWillett.ReflectionTools.Formatting;
@@ -79,6 +81,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// </summary>
     public bool UseTypeKeywords { get; set; } = true;
 
+    /// <inheritdoc />
+    public virtual object Clone() => new DefaultOpCodeFormatter
+    {
+        UseFullTypeNames = UseFullTypeNames,
+        UseTypeKeywords = UseTypeKeywords
+    };
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
     /// <inheritdoc/>

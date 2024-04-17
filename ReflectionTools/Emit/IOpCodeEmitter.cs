@@ -4,42 +4,42 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 
-namespace DanielWillett.ReflectionTools;
+namespace DanielWillett.ReflectionTools.Emit;
 
 /// <summary>
 /// Extensions for <see cref="IOpCodeEmitter"/> objects.
 /// </summary>
 public static class OpCodeEmitters
 {
-//    /// <summary>
-//    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
-//    /// </summary>
-//    /// <param name="debuggable">Shows debug logging as the method generates.</param>
-//    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
-//    public static IOpCodeEmitter AsEmitter(this ILGenerator generator, bool debuggable = false, bool addBreakpoints = false)
-//        => debuggable || addBreakpoints
-//            ? new DebuggableEmitter((ILGeneratorEmitter)generator, null) { DebugLog = debuggable, Breakpointing = addBreakpoints }
-//            : (ILGeneratorEmitter)generator;
-//
-//    /// <summary>
-//    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
-//    /// </summary>
-//    /// <param name="debuggable">Shows debug logging as the method generates.</param>
-//    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
-//    public static IOpCodeEmitter AsEmitter(this DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int bufferSize = 64)
-//        => debuggable || addBreakpoints
-//            ? new DebuggableEmitter(dynMethod) { DebugLog = debuggable, Breakpointing = addBreakpoints }
-//            : (ILGeneratorEmitter)dynMethod.GetILGenerator(bufferSize);
-//
-//    /// <summary>
-//    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
-//    /// </summary>
-//    /// <param name="debuggable">Shows debug logging as the method generates.</param>
-//    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
-//    public static IOpCodeEmitter AsEmitter(this MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int bufferSize = 64)
-//        => debuggable || addBreakpoints
-//            ? new DebuggableEmitter(methodBuilder) { DebugLog = debuggable, Breakpointing = addBreakpoints }
-//            : (ILGeneratorEmitter)methodBuilder.GetILGenerator(bufferSize);
+    //    /// <summary>
+    //    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    //    /// </summary>
+    //    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    //    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    //    public static IOpCodeEmitter AsEmitter(this ILGenerator generator, bool debuggable = false, bool addBreakpoints = false)
+    //        => debuggable || addBreakpoints
+    //            ? new DebuggableEmitter((ILGeneratorEmitter)generator, null) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+    //            : (ILGeneratorEmitter)generator;
+    //
+    //    /// <summary>
+    //    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    //    /// </summary>
+    //    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    //    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    //    public static IOpCodeEmitter AsEmitter(this DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int bufferSize = 64)
+    //        => debuggable || addBreakpoints
+    //            ? new DebuggableEmitter(dynMethod) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+    //            : (ILGeneratorEmitter)dynMethod.GetILGenerator(bufferSize);
+    //
+    //    /// <summary>
+    //    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    //    /// </summary>
+    //    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    //    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    //    public static IOpCodeEmitter AsEmitter(this MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int bufferSize = 64)
+    //        => debuggable || addBreakpoints
+    //            ? new DebuggableEmitter(methodBuilder) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+    //            : (ILGeneratorEmitter)methodBuilder.GetILGenerator(bufferSize);
 }
 
 /// <summary>

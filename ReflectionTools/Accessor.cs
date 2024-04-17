@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DanielWillett.ReflectionTools.Formatting;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -7,6 +8,8 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading;
+using DanielWillett.ReflectionTools.Emit;
+
 #if NET40_OR_GREATER || !NETFRAMEWORK
 using System.Diagnostics.Contracts;
 #endif
@@ -20,7 +23,8 @@ public static class Accessor
 {
     private static bool _isMonoCached;
     private static bool _isMono;
-    private static IReflectionToolsLogger _logger = new ConsoleReflectionToolsLogger();
+    private static IReflectionToolsLogger? _logger = new ConsoleReflectionToolsLogger();
+    private static IOpCodeFormatter _formatter = new DefaultOpCodeFormatter();
 
     private static Assembly? _mscorlibAssembly;
 
@@ -33,48 +37,98 @@ public static class Accessor
     private static Type? _priorityAttribute;
     private static bool _castExCtorCalc;
     private static bool _nreExCtorCalc;
+    private static bool _logILTraceMessages;
+    private static bool _logDebugMessages;
+    private static bool _logInfoMessages;
+    private static bool _logWarningMessages;
+    private static bool _logErrorMessages;
 
     /// <summary>
     /// Should <see cref="Logger"/> log generated IL code (as debug messages)?
     /// </summary>
-    public static bool LogILTraceMessages { get; set; }
+    /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
+    public static bool LogILTraceMessages
+    {
+        get => _logger != null && _logILTraceMessages;
+        set => _logILTraceMessages = value;
+    }
 
     /// <summary>
     /// Should <see cref="Logger"/> log debug messages?
     /// </summary>
-    public static bool LogDebugMessages { get; set; }
+    /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
+    public static bool LogDebugMessages
+    {
+        get => _logger != null && _logDebugMessages;
+        set => _logDebugMessages = value;
+    }
 
     /// <summary>
     /// Should <see cref="Logger"/> log info messages?
     /// </summary>
-    public static bool LogInfoMessages { get; set; }
+    /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
+    public static bool LogInfoMessages
+    {
+        get => _logger != null && _logInfoMessages;
+        set => _logInfoMessages = value;
+    }
 
     /// <summary>
     /// Should <see cref="Logger"/> log warning messages?
     /// </summary>
-    public static bool LogWarningMessages { get; set; }
+    /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
+    public static bool LogWarningMessages
+    {
+        get => _logger != null && _logWarningMessages;
+        set => _logWarningMessages = value;
+    }
 
     /// <summary>
     /// Should <see cref="Logger"/> log error messages?
     /// </summary>
-    public static bool LogErrorMessages { get; set; }
+    /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
+    public static bool LogErrorMessages
+    {
+        get => _logger != null && _logErrorMessages;
+        set => _logErrorMessages = value;
+    }
 
     /// <summary>
     /// Logging IO for all methods in this library.
     /// <para>Assigning a value to this will dispose the previous value if needed.</para>
     /// </summary>
     /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
-    public static IReflectionToolsLogger Logger
+    public static IReflectionToolsLogger? Logger
     {
         get => _logger;
         set
         {
-            IReflectionToolsLogger old = Interlocked.Exchange(ref _logger, value);
+            IReflectionToolsLogger? old = Interlocked.Exchange(ref _logger, value);
             if (!ReferenceEquals(old, value) && old is IDisposable disp)
                 disp.Dispose();
 
             if (LogInfoMessages)
                 value?.LogInfo("Accessor.Logger", $"Logger updated: {value.GetType().FullName}.");
+        }
+    }
+
+    /// <summary>
+    /// Logging IO for all methods in this library.
+    /// <para>Assigning a value to this will dispose the previous value if needed.</para>
+    /// </summary>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    public static IOpCodeFormatter Formatter
+    {
+        get => _formatter;
+        set
+        {
+            value ??= new DefaultOpCodeFormatter();
+            IOpCodeFormatter old = Interlocked.Exchange(ref _formatter, value);
+            if (!ReferenceEquals(old, value) && old is IDisposable disp)
+                disp.Dispose();
+
+            if (LogInfoMessages)
+                Logger?.LogInfo("Accessor.Logger", $"Logger updated: {value.GetType().FullName}.");
         }
     }
 
@@ -115,13 +169,14 @@ public static class Accessor
     public static InstanceSetter<TInstance, TValue>? GenerateInstanceSetter<TInstance, TValue>(string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceSetter";
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (typeof(TInstance).IsValueType)
         {
             if (throwOnError)
                 throw new Exception($"Unable to create instance setter for {typeof(TInstance).FullName}.{fieldName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
 
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to create instance setter for {typeof(TInstance).FullName}.{fieldName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to create instance setter for {typeof(TInstance).FullName}.{fieldName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
             return null;
         }
 
@@ -132,7 +187,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {typeof(TInstance).FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching field {typeof(TInstance).FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find matching field {typeof(TInstance).FullName}.{fieldName}.");
             return null;
         }
 
@@ -149,27 +204,27 @@ public static class Accessor
             ILGenerator il = method.GetILGenerator();
             bool logIl = LogILTraceMessages;
             if (logIl)
-                Logger.LogDebug(source, $"IL: Generating instance setter for {field.DeclaringType!.FullName}.{field.Name}:");
+                reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance setter for {field.DeclaringType!.FullName}.{field.Name}:");
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_1);
             Label? typeLbl = null;
-            if (logIl)
+            if (logIl && reflectionToolsLogger != null)
             {
-                Logger.LogDebug(source, "IL:  ldarg.0");
-                Logger.LogDebug(source, "IL:  ldarg.1");
+                reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
             }
 
             if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, field.FieldType);
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  unbox.any <" + field.FieldType.FullName + ">");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  unbox.any <" + field.FieldType.FullName + ">");
             }
             else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, typeof(TValue));
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  box <" + typeof(TValue).FullName + ">");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  box <" + typeof(TValue).FullName + ">");
             }
             else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
             {
@@ -188,21 +243,21 @@ public static class Accessor
                     il.Emit(OpCodes.Ldstr, errMsg);
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                    Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  ldarg.1");
-                    Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
-                    Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
+                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
                     if (CastExCtor != null)
-                        Logger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                    Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    Logger.LogDebug(source, "IL:  throw");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
                 }
             }
 
@@ -210,20 +265,20 @@ public static class Accessor
             {
                 il.MarkLabel(typeLbl.Value);
                 if (logIl)
-                    Logger.LogDebug(source, "IL: lbl_0:");
+                    reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             }
 
             il.Emit(OpCodes.Stfld, field);
             il.Emit(OpCodes.Ret);
-            if (logIl)
+            if (logIl && reflectionToolsLogger != null)
             {
-                Logger.LogDebug(source, $"IL:  stfld <{field.DeclaringType!.FullName}.{fieldName}>");
-                Logger.LogDebug(source, "IL:  ret");
+                reflectionToolsLogger.LogDebug(source, $"IL:  stfld <{field.DeclaringType!.FullName}.{fieldName}>");
+                reflectionToolsLogger.LogDebug(source, "IL:  ret");
             }
             InstanceSetter<TInstance, TValue> setter = (InstanceSetter<TInstance, TValue>)method.CreateDelegate(typeof(InstanceSetter<TInstance, TValue>));
 
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method instance setter for {field.DeclaringType!.Name}.{fieldName}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance setter for {field.DeclaringType!.Name}.{fieldName}.");
             return setter;
         }
         catch (Exception ex)
@@ -231,7 +286,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating instance getter for {field.DeclaringType!.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance getter for {field.DeclaringType!.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Error generating instance getter for {field.DeclaringType!.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -252,12 +307,13 @@ public static class Accessor
         const string source = "Accessor.GenerateInstanceGetter";
         FieldInfo? field = typeof(TInstance).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
         field ??= typeof(TInstance).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (field is null || field.IsStatic || (!typeof(TValue).IsAssignableFrom(field.FieldType) && field.FieldType != typeof(object)))
         {
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {typeof(TInstance).FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {typeof(TInstance).FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find matching property {typeof(TInstance).FullName}.{fieldName}.");
             return null;
         }
 
@@ -271,36 +327,36 @@ public static class Accessor
             ILGenerator il = method.GetILGenerator();
             bool logIl = LogILTraceMessages;
             if (logIl)
-                Logger.LogDebug(source, $"IL: Generating instance getter for {field.DeclaringType!.FullName}.{field.Name}:");
+                reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance getter for {field.DeclaringType!.FullName}.{field.Name}:");
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, field);
-            if (logIl)
+            if (logIl && reflectionToolsLogger != null)
             {
-                Logger.LogDebug(source, "IL:  ldarg.0");
-                Logger.LogDebug(source, $"IL:  ldfld <{field.DeclaringType!.FullName}.{field.Name}>");
+                reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                reflectionToolsLogger.LogDebug(source, $"IL:  ldfld <{field.DeclaringType!.FullName}.{field.Name}>");
             }
 
             if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, typeof(TValue));
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  unbox.any <" + typeof(TValue).FullName + ">");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  unbox.any <" + typeof(TValue).FullName + ">");
             }
             else if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, field.FieldType);
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  box <" + field.FieldType.FullName + ">");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  box <" + field.FieldType.FullName + ">");
             }
 
             il.Emit(OpCodes.Ret);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ret");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             
             InstanceGetter<TInstance, TValue> getter = (InstanceGetter<TInstance, TValue>)method.CreateDelegate(typeof(InstanceGetter<TInstance, TValue>));
 
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method instance getter for {typeof(TInstance).Name}.{fieldName}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance getter for {typeof(TInstance).Name}.{fieldName}.");
             return getter;
         }
         catch (Exception ex)
@@ -308,7 +364,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating instance getter for {typeof(TInstance).FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance getter for {typeof(TInstance).FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Error generating instance getter for {typeof(TInstance).FullName}.{fieldName}.");
             return null;
         }
     }
@@ -333,12 +389,13 @@ public static class Accessor
     public static InstanceSetter<object, TValue>? GenerateInstanceSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceSetter";
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (declaringType == null)
         {
             if (throwOnError)
                 throw new Exception($"Error generating instance setter for <unknown>.{fieldName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Error generating instance setter for <unknown>.{fieldName}. Declaring type not found.");
+                reflectionToolsLogger?.LogError(source, null, $"Error generating instance setter for <unknown>.{fieldName}. Declaring type not found.");
             return null;
         }
         FieldInfo? field = declaringType.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -348,7 +405,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
             return null;
         }
 
@@ -364,13 +421,13 @@ public static class Accessor
             method.DefineParameter(2, ParameterAttributes.None, "value");
             bool logIl = LogILTraceMessages;
             if (logIl)
-                Logger.LogDebug(source, $"IL: Generating instance setter for {field.DeclaringType!.FullName}.{field.Name}:");
+                reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance setter for {field.DeclaringType!.FullName}.{field.Name}:");
             ILGenerator il = method.GetILGenerator();
             Label lbl = il.DefineLabel();
             Label? typeLbl = null;
             il.Emit(OpCodes.Ldarg_0);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ldarg.0");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
 
             bool isValueType = declaringType.IsValueType;
             bool lbl1Exists = false;
@@ -393,21 +450,21 @@ public static class Accessor
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
                 il.MarkLabel(lbl2);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, $"IL:  isinst <{declaringType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{declaringType.FullName}>");
                     if (!isValueType)
-                        Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
                     if (!isValueType)
-                        Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
                     if (CastExCtor != null)
-                        Logger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
-                    Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    Logger.LogDebug(source, "IL:  throw");
-                    Logger.LogDebug(source, "IL: lbl_1:");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
+                    reflectionToolsLogger.LogDebug(source, "IL: lbl_1:");
                 }
                 ConstructorInfo ctor = NreExCtor ?? CastExCtor!;
                 if (ctor == CastExCtor)
@@ -415,19 +472,19 @@ public static class Accessor
                     string nullError = $"Null passed to getter for {fieldName}. Expected {declaringType.FullName}.";
                     il.Emit(OpCodes.Ldstr, nullError);
                     if (logIl)
-                        Logger.LogDebug(source, $"IL:  ldstr \"{nullError}\"");
+                        reflectionToolsLogger?.LogDebug(source, $"IL:  ldstr \"{nullError}\"");
                 }
                 il.Emit(OpCodes.Newobj, ctor);
                 il.Emit(OpCodes.Throw);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, $"IL:  newobj <{(NreExCtor?.DeclaringType ?? CastExCtor!.DeclaringType!).FullName}({(ctor == CastExCtor ? "System.String" : string.Empty)})>");
-                    Logger.LogDebug(source, "IL:  throw");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(NreExCtor?.DeclaringType ?? CastExCtor!.DeclaringType!).FullName}({(ctor == CastExCtor ? "System.String" : string.Empty)})>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
                 }
             }
             il.MarkLabel(lbl);
             if (logIl)
-                Logger.LogDebug(source, "IL: lbl_0:");
+                reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             if (isValueType)
             {
                 il.Emit(OpCodes.Ldarg_0);
@@ -435,25 +492,25 @@ public static class Accessor
                 il.Emit(OpCodes.Ldflda, field);
                 il.Emit(OpCodes.Ldarg_1);
 
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, $"IL:  unbox <{declaringType.FullName}>");
-                    Logger.LogDebug(source, $"IL:  ldflda <{field.DeclaringType!.FullName}.{field.Name}>");
-                    Logger.LogDebug(source, "IL:  ldarg.1");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  unbox <{declaringType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  ldflda <{field.DeclaringType!.FullName}.{field.Name}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
                 }
 
                 if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Unbox_Any, field.FieldType);
                     if (logIl)
-                        Logger.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
+                        reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
                 }
                 else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Box, typeof(TValue));
                     if (logIl)
-                        Logger.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
+                        reflectionToolsLogger?.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
                 }
                 else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
                 {
@@ -472,52 +529,52 @@ public static class Accessor
                         il.Emit(OpCodes.Ldstr, errMsg);
                     il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                     il.Emit(OpCodes.Throw);
-                    if (logIl)
+                    if (logIl && reflectionToolsLogger != null)
                     {
-                        Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                        Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        Logger.LogDebug(source, "IL:  pop");
-                        Logger.LogDebug(source, "IL:  ldarg.1");
-                        Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        Logger.LogDebug(source, "IL:  pop");
-                        Logger.LogDebug(source, "IL:  pop");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                        reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
+                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
                         if (CastExCtor != null)
-                            Logger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                        Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                        Logger.LogDebug(source, "IL:  throw");
+                            reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  throw");
                     }
                 }
 
                 if (typeLbl.HasValue)
                 {
                     il.MarkLabel(typeLbl.Value);
-                    if (logIl)
-                        Logger.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
+                    if (logIl && reflectionToolsLogger != null)
+                        reflectionToolsLogger.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
                 }
 
                 il.Emit(OpCodes.Stobj, field.FieldType);
-                if (logIl)
-                    Logger.LogDebug(source, $"IL:  stobj <{field.FieldType.FullName}>");
+                if (logIl && reflectionToolsLogger != null)
+                    reflectionToolsLogger.LogDebug(source, $"IL:  stobj <{field.FieldType.FullName}>");
             }
             else
             {
                 il.Emit(OpCodes.Ldarg_1);
-                if (logIl)
-                    Logger.LogDebug(source, "IL:  ldarg.1");
+                if (logIl && reflectionToolsLogger != null)
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
 
                 if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Unbox_Any, field.FieldType);
-                    if (logIl)
-                        Logger.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
+                    if (logIl && reflectionToolsLogger != null)
+                        reflectionToolsLogger.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
                 }
                 else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Box, typeof(TValue));
-                    if (logIl)
-                        Logger.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
+                    if (logIl && reflectionToolsLogger != null)
+                        reflectionToolsLogger.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
                 }
                 else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
                 {
@@ -536,21 +593,21 @@ public static class Accessor
                         il.Emit(OpCodes.Ldstr, errMsg);
                     il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                     il.Emit(OpCodes.Throw);
-                    if (logIl)
+                    if (logIl && reflectionToolsLogger != null)
                     {
-                        Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                        Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        Logger.LogDebug(source, "IL:  pop");
-                        Logger.LogDebug(source, "IL:  ldarg.1");
-                        Logger.LogDebug(source, "IL:  dup");
-                        Logger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        Logger.LogDebug(source, "IL:  pop");
-                        Logger.LogDebug(source, "IL:  pop");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                        reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
+                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
                         if (CastExCtor != null)
-                            Logger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                        Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                        Logger.LogDebug(source, "IL:  throw");
+                            reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                        reflectionToolsLogger.LogDebug(source, "IL:  throw");
                     }
                 }
 
@@ -558,19 +615,19 @@ public static class Accessor
                 {
                     il.MarkLabel(typeLbl.Value);
                     if (logIl)
-                        Logger.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
+                        reflectionToolsLogger?.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
                 }
 
                 il.Emit(OpCodes.Stfld, field);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  stobj <{field.DeclaringType!.FullName}.{field.Name}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  stobj <{field.DeclaringType!.FullName}.{field.Name}>");
             }
             il.Emit(OpCodes.Ret);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ret");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             InstanceSetter<object, TValue> setter = (InstanceSetter<object, TValue>)method.CreateDelegate(typeof(InstanceSetter<object, TValue>));
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method instance setter for {declaringType.Name}.{fieldName}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance setter for {declaringType.Name}.{fieldName}.");
             return setter;
         }
         catch (Exception ex)
@@ -578,7 +635,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating instance setter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance setter for {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Error generating instance setter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -597,12 +654,13 @@ public static class Accessor
     public static InstanceGetter<object, TValue>? GenerateInstanceGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateInstanceGetter";
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (declaringType == null)
         {
             if (throwOnError)
                 throw new Exception($"Error generating instance getter for <unknown>.{fieldName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Error generating instance getter for <unknown>.{fieldName}. Declaring type not found.");
+                reflectionToolsLogger?.LogError(source, null, $"Error generating instance getter for <unknown>.{fieldName}. Declaring type not found.");
             return null;
         }
         FieldInfo? field = declaringType.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -612,7 +670,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
             return null;
         }
 
@@ -626,13 +684,13 @@ public static class Accessor
             DynamicMethod method = new DynamicMethod("get_" + fieldName, attr, convention, typeof(TValue), new Type[] { typeof(object) }, declaringType, true);
             bool logIl = LogILTraceMessages;
             if (logIl)
-                Logger.LogDebug(source, $"IL: Generating instance getter for {field.DeclaringType!.FullName}.{field.Name}:");
+                reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance getter for {field.DeclaringType!.FullName}.{field.Name}:");
             method.DefineParameter(1, ParameterAttributes.None, "this");
             ILGenerator il = method.GetILGenerator();
             il.Emit(OpCodes.Ldarg_0);
             Label? lbl = null;
             if (logIl)
-                Logger.LogDebug(source, "IL:  ldarg.0");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
 
             bool isValueType = declaringType.IsValueType;
             if (CastExCtor != null || !isValueType && NreExCtor != null)
@@ -651,19 +709,19 @@ public static class Accessor
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
                 il.MarkLabel(lbl2);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, $"IL:  isinst <{declaringType.FullName}>");
-                    Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{declaringType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
                     if (CastExCtor != null)
-                        Logger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
-                    Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    Logger.LogDebug(source, "IL:  throw");
-                    Logger.LogDebug(source, "IL: lbl_1:");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
+                    reflectionToolsLogger.LogDebug(source, "IL: lbl_1:");
                 }
                 ConstructorInfo ctor = NreExCtor ?? CastExCtor!;
                 if (ctor == CastExCtor)
@@ -671,51 +729,51 @@ public static class Accessor
                     string nullError = $"Null passed to getter for {fieldName}. Expected {declaringType.FullName}.";
                     il.Emit(OpCodes.Ldstr, nullError);
                     if (logIl)
-                        Logger.LogDebug(source, $"IL:  ldstr \"{nullError}\"");
+                        reflectionToolsLogger?.LogDebug(source, $"IL:  ldstr \"{nullError}\"");
                 }
                 il.Emit(OpCodes.Newobj, ctor);
                 il.Emit(OpCodes.Throw);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, $"IL:  newobj <{(NreExCtor?.DeclaringType ?? CastExCtor!.DeclaringType!).FullName}({(ctor == CastExCtor ? "System.String" : string.Empty)})>");
-                    Logger.LogDebug(source, "IL:  throw");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(NreExCtor?.DeclaringType ?? CastExCtor!.DeclaringType!).FullName}({(ctor == CastExCtor ? "System.String" : string.Empty)})>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
                 }
             }
             if (lbl.HasValue)
             {
                 il.MarkLabel(lbl.Value);
                 if (logIl)
-                    Logger.LogDebug(source, "IL: lbl_0:");
+                    reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             }
             if (isValueType)
             {
                 il.Emit(OpCodes.Unbox, declaringType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  unbox <{declaringType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox <{declaringType.FullName}>");
             }
             il.Emit(OpCodes.Ldfld, field);
             if (logIl)
-                Logger.LogDebug(source, $"IL:  ldfld <{field.DeclaringType!.FullName}.{field.Name}>");
+                reflectionToolsLogger?.LogDebug(source, $"IL:  ldfld <{field.DeclaringType!.FullName}.{field.Name}>");
 
             if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, typeof(TValue));
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  unbox.any <{typeof(TValue).FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{typeof(TValue).FullName}>");
             }
             else if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, field.FieldType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  box <{field.FieldType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{field.FieldType.FullName}>");
             }
 
             il.Emit(OpCodes.Ret);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ret");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             InstanceGetter<object, TValue> getter = (InstanceGetter<object, TValue>)method.CreateDelegate(typeof(InstanceGetter<object, TValue>));
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method instance getter for {declaringType.Name}.{fieldName}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance getter for {declaringType.Name}.{fieldName}.");
             return getter;
         }
         catch (Exception ex)
@@ -723,7 +781,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating instance getter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating instance getter for {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Error generating instance getter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -747,7 +805,7 @@ public static class Accessor
                 throw new Exception($"Unable to create instance setter for {typeof(TInstance).FullName}.{propertyName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
 
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to create instance setter for {typeof(TInstance).FullName}.{propertyName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
+                Logger?.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to create instance setter for {typeof(TInstance).FullName}.{propertyName}, you must pass structs ({typeof(TInstance).Name}) as a boxed object.");
             return null;
         }
 
@@ -763,7 +821,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {typeof(TInstance).FullName}.{propertyName} with a setter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {typeof(TInstance).FullName}.{propertyName} with a setter.");
+                    Logger?.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {typeof(TInstance).FullName}.{propertyName} with a setter.");
                 return null;
             }
         }
@@ -796,7 +854,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {typeof(TInstance).FullName}.{propertyName} with a getter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {typeof(TInstance).FullName}.{propertyName} with a getter.");
+                    Logger?.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {typeof(TInstance).FullName}.{propertyName} with a getter.");
                 return null;
             }
         }
@@ -831,7 +889,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating instance setter for <unknown>.{propertyName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Error generating instance setter for <unknown>.{propertyName}. Declaring type not found.");
+                Logger?.LogError("Accessor.GenerateInstancePropertySetter", null, $"Error generating instance setter for <unknown>.{propertyName}. Declaring type not found.");
             return null;
         }
         PropertyInfo? property = declaringType.GetProperty(propertyName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -846,7 +904,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a setter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a setter.");
+                    Logger?.LogError("Accessor.GenerateInstancePropertySetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a setter.");
                 return null;
             }
         }
@@ -875,7 +933,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating instance getter for <unknown>.{propertyName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Error generating instance getter for <unknown>.{propertyName}. Declaring type not found.");
+                Logger?.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Error generating instance getter for <unknown>.{propertyName}. Declaring type not found.");
             return null;
         }
 
@@ -891,7 +949,7 @@ public static class Accessor
                 if (throwOnError)
                     throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a getter.");
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a getter.");
+                    Logger?.LogError("Accessor.GenerateInstancePropertyGetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a getter.");
                 return null;
             }
         }
@@ -941,12 +999,13 @@ public static class Accessor
     public static StaticSetter<TValue>? GenerateStaticSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateStaticSetter";
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (declaringType == null)
         {
             if (throwOnError)
                 throw new Exception($"Error generating static setter for <unknown>.{fieldName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Error generating static setter for <unknown>.{fieldName}. Declaring type not found.");
+                reflectionToolsLogger?.LogError(source, null, $"Error generating static setter for <unknown>.{fieldName}. Declaring type not found.");
             return null;
         }
         FieldInfo? field = declaringType.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
@@ -956,7 +1015,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching field {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find matching field {declaringType.FullName}.{fieldName}.");
             return null;
         }
 
@@ -967,7 +1026,7 @@ public static class Accessor
             if (throwOnError)
                 throw new NotSupportedException($"Field {declaringType.FullName}.{fieldName} is a static readonly value type field, which is not settable in the current runtime.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Field {declaringType.FullName}.{fieldName} is a static readonly value type field, which is not settable in the current runtime.");
+                reflectionToolsLogger?.LogError(source, null, $"Field {declaringType.FullName}.{fieldName} is a static readonly value type field, which is not settable in the current runtime.");
             return null;
         }
 #endif
@@ -979,12 +1038,12 @@ public static class Accessor
             DynamicMethod method = new DynamicMethod("set_" + fieldName, attr, convention, typeof(void), new Type[] { typeof(TValue) }, declaringType, true);
             bool logIl = LogILTraceMessages;
             if (logIl)
-                Logger.LogDebug(source, $"IL: Generating static setter for {field.DeclaringType!.FullName}.{fieldName}:");
+                reflectionToolsLogger?.LogDebug(source, $"IL: Generating static setter for {field.DeclaringType!.FullName}.{fieldName}:");
             method.DefineParameter(1, ParameterAttributes.None, "value");
             ILGenerator il = method.GetILGenerator();
             il.Emit(OpCodes.Ldarg_0);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ldarg.0");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
 
             Label? lbl = null;
 
@@ -992,13 +1051,13 @@ public static class Accessor
             {
                 il.Emit(OpCodes.Unbox_Any, field.FieldType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
             }
             else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, typeof(TValue));
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
             }
             else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
             {
@@ -1016,20 +1075,20 @@ public static class Accessor
                     il.Emit(OpCodes.Ldstr, errMsg);
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                    Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    Logger.LogDebug(source, "IL:  pop");
-                    Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, "IL:  dup");
-                    Logger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
-                    Logger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
+                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
                     if (CastExCtor != null)
-                        Logger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                    Logger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    Logger.LogDebug(source, "IL:  throw");
+                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
                 }
             }
 
@@ -1037,19 +1096,19 @@ public static class Accessor
             {
                 il.MarkLabel(lbl.Value);
                 if (logIl)
-                    Logger.LogDebug(source, "IL: lbl_0:");
+                    reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             }
 
             il.Emit(OpCodes.Stsfld, field);
             il.Emit(OpCodes.Ret);
-            if (logIl)
+            if (logIl && reflectionToolsLogger != null)
             {
-                Logger.LogDebug(source, $"IL:  stsfld <{field.DeclaringType!.FullName}.{fieldName}");
-                Logger.LogDebug(source, "IL:  ret");
+                reflectionToolsLogger.LogDebug(source, $"IL:  stsfld <{field.DeclaringType!.FullName}.{fieldName}");
+                reflectionToolsLogger.LogDebug(source, "IL:  ret");
             }
             StaticSetter<TValue> setter = (StaticSetter<TValue>)method.CreateDelegate(typeof(StaticSetter<TValue>));
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method static setter for {declaringType.Name}.{fieldName}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method static setter for {declaringType.Name}.{fieldName}.");
             return setter;
         }
         catch (Exception ex)
@@ -1057,7 +1116,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating static setter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating static setter for {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Error generating static setter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -1076,12 +1135,13 @@ public static class Accessor
     public static StaticGetter<TValue>? GenerateStaticGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
     {
         const string source = "Accessor.GenerateStaticGetter";
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (declaringType == null)
         {
             if (throwOnError)
                 throw new Exception($"Error generating static getter for <unknown>.{fieldName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Error generating static getter for <unknown>.{fieldName}. Declaring type not found.");
+                reflectionToolsLogger?.LogError(source, null, $"Error generating static getter for <unknown>.{fieldName}. Declaring type not found.");
             return null;
         }
         FieldInfo? field = declaringType.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
@@ -1091,7 +1151,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching field: {declaringType.FullName}.{fieldName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find matching property {declaringType.FullName}.{fieldName}.");
             return null;
         }
 
@@ -1103,31 +1163,31 @@ public static class Accessor
             DynamicMethod method = new DynamicMethod("get_" + fieldName, attr, convention, typeof(TValue), Type.EmptyTypes, declaringType, true);
             bool logIl = LogILTraceMessages;
             if (logIl)
-                Logger.LogDebug(source, $"IL: Generating static getter for {field.DeclaringType!.FullName}.{fieldName}:");
+                reflectionToolsLogger?.LogDebug(source, $"IL: Generating static getter for {field.DeclaringType!.FullName}.{fieldName}:");
             ILGenerator il = method.GetILGenerator();
             il.Emit(OpCodes.Ldsfld, field);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ldsfld");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ldsfld");
 
             if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, typeof(TValue));
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  unbox.any <{typeof(TValue).FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{typeof(TValue).FullName}>");
             }
             else if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, field.FieldType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  box <{field.FieldType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{field.FieldType.FullName}>");
             }
 
             if (logIl)
-                Logger.LogDebug(source, "IL:  ret");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             il.Emit(OpCodes.Ret);
             StaticGetter<TValue> getter = (StaticGetter<TValue>)method.CreateDelegate(typeof(StaticGetter<TValue>));
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method static getter for {declaringType.Name}.{fieldName}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method static getter for {declaringType.Name}.{fieldName}.");
             return getter;
         }
         catch (Exception ex)
@@ -1135,7 +1195,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating static getter for {declaringType.FullName}.{fieldName}.", ex);
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Error generating static getter for {declaringType.FullName}.{fieldName}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Error generating static getter for {declaringType.FullName}.{fieldName}.");
             return null;
         }
     }
@@ -1225,7 +1285,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating static setter for <unknown>.{propertyName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticPropertySetter", null, $"Error generating static setter for <unknown>.{propertyName}. Declaring type not found.");
+                Logger?.LogError("Accessor.GenerateStaticPropertySetter", null, $"Error generating static setter for <unknown>.{propertyName}. Declaring type not found.");
             return null;
         }
         PropertyInfo? property = declaringType.GetProperty(propertyName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
@@ -1236,7 +1296,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a setter.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticPropertySetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a setter.");
+                Logger?.LogError("Accessor.GenerateStaticPropertySetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a setter.");
             return null;
         }
 
@@ -1264,7 +1324,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Error generating static getter for <unknown>.{propertyName}. Declaring type not found.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticPropertyGetter", null, $"Error generating static getter for <unknown>.{propertyName}. Declaring type not found.");
+                Logger?.LogError("Accessor.GenerateStaticPropertyGetter", null, $"Error generating static getter for <unknown>.{propertyName}. Declaring type not found.");
             return null;
         }
         PropertyInfo? property = declaringType.GetProperty(propertyName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
@@ -1275,7 +1335,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception($"Unable to find matching property: {declaringType.FullName}.{propertyName} with a getter.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticPropertyGetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a getter.");
+                Logger?.LogError("Accessor.GenerateStaticPropertyGetter", null, $"Unable to find matching property {declaringType.FullName}.{propertyName} with a getter.");
             return null;
         }
 
@@ -1326,7 +1386,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
+                    Logger?.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1384,7 +1444,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
+                    Logger?.LogError("Accessor.GenerateInstanceCaller", null, $"Unable to find matching instance method: {typeof(TInstance).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1413,7 +1473,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception("Unable to find instance method.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstanceCaller", null, "Unable to find instance method.");
+                Logger?.LogError("Accessor.GenerateInstanceCaller", null, "Unable to find instance method.");
             return null;
         }
 
@@ -1428,7 +1488,7 @@ public static class Accessor
                 throw new ArgumentException($"Method {method.DeclaringType.FullName}.{method.Name} can not have more than {maxArgs} arguments!", nameof(method));
 
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateInstanceCaller", null, $"Method {method.DeclaringType.FullName}.{method.Name} can not have more than {maxArgs} arguments!");
+                Logger?.LogError("Accessor.GenerateInstanceCaller", null, $"Method {method.DeclaringType.FullName}.{method.Name} can not have more than {maxArgs} arguments!");
             return null;
         }
 
@@ -1473,12 +1533,13 @@ public static class Accessor
         const string source = "Accessor.GenerateInstanceCaller";
         if (!typeof(Delegate).IsAssignableFrom(delegateType))
             throw new ArgumentException(delegateType.Name + " is not a delegate.", nameof(delegateType));
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (method == null || method.IsStatic || method.DeclaringType == null)
         {
             if (throwOnError)
                 throw new Exception($"Unable to find instance method for delegate: {delegateType.Name}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find instance method for delegate: {delegateType.Name}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find instance method for delegate: {delegateType.Name}.");
             return null;
         }
 
@@ -1504,7 +1565,7 @@ public static class Accessor
                 throw new Exception("Unable to create instance caller for " + instance.FullName + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
 
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to create instance caller for {instance.FullName}.{method.Name}: incompatable delegate type: {delegateType.FullName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to create instance caller for {instance.FullName}.{method.Name}: incompatable delegate type: {delegateType.FullName}.");
             return null;
         }
 
@@ -1530,15 +1591,15 @@ public static class Accessor
                 {
                     Delegate basicDelegate = method.CreateDelegate(delegateType);
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created basic delegate binding instance caller for {instance.FullName}.{method.Name}.");
+                        reflectionToolsLogger?.LogDebug(source, $"Created basic delegate binding instance caller for {instance.FullName}.{method.Name}.");
                     return basicDelegate;
                 }
                 catch (Exception ex)
                 {
-                    if (LogDebugMessages || LogILTraceMessages)
+                    if ((LogDebugMessages || LogILTraceMessages) && reflectionToolsLogger != null)
                     {
-                        Logger.LogDebug(source, $"Unable to create basic delegate binding instance caller for {instance.FullName}.{method.Name}.");
-                        Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
+                        reflectionToolsLogger.LogDebug(source, $"Unable to create basic delegate binding instance caller for {instance.FullName}.{method.Name}.");
+                        reflectionToolsLogger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }
             }
@@ -1551,7 +1612,7 @@ public static class Accessor
                 throw new Exception($"Unable to create instance caller for {instance.FullName}.{method.Name} (non-readonly), you must pass structs ({instance.Name}) as a boxed object (in {delegateType.FullName}).");
 
             if (LogErrorMessages || LogILTraceMessages)
-                Logger.LogError(source, null, $"Unable to create instance caller for {instance.FullName}.{method.Name} (non-readonly), you must pass structs ({instance.Name}) as a boxed object (in {delegateType.FullName}).");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to create instance caller for {instance.FullName}.{method.Name} (non-readonly), you must pass structs ({instance.Name}) as a boxed object (in {delegateType.FullName}).");
             return null;
         }
 
@@ -1578,15 +1639,15 @@ public static class Accessor
                     object d2 = FormatterServices.GetUninitializedObject(delegateType);
                     delegateType.GetConstructors()[0].Invoke(d2, new object[] { null!, ptr });
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created unsafely binded delegate binding instance caller for {instance.Name}.{method.Name}.");
+                        reflectionToolsLogger?.LogDebug(source, $"Created unsafely binded delegate binding instance caller for {instance.Name}.{method.Name}.");
                     return (Delegate)d2;
                 }
                 catch (Exception ex)
                 {
-                    if (LogDebugMessages || LogILTraceMessages)
+                    if ((LogDebugMessages || LogILTraceMessages) && reflectionToolsLogger != null)
                     {
-                        Logger.LogDebug(source, $"Unable to create unsafely binded delegate binding instance caller for {instance.Name}.{method.Name}.");
-                        Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
+                        reflectionToolsLogger.LogDebug(source, $"Unable to create unsafely binded delegate binding instance caller for {instance.Name}.{method.Name}.");
+                        reflectionToolsLogger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }
 #line default
@@ -1603,7 +1664,7 @@ public static class Accessor
         DynamicMethod dynMethod = new DynamicMethod("Invoke" + method.Name, attributes, convention, delegateReturnType, parameterTypes, instance.IsInterface ? typeof(Accessor) : instance, true);
         bool logIl = LogILTraceMessages;
         if (logIl)
-            Logger.LogDebug(source, $"IL: Generating instance caller for {instance.FullName}.{method.Name}:");
+            reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance caller for {instance.FullName}.{method.Name}:");
         dynMethod.DefineParameter(1, ParameterAttributes.None, "this");
 
         for (int i = 0; i < p.Length; ++i)
@@ -1617,24 +1678,24 @@ public static class Accessor
             {
                 generator.Emit(OpCodes.Ldarg_0);
                 generator.Emit(OpCodes.Unbox, instance);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, "IL:  ldarg.0");
-                    Logger.LogDebug(source, $"IL:  unbox <{instance.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  unbox <{instance.FullName}>");
                 }
             }
             else
             {
                 generator.Emit(OpCodes.Ldarga_S, 0);
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  ldarga.s <0>");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  ldarga.s <0>");
             }
         }
         else
         {
             generator.Emit(OpCodes.Ldarg_0);
             if (logIl)
-                Logger.LogDebug(source, "IL:  ldarg.0");
+                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
         }
 
         for (int i = 0; i < p.Length; ++i)
@@ -1648,13 +1709,13 @@ public static class Accessor
             string[] typeNames = new string[parameters.Length];
             for (int i = 0; i < parameters.Length; ++i)
                 typeNames[i] = parameters[i].ParameterType.FullName ?? "<null>";
-            Logger.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{instance.FullName}.{method.Name}({string.Join(", ", typeNames)})>");
+            reflectionToolsLogger?.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{instance.FullName}.{method.Name}({string.Join(", ", typeNames)})>");
         }
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
             if (logIl)
-                Logger.LogDebug(source, "IL:  pop");
+                reflectionToolsLogger?.LogDebug(source, "IL:  pop");
         }
         else if (method.ReturnType != typeof(void))
         {
@@ -1662,13 +1723,13 @@ public static class Accessor
             {
                 generator.Emit(OpCodes.Box, method.ReturnType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  box <{method.ReturnType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{method.ReturnType.FullName}>");
             }
             else if (!method.ReturnType.IsValueType && delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Unbox_Any, delegateReturnType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  unbox.any <{delegateReturnType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{delegateReturnType.FullName}>");
             }
         }
         else if (delegateReturnType != typeof(void))
@@ -1677,7 +1738,7 @@ public static class Accessor
             {
                 generator.Emit(OpCodes.Ldnull);
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  ldnull");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  ldnull");
             }
             else
             {
@@ -1685,23 +1746,23 @@ public static class Accessor
                 generator.Emit(OpCodes.Ldloca_S, 0);
                 generator.Emit(OpCodes.Initobj, delegateReturnType);
                 generator.Emit(OpCodes.Ldloc_0);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, "IL:  ldloca.s <0>");
-                    Logger.LogDebug(source, $"IL:  initobj <{delegateReturnType.FullName}>");
-                    Logger.LogDebug(source, "IL:  ldloc.0");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldloca.s <0>");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  initobj <{delegateReturnType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldloc.0");
                 }
             }
         }
         generator.Emit(OpCodes.Ret);
         if (logIl)
-            Logger.LogDebug(source, "IL:  ret");
+            reflectionToolsLogger?.LogDebug(source, "IL:  ret");
 
         try
         {
             Delegate dynamicDelegate = dynMethod.CreateDelegate(delegateType);
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method instance caller for {instance.FullName}.{method.Name}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance caller for {instance.FullName}.{method.Name}.");
             return dynamicDelegate;
         }
         catch (Exception ex)
@@ -1710,7 +1771,7 @@ public static class Accessor
                 throw new Exception($"Unable to create instance caller for {instance.FullName}.{method.Name}.", ex);
 
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Unable to create instance caller for {instance.FullName}.{method.Name}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Unable to create instance caller for {instance.FullName}.{method.Name}.");
             return null;
         }
     }
@@ -1752,7 +1813,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
+                    Logger?.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1800,7 +1861,7 @@ public static class Accessor
                     throw new Exception($"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
 
                 if (LogErrorMessages)
-                    Logger.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
+                    Logger?.LogError("Accessor.GenerateStaticCaller", null, $"Unable to find matching static method: {typeof(TDeclaringType).FullName}.{methodName}.");
                 return null;
             }
         }
@@ -1827,7 +1888,7 @@ public static class Accessor
             if (throwOnError)
                 throw new Exception("Unable to find static method.");
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticCaller", null, "Unable to find static method.");
+                Logger?.LogError("Accessor.GenerateStaticCaller", null, "Unable to find static method.");
             return null;
         }
 
@@ -1842,7 +1903,7 @@ public static class Accessor
                 throw new ArgumentException("Method can not have more than " + maxArgs + " arguments!", nameof(method));
 
             if (LogErrorMessages)
-                Logger.LogError("Accessor.GenerateStaticCaller", null, "Method " + method + " can not have more than " + maxArgs + " arguments!");
+                Logger?.LogError("Accessor.GenerateStaticCaller", null, "Method " + method + " can not have more than " + maxArgs + " arguments!");
             return null;
         }
 
@@ -1884,12 +1945,13 @@ public static class Accessor
             throw new ArgumentException(delegateType.FullName + " is not a delegate.", nameof(delegateType));
 
         const string source = "Accessor.GenerateStaticCaller";
+        IReflectionToolsLogger? reflectionToolsLogger = Logger;
         if (method == null || !method.IsStatic)
         {
             if (throwOnError)
                 throw new Exception($"Unable to find static method for delegate: {delegateType.FullName}.");
             if (LogErrorMessages)
-                Logger.LogError(source, null, $"Unable to find static method for delegate: {delegateType.FullName}.");
+                reflectionToolsLogger?.LogError(source, null, $"Unable to find static method for delegate: {delegateType.FullName}.");
             return null;
         }
 
@@ -1905,7 +1967,7 @@ public static class Accessor
                 throw new Exception("Unable to create static caller for " + (method.DeclaringType?.FullName ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
 
             if (LogErrorMessages)
-                Logger.LogError(source, null, "Unable to create static caller for " + (method.DeclaringType?.FullName ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
+                reflectionToolsLogger?.LogError(source, null, "Unable to create static caller for " + (method.DeclaringType?.FullName ?? "<unknown-type>") + "." + (method.Name ?? "<unknown-name>") + $": incompatable delegate type: {delegateType.FullName}.");
             return null;
         }
 
@@ -1928,15 +1990,15 @@ public static class Accessor
                 {
                     Delegate basicDelegateCaller = method.CreateDelegate(delegateType);
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created basic delegate binding static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
+                        reflectionToolsLogger?.LogDebug(source, $"Created basic delegate binding static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
                     return basicDelegateCaller;
                 }
                 catch (Exception ex)
                 {
-                    if (LogDebugMessages || LogILTraceMessages)
+                    if ((LogDebugMessages || LogILTraceMessages) && reflectionToolsLogger != null)
                     {
-                        Logger.LogDebug(source, $"Unable to create basic delegate binding static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
-                        Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
+                        reflectionToolsLogger.LogDebug(source, $"Unable to create basic delegate binding static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
+                        reflectionToolsLogger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }
             }
@@ -1966,15 +2028,15 @@ public static class Accessor
                     object d2 = FormatterServices.GetUninitializedObject(delegateType);
                     delegateType.GetConstructors()[0].Invoke(d2, new object[] { null!, ptr });
                     if (LogDebugMessages || LogILTraceMessages)
-                        Logger.LogDebug(source, $"Created unsafely binded delegate binding static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
+                        reflectionToolsLogger?.LogDebug(source, $"Created unsafely binded delegate binding static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
                     return (Delegate)d2;
                 }
                 catch (Exception ex)
                 {
-                    if (LogDebugMessages || LogILTraceMessages)
+                    if ((LogDebugMessages || LogILTraceMessages) && reflectionToolsLogger != null)
                     {
-                        Logger.LogDebug(source, $"Unable to create unsafely binded delegate binding static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
-                        Logger.LogDebug(source, ex.GetType() + " - " + ex.Message);
+                        reflectionToolsLogger.LogDebug(source, $"Unable to create unsafely binded delegate binding static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
+                        reflectionToolsLogger.LogDebug(source, ex.GetType() + " - " + ex.Message);
                     }
                 }
 #line default
@@ -1991,7 +2053,7 @@ public static class Accessor
         DynamicMethod dynMethod = new DynamicMethod("Invoke" + method.Name, attributes, convention, delegateReturnType, parameterTypes, method.DeclaringType is not { IsInterface: false } ? typeof(Accessor) : method.DeclaringType, true);
         bool logIl = LogILTraceMessages;
         if (logIl)
-            Logger.LogDebug(source, $"IL: Generating static caller for {method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}:");
+            reflectionToolsLogger?.LogDebug(source, $"IL: Generating static caller for {method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}:");
 
         for (int i = 0; i < p.Length; ++i)
             dynMethod.DefineParameter(i + 1, p[i].Attributes, p[i].Name);
@@ -2002,19 +2064,19 @@ public static class Accessor
             generator.EmitParameter(source, i, $"Invalid argument type passed to static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i], p[i].ParameterType);
 
         generator.Emit(OpCodes.Call, method);
-        if (logIl)
+        if (logIl && reflectionToolsLogger != null)
         {
             ParameterInfo[] parameters = method.GetParameters();
             string[] typeNames = new string[parameters.Length];
             for (int i = 0; i < parameters.Length; ++i)
                 typeNames[i] = parameters[i].ParameterType.FullName ?? "<null>";
-            Logger.LogDebug(source, $"IL:  call <{method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}({string.Join(", ", typeNames)})>");
+            reflectionToolsLogger.LogDebug(source, $"IL:  call <{method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}({string.Join(", ", typeNames)})>");
         }
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
             if (logIl)
-                Logger.LogDebug(source, "IL:  pop");
+                reflectionToolsLogger?.LogDebug(source, "IL:  pop");
         }
         else if (method.ReturnType != typeof(void))
         {
@@ -2022,13 +2084,13 @@ public static class Accessor
             {
                 generator.Emit(OpCodes.Box, method.ReturnType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  box <{method.ReturnType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{method.ReturnType.FullName}>");
             }
             else if (!method.ReturnType.IsValueType && delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Unbox_Any, delegateReturnType);
                 if (logIl)
-                    Logger.LogDebug(source, $"IL:  unbox.any <{delegateReturnType.FullName}>");
+                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{delegateReturnType.FullName}>");
             }
         }
         else if (delegateReturnType != typeof(void))
@@ -2037,7 +2099,7 @@ public static class Accessor
             {
                 generator.Emit(OpCodes.Ldnull);
                 if (logIl)
-                    Logger.LogDebug(source, "IL:  ldnull");
+                    reflectionToolsLogger?.LogDebug(source, "IL:  ldnull");
             }
             else
             {
@@ -2045,24 +2107,24 @@ public static class Accessor
                 generator.Emit(OpCodes.Ldloca_S, 0);
                 generator.Emit(OpCodes.Initobj, delegateReturnType);
                 generator.Emit(OpCodes.Ldloc_0);
-                if (logIl)
+                if (logIl && reflectionToolsLogger != null)
                 {
-                    Logger.LogDebug(source, "IL:  ldloca.s <0>");
-                    Logger.LogDebug(source, $"IL:  initobj <{delegateReturnType.FullName}>");
-                    Logger.LogDebug(source, "IL:  ldloc.0");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldloca.s <0>");
+                    reflectionToolsLogger.LogDebug(source, $"IL:  initobj <{delegateReturnType.FullName}>");
+                    reflectionToolsLogger.LogDebug(source, "IL:  ldloc.0");
                 }
             }
         }
 
         generator.Emit(OpCodes.Ret);
         if (logIl)
-            Logger.LogDebug(source, "IL:  ret");
+            reflectionToolsLogger?.LogDebug(source, "IL:  ret");
 
         try
         {
             Delegate dynamicDelegate = dynMethod.CreateDelegate(delegateType);
             if (LogDebugMessages || logIl)
-                Logger.LogDebug(source, $"Created dynamic method static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
+                reflectionToolsLogger?.LogDebug(source, $"Created dynamic method static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name}.");
             return dynamicDelegate;
         }
         catch (Exception ex)
@@ -2071,7 +2133,7 @@ public static class Accessor
                 throw new Exception($"Unable to create static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.", ex);
 
             if (LogErrorMessages)
-                Logger.LogError(source, ex, $"Unable to create static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
+                reflectionToolsLogger?.LogError(source, ex, $"Unable to create static caller for {method.DeclaringType?.FullName ?? "<unknown-type>"}.{method.Name}.");
             return null;
         }
     }
@@ -2664,12 +2726,12 @@ public static class Accessor
         string msg = context + $" Can't load type: {ex.TypeName}.";
         if (ex.InnerException != null)
             msg += "(" + ex.InnerException.GetType().Name + " | " + ex.InnerException.Message + ")";
-        Logger.LogDebug(source, msg);
+        Logger?.LogDebug(source, msg);
     }
     private static void LogFileNotFoundException(FileNotFoundException ex, string source, string context)
     {
         string msg = context + $" Missing assembly: {ex.FileName}.";
-        Logger.LogDebug(source, msg);
+        Logger?.LogDebug(source, msg);
     }
 
     /// <summary>
@@ -2987,7 +3049,7 @@ public static class Accessor
         catch (MemberAccessException)
         {
             if (LogDebugMessages)
-                Logger.LogDebug("Accessor.GetMethod", $"Failed to get a method from a delegate of type {@delegate.GetType().Name}.");
+                Logger?.LogDebug("Accessor.GetMethod", $"Failed to get a method from a delegate of type {@delegate.GetType().Name}.");
 
             return null;
         }

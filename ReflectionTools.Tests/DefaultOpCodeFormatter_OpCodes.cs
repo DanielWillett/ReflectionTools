@@ -1,4 +1,5 @@
-﻿using DanielWillett.ReflectionTools.Formatting;
+﻿using DanielWillett.ReflectionTools.Emit;
+using DanielWillett.ReflectionTools.Formatting;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;

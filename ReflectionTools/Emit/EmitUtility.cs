@@ -3,14 +3,31 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
+
+/* Unmerged change from project 'ReflectionTools (net40)'
+Before:
+#if NET40_OR_GREATER || !NETFRAMEWORK
+After:
+using DanielWillett.ReflectionTools.Emit;
+using DanielWillett;
+using DanielWillett.ReflectionTools;
+
+
+#if NET40_OR_GREATER || !NETFRAMEWORK
+*/
 #if NET40_OR_GREATER || !NETFRAMEWORK
 using System.Diagnostics.Contracts;
+using DanielWillett.ReflectionTools.Emit;
+using DanielWillett;
+using DanielWillett.ReflectionTools;
+
+
 #endif
 #if NET45_OR_GREATER || !NETFRAMEWORK
 using System.Collections.Generic;
 #endif
 
-namespace DanielWillett.ReflectionTools;
+namespace DanielWillett.ReflectionTools.Emit;
 
 /// <summary>
 /// Utilities for creating dynamically generated code.
@@ -51,7 +68,7 @@ public static class EmitUtility
         if (_opCodesByValue == null)
             SetupOpCodeInfo();
 
-        ushort index = unchecked( (ushort)opCodeValue );
+        ushort index = unchecked((ushort)opCodeValue);
 
         if (index >= _opCodesByValue!.Length)
         {
@@ -145,14 +162,14 @@ public static class EmitUtility
     /// Loads a parameter from an index.
     /// </summary>
     public static void EmitParameter(this ILGenerator generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
-        => EmitParameter(generator, index, null, byref, type, targetType);
+        => generator.EmitParameter(index, null, byref, type, targetType);
 
     /// <summary>
     /// Loads a parameter from an index.
     /// </summary>
     public static void EmitParameter(this ILGenerator generator, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
     {
-        EmitParameter(generator, null, index, castErrorMessage, byref, type, targetType);
+        generator.EmitParameter(null, index, castErrorMessage, byref, type, targetType);
     }
     internal static void EmitParameter(this ILGenerator generator, string? logSource, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
     {
@@ -161,6 +178,7 @@ public static class EmitUtility
         if (!byref && type != null && targetType != null && type.IsValueType && targetType.IsValueType && type != targetType)
             throw new ArgumentException($"Types not compatible; input type: {type.FullName}, target type: {targetType.FullName}.", nameof(type));
 
+        IReflectionToolsLogger? reflectionToolsLogger = Accessor.Logger;
         if (byref)
         {
             OpCode code2 = index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S;
@@ -169,7 +187,7 @@ public static class EmitUtility
             else
                 generator.Emit(code2, (byte)index);
             if (logSource != null)
-                Accessor.Logger.LogDebug(logSource, $"IL:  {(index > ushort.MaxValue ? "ldarga" : "ldarga.s")} <{index.ToString(CultureInfo.InvariantCulture)}>");
+                reflectionToolsLogger?.LogDebug(logSource, $"IL:  {(index > ushort.MaxValue ? "ldarga" : "ldarga.s")} <{index.ToString(CultureInfo.InvariantCulture)}>");
             return;
         }
 
@@ -184,7 +202,7 @@ public static class EmitUtility
         };
         if (logSource != null)
         {
-            Accessor.Logger.LogDebug(logSource, index switch
+            reflectionToolsLogger?.LogDebug(logSource, index switch
             {
                 0 => "IL:  ldarg.0",
                 1 => "IL:  ldarg.1",
@@ -212,13 +230,13 @@ public static class EmitUtility
         {
             generator.Emit(OpCodes.Box, type);
             if (logSource != null)
-                Accessor.Logger.LogDebug(logSource, $"IL:  box <{type.FullName}>");
+                reflectionToolsLogger?.LogDebug(logSource, $"IL:  box <{type.FullName}>");
         }
         else if (!type.IsValueType && targetType.IsValueType)
         {
             generator.Emit(OpCodes.Unbox_Any, targetType);
             if (logSource != null)
-                Accessor.Logger.LogDebug(logSource, $"IL:  unbox.any <{targetType.FullName}>");
+                reflectionToolsLogger?.LogDebug(logSource, $"IL:  unbox.any <{targetType.FullName}>");
         }
         else if (!targetType.IsAssignableFrom(type) && (Accessor.CastExCtor != null || Accessor.NreExCtor != null))
         {
@@ -245,14 +263,14 @@ public static class EmitUtility
             generator.Emit(OpCodes.Newobj, Accessor.CastExCtor ?? Accessor.NreExCtor!);
             generator.Emit(OpCodes.Throw);
             generator.MarkLabel(lbl);
-            if (logSource != null)
+            if (logSource != null && reflectionToolsLogger != null)
             {
                 string lblId = lbl.GetLabelId().ToString(CultureInfo.InvariantCulture);
-                Accessor.Logger.LogDebug(logSource, $"IL:  isinst <{targetType.FullName}>");
-                Accessor.Logger.LogDebug(logSource, "IL:  dup");
-                Accessor.Logger.LogDebug(logSource, $"IL:  brtrue <lbl_{lblId}>");
-                Accessor.Logger.LogDebug(logSource, "IL:  pop");
-                Accessor.Logger.LogDebug(logSource, index switch
+                reflectionToolsLogger.LogDebug(logSource, $"IL:  isinst <{targetType.FullName}>");
+                reflectionToolsLogger.LogDebug(logSource, "IL:  dup");
+                reflectionToolsLogger.LogDebug(logSource, $"IL:  brtrue <lbl_{lblId}>");
+                reflectionToolsLogger.LogDebug(logSource, "IL:  pop");
+                reflectionToolsLogger.LogDebug(logSource, index switch
                 {
                     0 => "IL:  ldarg.0",
                     1 => "IL:  ldarg.1",
@@ -261,14 +279,14 @@ public static class EmitUtility
                     <= byte.MaxValue => $"IL:  ldarg.s <{index.ToString(CultureInfo.InvariantCulture)}",
                     _ => $"IL:  ldarg <{index.ToString(CultureInfo.InvariantCulture)}"
                 });
-                Accessor.Logger.LogDebug(logSource, "IL:  dup");
-                Accessor.Logger.LogDebug(logSource, $"IL:  brfalse <lbl_{lblId}>");
-                Accessor.Logger.LogDebug(logSource, "IL:  pop");
+                reflectionToolsLogger.LogDebug(logSource, "IL:  dup");
+                reflectionToolsLogger.LogDebug(logSource, $"IL:  brfalse <lbl_{lblId}>");
+                reflectionToolsLogger.LogDebug(logSource, "IL:  pop");
                 if (Accessor.CastExCtor != null)
-                    Accessor.Logger.LogDebug(logSource, $"IL:  ldstr \"{castErrorMessage}\"");
-                Accessor.Logger.LogDebug(logSource, $"IL:  newobj <{(Accessor.CastExCtor?.DeclaringType ?? Accessor.NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                Accessor.Logger.LogDebug(logSource, "IL:  throw");
-                Accessor.Logger.LogDebug(logSource, $"IL: lbl_{lblId}:");
+                    reflectionToolsLogger.LogDebug(logSource, $"IL:  ldstr \"{castErrorMessage}\"");
+                reflectionToolsLogger.LogDebug(logSource, $"IL:  newobj <{(Accessor.CastExCtor?.DeclaringType ?? Accessor.NreExCtor!.DeclaringType!).FullName}(System.String)>");
+                reflectionToolsLogger.LogDebug(logSource, "IL:  throw");
+                reflectionToolsLogger.LogDebug(logSource, $"IL: lbl_{lblId}:");
             }
         }
     }
@@ -697,7 +715,7 @@ public static class EmitUtility
             {
                 if (Accessor.LogWarningMessages)
                 {
-                    Accessor.Logger.LogWarning(
+                    Accessor.Logger?.LogWarning(
                         "EmitUtility.TryParseOpCode",
                         "The type 'System.Reflection.Emit.OpCodeValues' could not be found in the current environment."
                     );
@@ -710,7 +728,7 @@ public static class EmitUtility
 #if NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
         if (Enum.TryParse(_opCodeEnumType, stringToCheck, true, out object? resultEnum))
         {
-            value = unchecked( (ushort)Convert.ToInt16(resultEnum) );
+            value = unchecked((ushort)Convert.ToInt16(resultEnum));
         }
         else
         {
@@ -720,7 +738,7 @@ public static class EmitUtility
         try
         {
             object resultEnum = Enum.Parse(_opCodeEnumType, stringToCheck, true);
-            value = unchecked( (ushort)Convert.ToInt16(resultEnum) );
+            value = unchecked((ushort)Convert.ToInt16(resultEnum));
         }
         catch (ArgumentException)
         {
@@ -760,7 +778,7 @@ public static class EmitUtility
             {
                 ref OpCode opCode = ref opCodes[i];
                 opCode = (OpCode)opCodeFields[i]!.GetValue(null)!;
-                int val = unchecked( (ushort)opCode.Value );
+                int val = unchecked((ushort)opCode.Value);
                 if (maxValue < val)
                     maxValue = val;
             }
@@ -771,7 +789,7 @@ public static class EmitUtility
             for (int i = 0; i < opCodes.Length; ++i)
             {
                 ref OpCode opCode = ref opCodes[i];
-                opCodesByValue[unchecked( (ushort)opCode.Value) ] = opCode;
+                opCodesByValue[unchecked((ushort)opCode.Value)] = opCode;
             }
 
             _allOpCodes = opCodes;
