@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using DanielWillett.ReflectionTools.Emit;
 #if NETFRAMEWORK || (NETSTANDARD && !NETSTANDARD2_1_OR_GREATER)
 using System.Text;
-using DanielWillett.ReflectionTools.Emit;
 #endif
 
 namespace DanielWillett.ReflectionTools.Formatting;
@@ -129,7 +128,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not FieldInfo field)
                     break;
 
-                return fmtLen + 1 + GetFormatLength(field, includeDefinitionKeywords: false);
+                return fmtLen + 1 + GetFormatLength(field);
 
             case OperandType.ShortInlineI:
             case OperandType.InlineI8:
@@ -148,7 +147,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not MethodBase method)
                     break;
 
-                return fmtLen + 1 + GetFormatLength(method, includeDefinitionKeywords: false);
+                return fmtLen + 1 + GetFormatLength(method);
 
             case OperandType.ShortInlineR:
             case OperandType.InlineR:
@@ -217,7 +216,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 if (operand is not Type type)
                     break;
 
-                return GetFormatLength(type);
+                return fmtLen + 1 + GetFormatLength(type);
 
             case OperandType.ShortInlineVar:
             case OperandType.InlineVar:
@@ -272,7 +271,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 output[index] = ' ';
                 ++index;
-                index += Format(field, output[index..], includeDefinitionKeywords: false);
+                index += Format(field, output[index..]);
                 return index;
 
             case OperandType.ShortInlineI:
@@ -301,7 +300,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 output[index] = ' ';
                 ++index;
-                index += Format(method, output[index..], includeDefinitionKeywords: false);
+                index += Format(method, output[index..]);
                 return index;
 
             case OperandType.ShortInlineR:
@@ -743,13 +742,13 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         string methodName = method.Name;
         int len = 0;
         bool isReadOnly = method.IsReadOnly();
-        if (includeDefinitionKeywords)
+        bool isCtor = method is ConstructorInfo;
+        if (includeDefinitionKeywords && (!isCtor || !method.IsStatic))
             len += GetVisibilityLength(vis) + 1;
 
         Type? declType = method.DeclaringType;
         if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
             isReadOnly = true;
-        bool isCtor = method.IsConstructor;
 
         if (method.IsStatic)
             len += 7;
@@ -812,9 +811,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MemberVisibility vis = method.GetVisibility();
         ParameterInfo[] parameters = method.GetParameters();
         string methodName = method.Name;
-        bool isCtor = method.IsConstructor;
+        bool isCtor = method is ConstructorInfo;
         int index = 0;
-        if (includeDefinitionKeywords)
+        if (includeDefinitionKeywords && (!isCtor || !method.IsStatic))
         {
             WriteVisibility(vis, ref index, output);
             output[index] = ' ';
@@ -868,8 +867,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             ++index;
         }
 
-        methodName.AsSpan().CopyTo(output[index..]);
-        index += methodName.Length;
+        if (!isCtor)
+        {
+            methodName.AsSpan().CopyTo(output[index..]);
+            index += methodName.Length;
+        }
+
         output[index] = '(';
         ++index;
         for (int i = 0; i < parameters.Length; ++i)
@@ -2659,9 +2662,10 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         TypeMetaInfo* paramInfo = stackalloc TypeMetaInfo[parameters.Length];
         string methodName = method.Name;
         int len = 0;
+        bool isCtor = method is ConstructorInfo;
         bool isReadOnly = method.IsReadOnly();
 
-        if (includeDefinitionKeywords)
+        if (includeDefinitionKeywords && (!isCtor || !method.IsStatic))
             len += GetVisibilityLength(vis) + 1;
         
         Type? declType = method.DeclaringType;
@@ -2670,7 +2674,6 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
             isReadOnly = true;
 
-        bool isCtor = method.IsConstructor;
         bool isExtensionMethod = !isCtor && method.IsStatic && declType != null && declType.GetIsStatic() && method.IsDefinedSafe<ExtensionAttribute>();
 
         if (method.IsStatic)
@@ -2736,7 +2739,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 #endif
 
         int index = 0;
-        if (includeDefinitionKeywords)
+        if (includeDefinitionKeywords && (!isCtor || !method.IsStatic))
         {
             WriteVisibility(vis, ref index, output);
             output[index] = ' ';
@@ -2769,15 +2772,19 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             ++index;
         }
 
-#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
-        methodName.AsSpan().CopyTo(output[index..]);
-#else
-        for (int i = 0; i < methodName.Length; ++i)
+        if (!isCtor)
         {
-            output[index + i] = methodName[i];
-        }
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+            methodName.AsSpan().CopyTo(output[index..]);
+#else
+            for (int i = 0; i < methodName.Length; ++i)
+            {
+                output[index + i] = methodName[i];
+            }
 #endif
-        index += methodName.Length;
+
+            index += methodName.Length;
+        }
         output[index] = '(';
         ++index;
         for (int i = 0; i < parameters.Length; ++i)

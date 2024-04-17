@@ -11,35 +11,52 @@ namespace DanielWillett.ReflectionTools.Emit;
 /// </summary>
 public static class OpCodeEmitters
 {
-    //    /// <summary>
-    //    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
-    //    /// </summary>
-    //    /// <param name="debuggable">Shows debug logging as the method generates.</param>
-    //    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
-    //    public static IOpCodeEmitter AsEmitter(this ILGenerator generator, bool debuggable = false, bool addBreakpoints = false)
-    //        => debuggable || addBreakpoints
-    //            ? new DebuggableEmitter((ILGeneratorEmitter)generator, null) { DebugLog = debuggable, Breakpointing = addBreakpoints }
-    //            : (ILGeneratorEmitter)generator;
-    //
-    //    /// <summary>
-    //    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
-    //    /// </summary>
-    //    /// <param name="debuggable">Shows debug logging as the method generates.</param>
-    //    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
-    //    public static IOpCodeEmitter AsEmitter(this DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int bufferSize = 64)
-    //        => debuggable || addBreakpoints
-    //            ? new DebuggableEmitter(dynMethod) { DebugLog = debuggable, Breakpointing = addBreakpoints }
-    //            : (ILGeneratorEmitter)dynMethod.GetILGenerator(bufferSize);
-    //
-    //    /// <summary>
-    //    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
-    //    /// </summary>
-    //    /// <param name="debuggable">Shows debug logging as the method generates.</param>
-    //    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
-    //    public static IOpCodeEmitter AsEmitter(this MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int bufferSize = 64)
-    //        => debuggable || addBreakpoints
-    //            ? new DebuggableEmitter(methodBuilder) { DebugLog = debuggable, Breakpointing = addBreakpoints }
-    //            : (ILGeneratorEmitter)methodBuilder.GetILGenerator(bufferSize);
+    /// <summary>
+    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    /// </summary>
+    /// <param name="generator"><see cref="ILGenerator"/> to wrap.</param>
+    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    public static IOpCodeEmitter AsEmitter(this ILGenerator generator, bool debuggable = false, bool addBreakpoints = false)
+        => debuggable || addBreakpoints
+            ? new DebuggableEmitter((ILGeneratorEmitter)generator, null) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+            : (ILGeneratorEmitter)generator;
+
+    /// <summary>
+    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    /// </summary>
+    /// <param name="dynMethod">Dynamic method.</param>
+    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+    public static IOpCodeEmitter AsEmitter(this DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
+        => debuggable || addBreakpoints
+            ? new DebuggableEmitter(dynMethod) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+            : (ILGeneratorEmitter)dynMethod.GetILGenerator(streamSize);
+
+    /// <summary>
+    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    /// </summary>
+    /// <param name="methodBuilder">Dynamic method builder.</param>
+    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+    public static IOpCodeEmitter AsEmitter(this MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
+        => debuggable || addBreakpoints
+            ? new DebuggableEmitter(methodBuilder) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+            : (ILGeneratorEmitter)methodBuilder.GetILGenerator(streamSize);
+
+    /// <summary>
+    /// For emitters that support it (implement <see cref="IOpCodeEmitterLogSource"/>), sets the log source to <paramref name="source"/>.
+    /// </summary>
+    /// <remarks>A reference to <paramref name="emitter"/> for chaining.</remarks>
+    public static IOpCodeEmitter WithLogSource(this IOpCodeEmitter emitter, string source)
+    {
+        if (emitter is IOpCodeEmitterLogSource logSrc)
+            logSrc.LogSource = source;
+
+        return emitter;
+    }
 }
 
 /// <summary>
@@ -51,9 +68,11 @@ public interface IOpCodeEmitter
 #endif
 {
 
+#if NET40_OR_GREATER || !NETFRAMEWORK
     /// <summary>Gets the current offset, in bytes, in the Microsoft intermediate language (MSIL) stream that is being emitted by the <see cref="T:System.Reflection.Emit.ILGenerator" />.</summary>
     /// <returns>The offset in the MSIL stream at which the next instruction will be emitted.</returns>
     int ILOffset { get; }
+#endif
 
     /// <summary>
     /// If the implementation supports it, adds a comment to the IL code.
@@ -240,12 +259,14 @@ public interface IOpCodeEmitter
     /// <paramref name="optionalParameterTypes" /> is not <see langword="null" />, but <paramref name="callingConvention" /> does not include the <see cref="F:System.Reflection.CallingConventions.VarArgs" /> flag.</exception>
     void EmitCalli(OpCode opcode, CallingConventions callingConvention, Type returnType, Type[] parameterTypes, Type[]? optionalParameterTypes);
 
+#if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
     /// <summary>Puts a <see cref="F:System.Reflection.Emit.OpCodes.Calli" /> instruction onto the Microsoft intermediate language (MSIL) stream, specifying an unmanaged calling convention for the indirect call.</summary>
     /// <param name="opcode">The MSIL instruction to be emitted onto the stream. Must be <see cref="F:System.Reflection.Emit.OpCodes.Calli" />.</param>
     /// <param name="unmanagedCallConv">The unmanaged calling convention to be used.</param>
     /// <param name="returnType">The <see cref="T:System.Type" /> of the result.</param>
     /// <param name="parameterTypes">The types of the required arguments to the instruction.</param>
     void EmitCalli(OpCode opcode, CallingConvention unmanagedCallConv, Type returnType, Type[] parameterTypes);
+#endif
 
     /// <summary>Emits the Microsoft intermediate language (MSIL) to call <see cref="Console.WriteLine(string)" /> with a string.</summary>
     /// <param name="value">The string to be printed.</param>
@@ -285,16 +306,18 @@ public interface IOpCodeEmitter
     /// An index for <paramref name="loc" /> has already been defined.</exception>
     void MarkLabel(Label loc);
 
+#if NETFRAMEWORK
     /// <summary>Marks a sequence point in the Microsoft intermediate language (MSIL) stream.</summary>
     /// <param name="document">The document for which the sequence point is being defined.</param>
-    /// <param name="startLine">The line where the sequence point begins.</param>
-    /// <param name="startColumn">The column in the line where the sequence point begins.</param>
-    /// <param name="endLine">The line where the sequence point ends.</param>
-    /// <param name="endColumn">The column in the line where the sequence point ends.</param>
+    /// <param name="startLine">The line where the sequence point begins. 1-indexed.</param>
+    /// <param name="startColumn">The column in the line where the sequence point begins. 0-indexed.</param>
+    /// <param name="endLine">The line where the sequence point ends. 1-indexed.</param>
+    /// <param name="endColumn">The column in the line where the sequence point ends. 0-indexed.</param>
     /// <exception cref="T:System.ArgumentOutOfRangeException">
     /// <paramref name="startLine" /> or <paramref name="endLine" /> is &lt;= 0.</exception>
     /// <exception cref="T:System.NotSupportedException">This <see cref="T:System.Reflection.Emit.ILGenerator" /> belongs to a <see cref="T:System.Reflection.Emit.DynamicMethod" />.</exception>
     void MarkSequencePoint(ISymbolDocumentWriter document, int startLine, int startColumn, int endLine, int endColumn);
+#endif
 
     /// <summary>Emits an instruction to throw an exception.</summary>
     /// <param name="excType">The class of the type of exception to throw.</param>
@@ -313,4 +336,15 @@ public interface IOpCodeEmitter
     /// <paramref name="usingNamespace" /> is <see langword="null" />.</exception>
     /// <exception cref="T:System.NotSupportedException">This <see cref="T:System.Reflection.Emit.ILGenerator" /> belongs to a <see cref="T:System.Reflection.Emit.DynamicMethod" />.</exception>
     void UsingNamespace(string usingNamespace);
+}
+
+/// <summary>
+/// An <see cref="IOpCodeEmitter"/> that supports a log source.
+/// </summary>
+public interface IOpCodeEmitterLogSource : IOpCodeEmitter
+{
+    /// <summary>
+    /// Source to show when debug logging.
+    /// </summary>
+    string LogSource { get; set; }
 }

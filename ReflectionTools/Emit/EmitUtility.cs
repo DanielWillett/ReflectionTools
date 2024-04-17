@@ -91,6 +91,12 @@ public static class EmitUtility
     /// Loads an argument from an index.
     /// </summary>
     public static void EmitArgument(ILGenerator il, int index, bool set, bool byref = false)
+        => EmitArgument(il.AsEmitter(), index, set, byref);
+
+    /// <summary>
+    /// Loads an argument from an index.
+    /// </summary>
+    public static void EmitArgument(IOpCodeEmitter il, int index, bool set, bool byref = false)
     {
         if (index > ushort.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(index));
@@ -137,6 +143,12 @@ public static class EmitUtility
     /// Emit an Int32.
     /// </summary>
     public static void LoadConstantI4(ILGenerator generator, int number)
+        => LoadConstantI4(generator.AsEmitter(), number);
+
+    /// <summary>
+    /// Emit an Int32.
+    /// </summary>
+    public static void LoadConstantI4(IOpCodeEmitter generator, int number)
     {
         OpCode code = number switch
         {
@@ -162,23 +174,30 @@ public static class EmitUtility
     /// Loads a parameter from an index.
     /// </summary>
     public static void EmitParameter(this ILGenerator generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
+        => generator.AsEmitter().EmitParameter(index, null, byref, type, targetType);
+
+    /// <summary>
+    /// Loads a parameter from an index.
+    /// </summary>
+    public static void EmitParameter(this IOpCodeEmitter generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
         => generator.EmitParameter(index, null, byref, type, targetType);
 
     /// <summary>
     /// Loads a parameter from an index.
     /// </summary>
     public static void EmitParameter(this ILGenerator generator, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
-    {
-        generator.EmitParameter(null, index, castErrorMessage, byref, type, targetType);
-    }
-    internal static void EmitParameter(this ILGenerator generator, string? logSource, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
+        => generator.AsEmitter().EmitParameter(index, castErrorMessage, byref, type, targetType);
+
+    /// <summary>
+    /// Loads a parameter from an index.
+    /// </summary>
+    public static void EmitParameter(this IOpCodeEmitter generator, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
     {
         if (index > ushort.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(index));
         if (!byref && type != null && targetType != null && type.IsValueType && targetType.IsValueType && type != targetType)
             throw new ArgumentException($"Types not compatible; input type: {type.FullName}, target type: {targetType.FullName}.", nameof(type));
 
-        IReflectionToolsLogger? reflectionToolsLogger = Accessor.Logger;
         if (byref)
         {
             OpCode code2 = index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S;
@@ -186,8 +205,6 @@ public static class EmitUtility
                 generator.Emit(code2, (short)index);
             else
                 generator.Emit(code2, (byte)index);
-            if (logSource != null)
-                reflectionToolsLogger?.LogDebug(logSource, $"IL:  {(index > ushort.MaxValue ? "ldarga" : "ldarga.s")} <{index.ToString(CultureInfo.InvariantCulture)}>");
             return;
         }
 
@@ -200,18 +217,6 @@ public static class EmitUtility
             <= byte.MaxValue => OpCodes.Ldarg_S,
             _ => OpCodes.Ldarg
         };
-        if (logSource != null)
-        {
-            reflectionToolsLogger?.LogDebug(logSource, index switch
-            {
-                0 => "IL:  ldarg.0",
-                1 => "IL:  ldarg.1",
-                2 => "IL:  ldarg.2",
-                3 => "IL:  ldarg.3",
-                <= byte.MaxValue => $"IL:  ldarg.s <{index.ToString(CultureInfo.InvariantCulture)}",
-                _ => $"IL:  ldarg <{index.ToString(CultureInfo.InvariantCulture)}"
-            });
-        }
         if (index > 3)
         {
             if (index > byte.MaxValue)
@@ -229,14 +234,10 @@ public static class EmitUtility
         if (type.IsValueType && !targetType.IsValueType)
         {
             generator.Emit(OpCodes.Box, type);
-            if (logSource != null)
-                reflectionToolsLogger?.LogDebug(logSource, $"IL:  box <{type.FullName}>");
         }
         else if (!type.IsValueType && targetType.IsValueType)
         {
             generator.Emit(OpCodes.Unbox_Any, targetType);
-            if (logSource != null)
-                reflectionToolsLogger?.LogDebug(logSource, $"IL:  unbox.any <{targetType.FullName}>");
         }
         else if (!targetType.IsAssignableFrom(type) && (Accessor.CastExCtor != null || Accessor.NreExCtor != null))
         {
@@ -263,31 +264,6 @@ public static class EmitUtility
             generator.Emit(OpCodes.Newobj, Accessor.CastExCtor ?? Accessor.NreExCtor!);
             generator.Emit(OpCodes.Throw);
             generator.MarkLabel(lbl);
-            if (logSource != null && reflectionToolsLogger != null)
-            {
-                string lblId = lbl.GetLabelId().ToString(CultureInfo.InvariantCulture);
-                reflectionToolsLogger.LogDebug(logSource, $"IL:  isinst <{targetType.FullName}>");
-                reflectionToolsLogger.LogDebug(logSource, "IL:  dup");
-                reflectionToolsLogger.LogDebug(logSource, $"IL:  brtrue <lbl_{lblId}>");
-                reflectionToolsLogger.LogDebug(logSource, "IL:  pop");
-                reflectionToolsLogger.LogDebug(logSource, index switch
-                {
-                    0 => "IL:  ldarg.0",
-                    1 => "IL:  ldarg.1",
-                    2 => "IL:  ldarg.2",
-                    3 => "IL:  ldarg.3",
-                    <= byte.MaxValue => $"IL:  ldarg.s <{index.ToString(CultureInfo.InvariantCulture)}",
-                    _ => $"IL:  ldarg <{index.ToString(CultureInfo.InvariantCulture)}"
-                });
-                reflectionToolsLogger.LogDebug(logSource, "IL:  dup");
-                reflectionToolsLogger.LogDebug(logSource, $"IL:  brfalse <lbl_{lblId}>");
-                reflectionToolsLogger.LogDebug(logSource, "IL:  pop");
-                if (Accessor.CastExCtor != null)
-                    reflectionToolsLogger.LogDebug(logSource, $"IL:  ldstr \"{castErrorMessage}\"");
-                reflectionToolsLogger.LogDebug(logSource, $"IL:  newobj <{(Accessor.CastExCtor?.DeclaringType ?? Accessor.NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                reflectionToolsLogger.LogDebug(logSource, "IL:  throw");
-                reflectionToolsLogger.LogDebug(logSource, $"IL: lbl_{lblId}:");
-            }
         }
     }
 

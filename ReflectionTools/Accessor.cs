@@ -201,30 +201,25 @@ public static class Accessor
             DynamicMethod method = new DynamicMethod("set_" + fieldName, attr, convention, typeof(void), new Type[] { typeof(TInstance), typeof(TValue) }, typeof(TInstance), true);
             method.DefineParameter(1, ParameterAttributes.None, "this");
             method.DefineParameter(2, ParameterAttributes.None, "value");
-            ILGenerator il = method.GetILGenerator();
+
+            IOpCodeEmitter il = method
+                .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+                .WithLogSource(source);
+
             bool logIl = LogILTraceMessages;
             if (logIl)
                 reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance setter for {field.DeclaringType!.FullName}.{field.Name}:");
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_1);
             Label? typeLbl = null;
-            if (logIl && reflectionToolsLogger != null)
-            {
-                reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
-            }
 
             if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, field.FieldType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  unbox.any <" + field.FieldType.FullName + ">");
             }
             else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, typeof(TValue));
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  box <" + typeof(TValue).FullName + ">");
             }
             else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
             {
@@ -238,43 +233,19 @@ public static class Accessor
                 il.Emit(OpCodes.Brfalse_S, typeLbl.Value);
                 il.Emit(OpCodes.Pop);
                 il.Emit(OpCodes.Pop);
-                string errMsg = "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
                 if (CastExCtor != null)
-                    il.Emit(OpCodes.Ldstr, errMsg);
+                    il.Emit(OpCodes.Ldstr, "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".");
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
-                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    if (CastExCtor != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                }
             }
 
             if (typeLbl.HasValue)
             {
                 il.MarkLabel(typeLbl.Value);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             }
 
             il.Emit(OpCodes.Stfld, field);
             il.Emit(OpCodes.Ret);
-            if (logIl && reflectionToolsLogger != null)
-            {
-                reflectionToolsLogger.LogDebug(source, $"IL:  stfld <{field.DeclaringType!.FullName}.{fieldName}>");
-                reflectionToolsLogger.LogDebug(source, "IL:  ret");
-            }
             InstanceSetter<TInstance, TValue> setter = (InstanceSetter<TInstance, TValue>)method.CreateDelegate(typeof(InstanceSetter<TInstance, TValue>));
 
             if (LogDebugMessages || logIl)
@@ -324,34 +295,27 @@ public static class Accessor
             GetDynamicMethodFlags(false, out MethodAttributes attr, out CallingConventions convention);
             DynamicMethod method = new DynamicMethod("get_" + fieldName, attr, convention, typeof(TValue), new Type[] { typeof(TInstance) }, typeof(TInstance), true);
             method.DefineParameter(1, ParameterAttributes.None, "this");
-            ILGenerator il = method.GetILGenerator();
+
+            IOpCodeEmitter il = method
+                .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+                .WithLogSource(source);
+
             bool logIl = LogILTraceMessages;
             if (logIl)
                 reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance getter for {field.DeclaringType!.FullName}.{field.Name}:");
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, field);
-            if (logIl && reflectionToolsLogger != null)
-            {
-                reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                reflectionToolsLogger.LogDebug(source, $"IL:  ldfld <{field.DeclaringType!.FullName}.{field.Name}>");
-            }
 
             if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, typeof(TValue));
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  unbox.any <" + typeof(TValue).FullName + ">");
             }
             else if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, field.FieldType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  box <" + field.FieldType.FullName + ">");
             }
 
             il.Emit(OpCodes.Ret);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             
             InstanceGetter<TInstance, TValue> getter = (InstanceGetter<TInstance, TValue>)method.CreateDelegate(typeof(InstanceGetter<TInstance, TValue>));
 
@@ -422,19 +386,19 @@ public static class Accessor
             bool logIl = LogILTraceMessages;
             if (logIl)
                 reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance setter for {field.DeclaringType!.FullName}.{field.Name}:");
-            ILGenerator il = method.GetILGenerator();
+
+            IOpCodeEmitter il = method
+                .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+                .WithLogSource(source);
+
             Label lbl = il.DefineLabel();
             Label? typeLbl = null;
             il.Emit(OpCodes.Ldarg_0);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
 
             bool isValueType = declaringType.IsValueType;
-            bool lbl1Exists = false;
             if (CastExCtor != null || !isValueType && NreExCtor != null)
             {
                 Label lbl2 = il.DefineLabel();
-                lbl1Exists = true;
                 il.Emit(OpCodes.Isinst, declaringType);
                 if (!isValueType)
                     il.Emit(OpCodes.Dup);
@@ -444,47 +408,21 @@ public static class Accessor
                 il.Emit(OpCodes.Ldarg_0);
                 il.Emit(OpCodes.Brfalse_S, lbl2);
 
-                string castError = $"Invalid instance type passed to getter for {fieldName}. Expected {declaringType.FullName}.";
                 if (CastExCtor != null)
-                    il.Emit(OpCodes.Ldstr, castError);
+                    il.Emit(OpCodes.Ldstr, $"Invalid instance type passed to getter for {fieldName}. Expected {declaringType.FullName}.");
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
                 il.MarkLabel(lbl2);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{declaringType.FullName}>");
-                    if (!isValueType)
-                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    if (!isValueType)
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
-                    if (CastExCtor != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                    reflectionToolsLogger.LogDebug(source, "IL: lbl_1:");
-                }
                 ConstructorInfo ctor = NreExCtor ?? CastExCtor!;
                 if (ctor == CastExCtor)
                 {
                     string nullError = $"Null passed to getter for {fieldName}. Expected {declaringType.FullName}.";
                     il.Emit(OpCodes.Ldstr, nullError);
-                    if (logIl)
-                        reflectionToolsLogger?.LogDebug(source, $"IL:  ldstr \"{nullError}\"");
                 }
                 il.Emit(OpCodes.Newobj, ctor);
                 il.Emit(OpCodes.Throw);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(NreExCtor?.DeclaringType ?? CastExCtor!.DeclaringType!).FullName}({(ctor == CastExCtor ? "System.String" : string.Empty)})>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                }
             }
             il.MarkLabel(lbl);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             if (isValueType)
             {
                 il.Emit(OpCodes.Ldarg_0);
@@ -492,25 +430,13 @@ public static class Accessor
                 il.Emit(OpCodes.Ldflda, field);
                 il.Emit(OpCodes.Ldarg_1);
 
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  unbox <{declaringType.FullName}>");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  ldflda <{field.DeclaringType!.FullName}.{field.Name}>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
-                }
-
                 if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Unbox_Any, field.FieldType);
-                    if (logIl)
-                        reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
                 }
                 else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Box, typeof(TValue));
-                    if (logIl)
-                        reflectionToolsLogger?.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
                 }
                 else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
                 {
@@ -524,57 +450,30 @@ public static class Accessor
                     il.Emit(OpCodes.Brfalse_S, typeLbl.Value);
                     il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Pop);
-                    string errMsg = "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
                     if (CastExCtor != null)
-                        il.Emit(OpCodes.Ldstr, errMsg);
+                        il.Emit(OpCodes.Ldstr, "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".");
                     il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                     il.Emit(OpCodes.Throw);
-                    if (logIl && reflectionToolsLogger != null)
-                    {
-                        reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                        reflectionToolsLogger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                        reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
-                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                        reflectionToolsLogger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                        if (CastExCtor != null)
-                            reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                        reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                    }
                 }
 
                 if (typeLbl.HasValue)
                 {
                     il.MarkLabel(typeLbl.Value);
-                    if (logIl && reflectionToolsLogger != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
                 }
 
                 il.Emit(OpCodes.Stobj, field.FieldType);
-                if (logIl && reflectionToolsLogger != null)
-                    reflectionToolsLogger.LogDebug(source, $"IL:  stobj <{field.FieldType.FullName}>");
             }
             else
             {
                 il.Emit(OpCodes.Ldarg_1);
-                if (logIl && reflectionToolsLogger != null)
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
 
                 if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Unbox_Any, field.FieldType);
-                    if (logIl && reflectionToolsLogger != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
                 }
                 else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
                 {
                     il.Emit(OpCodes.Box, typeof(TValue));
-                    if (logIl && reflectionToolsLogger != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
                 }
                 else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
                 {
@@ -588,43 +487,20 @@ public static class Accessor
                     il.Emit(OpCodes.Brfalse_S, typeLbl.Value);
                     il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Pop);
-                    string errMsg = "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
                     if (CastExCtor != null)
-                        il.Emit(OpCodes.Ldstr, errMsg);
+                        il.Emit(OpCodes.Ldstr, "Invalid argument type passed to setter for " + fieldName + ". Expected " + field.FieldType.FullName + ".");
                     il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                     il.Emit(OpCodes.Throw);
-                    if (logIl && reflectionToolsLogger != null)
-                    {
-                        reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                        reflectionToolsLogger.LogDebug(source, $"IL:  brtrue.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                        reflectionToolsLogger.LogDebug(source, "IL:  ldarg.1");
-                        reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                        reflectionToolsLogger.LogDebug(source, $"IL:  brfalse.s <lbl_{(lbl1Exists ? "2" : "1")}>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                        reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                        if (CastExCtor != null)
-                            reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                        reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                        reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                    }
                 }
 
                 if (typeLbl.HasValue)
                 {
                     il.MarkLabel(typeLbl.Value);
-                    if (logIl)
-                        reflectionToolsLogger?.LogDebug(source, $"IL: lbl_{(lbl1Exists ? "2" : "1")}:");
                 }
 
                 il.Emit(OpCodes.Stfld, field);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  stobj <{field.DeclaringType!.FullName}.{field.Name}>");
             }
             il.Emit(OpCodes.Ret);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             InstanceSetter<object, TValue> setter = (InstanceSetter<object, TValue>)method.CreateDelegate(typeof(InstanceSetter<object, TValue>));
             if (LogDebugMessages || logIl)
                 reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance setter for {declaringType.Name}.{fieldName}.");
@@ -686,11 +562,13 @@ public static class Accessor
             if (logIl)
                 reflectionToolsLogger?.LogDebug(source, $"IL: Generating instance getter for {field.DeclaringType!.FullName}.{field.Name}:");
             method.DefineParameter(1, ParameterAttributes.None, "this");
-            ILGenerator il = method.GetILGenerator();
+
+            IOpCodeEmitter il = method
+                .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+                .WithLogSource(source);
+
             il.Emit(OpCodes.Ldarg_0);
             Label? lbl = null;
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
 
             bool isValueType = declaringType.IsValueType;
             if (CastExCtor != null || !isValueType && NreExCtor != null)
@@ -703,74 +581,40 @@ public static class Accessor
                 il.Emit(OpCodes.Pop);
                 il.Emit(OpCodes.Ldarg_0);
                 il.Emit(OpCodes.Brfalse_S, lbl2);
-                string castError = "Invalid instance type passed to getter for " + fieldName + ". Expected " + declaringType.FullName + ".";
                 if (CastExCtor != null)
-                    il.Emit(OpCodes.Ldstr, castError);
+                    il.Emit(OpCodes.Ldstr, "Invalid instance type passed to getter for " + fieldName + ". Expected " + declaringType.FullName + ".");
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
                 il.MarkLabel(lbl2);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{declaringType.FullName}>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_1>");
-                    if (CastExCtor != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{castError}\"");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                    reflectionToolsLogger.LogDebug(source, "IL: lbl_1:");
-                }
                 ConstructorInfo ctor = NreExCtor ?? CastExCtor!;
                 if (ctor == CastExCtor)
                 {
                     string nullError = $"Null passed to getter for {fieldName}. Expected {declaringType.FullName}.";
                     il.Emit(OpCodes.Ldstr, nullError);
-                    if (logIl)
-                        reflectionToolsLogger?.LogDebug(source, $"IL:  ldstr \"{nullError}\"");
                 }
                 il.Emit(OpCodes.Newobj, ctor);
                 il.Emit(OpCodes.Throw);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(NreExCtor?.DeclaringType ?? CastExCtor!.DeclaringType!).FullName}({(ctor == CastExCtor ? "System.String" : string.Empty)})>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                }
             }
             if (lbl.HasValue)
             {
                 il.MarkLabel(lbl.Value);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             }
             if (isValueType)
             {
                 il.Emit(OpCodes.Unbox, declaringType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox <{declaringType.FullName}>");
             }
             il.Emit(OpCodes.Ldfld, field);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, $"IL:  ldfld <{field.DeclaringType!.FullName}.{field.Name}>");
 
             if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, typeof(TValue));
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{typeof(TValue).FullName}>");
             }
             else if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, field.FieldType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{field.FieldType.FullName}>");
             }
 
             il.Emit(OpCodes.Ret);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             InstanceGetter<object, TValue> getter = (InstanceGetter<object, TValue>)method.CreateDelegate(typeof(InstanceGetter<object, TValue>));
             if (LogDebugMessages || logIl)
                 reflectionToolsLogger?.LogDebug(source, $"Created dynamic method instance getter for {declaringType.Name}.{fieldName}.");
@@ -1040,24 +884,22 @@ public static class Accessor
             if (logIl)
                 reflectionToolsLogger?.LogDebug(source, $"IL: Generating static setter for {field.DeclaringType!.FullName}.{fieldName}:");
             method.DefineParameter(1, ParameterAttributes.None, "value");
-            ILGenerator il = method.GetILGenerator();
+
+            IOpCodeEmitter il = method
+                .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+                .WithLogSource(source);
+
             il.Emit(OpCodes.Ldarg_0);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
 
             Label? lbl = null;
 
             if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, field.FieldType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{field.FieldType.FullName}>");
             }
             else if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, typeof(TValue));
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{typeof(TValue).FullName}>");
             }
             else if (!field.FieldType.IsAssignableFrom(typeof(TValue)) && (CastExCtor != null || NreExCtor != null))
             {
@@ -1070,42 +912,19 @@ public static class Accessor
                 il.Emit(OpCodes.Dup);
                 il.Emit(OpCodes.Brfalse_S, lbl.Value);
                 il.Emit(OpCodes.Pop);
-                string errMsg = "Invalid argument type passed to getter for " + fieldName + ". Expected " + field.FieldType.FullName + ".";
                 if (CastExCtor != null)
-                    il.Emit(OpCodes.Ldstr, errMsg);
+                    il.Emit(OpCodes.Ldstr, "Invalid argument type passed to getter for " + fieldName + ". Expected " + field.FieldType.FullName + ".");
                 il.Emit(OpCodes.Newobj, CastExCtor ?? NreExCtor!);
                 il.Emit(OpCodes.Throw);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, $"IL:  isinst <{field.FieldType.FullName}>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brtrue.s <lbl_0>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                    reflectionToolsLogger.LogDebug(source, "IL:  dup");
-                    reflectionToolsLogger.LogDebug(source, "IL:  brfalse.s <lbl_0>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  pop");
-                    if (CastExCtor != null)
-                        reflectionToolsLogger.LogDebug(source, $"IL:  ldstr \"{errMsg}\"");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  newobj <{(CastExCtor?.DeclaringType ?? NreExCtor!.DeclaringType!).FullName}(System.String)>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  throw");
-                }
             }
 
             if (lbl.HasValue)
             {
                 il.MarkLabel(lbl.Value);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL: lbl_0:");
             }
 
             il.Emit(OpCodes.Stsfld, field);
             il.Emit(OpCodes.Ret);
-            if (logIl && reflectionToolsLogger != null)
-            {
-                reflectionToolsLogger.LogDebug(source, $"IL:  stsfld <{field.DeclaringType!.FullName}.{fieldName}");
-                reflectionToolsLogger.LogDebug(source, "IL:  ret");
-            }
             StaticSetter<TValue> setter = (StaticSetter<TValue>)method.CreateDelegate(typeof(StaticSetter<TValue>));
             if (LogDebugMessages || logIl)
                 reflectionToolsLogger?.LogDebug(source, $"Created dynamic method static setter for {declaringType.Name}.{fieldName}.");
@@ -1164,26 +983,22 @@ public static class Accessor
             bool logIl = LogILTraceMessages;
             if (logIl)
                 reflectionToolsLogger?.LogDebug(source, $"IL: Generating static getter for {field.DeclaringType!.FullName}.{fieldName}:");
-            ILGenerator il = method.GetILGenerator();
+
+            IOpCodeEmitter il = method
+                .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+                .WithLogSource(source);
+
             il.Emit(OpCodes.Ldsfld, field);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ldsfld");
 
             if (typeof(TValue).IsValueType && !field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Unbox_Any, typeof(TValue));
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{typeof(TValue).FullName}>");
             }
             else if (!typeof(TValue).IsValueType && field.FieldType.IsValueType)
             {
                 il.Emit(OpCodes.Box, field.FieldType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{field.FieldType.FullName}>");
             }
 
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ret");
             il.Emit(OpCodes.Ret);
             StaticGetter<TValue> getter = (StaticGetter<TValue>)method.CreateDelegate(typeof(StaticGetter<TValue>));
             if (LogDebugMessages || logIl)
@@ -1670,7 +1485,9 @@ public static class Accessor
         for (int i = 0; i < p.Length; ++i)
             dynMethod.DefineParameter(i + 2, p[i].Attributes, p[i].Name);
 
-        ILGenerator generator = dynMethod.GetILGenerator();
+        IOpCodeEmitter generator = dynMethod
+            .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+            .WithLogSource(source);
 
         if (instance.IsValueType)
         {
@@ -1678,58 +1495,35 @@ public static class Accessor
             {
                 generator.Emit(OpCodes.Ldarg_0);
                 generator.Emit(OpCodes.Unbox, instance);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldarg.0");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  unbox <{instance.FullName}>");
-                }
             }
             else
             {
                 generator.Emit(OpCodes.Ldarga_S, 0);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  ldarga.s <0>");
             }
         }
         else
         {
             generator.Emit(OpCodes.Ldarg_0);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  ldarg.0");
         }
 
         for (int i = 0; i < p.Length; ++i)
-            generator.EmitParameter(source, i + 1, $"Invalid argument type passed to instance caller for {instance.FullName}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i + 1], p[i].ParameterType);
+            generator.EmitParameter(i + 1, $"Invalid argument type passed to instance caller for {instance.FullName}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i + 1], p[i].ParameterType);
 
         OpCode call = shouldCallvirt ? OpCodes.Callvirt : OpCodes.Call;
         generator.Emit(call, method);
-        if (logIl)
-        {
-            ParameterInfo[] parameters = method.GetParameters();
-            string[] typeNames = new string[parameters.Length];
-            for (int i = 0; i < parameters.Length; ++i)
-                typeNames[i] = parameters[i].ParameterType.FullName ?? "<null>";
-            reflectionToolsLogger?.LogDebug(source, $"IL:  {(shouldCallvirt ? "callvirt" : "call")} <{instance.FullName}.{method.Name}({string.Join(", ", typeNames)})>");
-        }
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  pop");
         }
         else if (method.ReturnType != typeof(void))
         {
             if (method.ReturnType.IsValueType && !delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Box, method.ReturnType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{method.ReturnType.FullName}>");
             }
             else if (!method.ReturnType.IsValueType && delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Unbox_Any, delegateReturnType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{delegateReturnType.FullName}>");
             }
         }
         else if (delegateReturnType != typeof(void))
@@ -1737,8 +1531,6 @@ public static class Accessor
             if (!delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Ldnull);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  ldnull");
             }
             else
             {
@@ -1746,17 +1538,9 @@ public static class Accessor
                 generator.Emit(OpCodes.Ldloca_S, 0);
                 generator.Emit(OpCodes.Initobj, delegateReturnType);
                 generator.Emit(OpCodes.Ldloc_0);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldloca.s <0>");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  initobj <{delegateReturnType.FullName}>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldloc.0");
-                }
             }
         }
         generator.Emit(OpCodes.Ret);
-        if (logIl)
-            reflectionToolsLogger?.LogDebug(source, "IL:  ret");
 
         try
         {
@@ -2058,39 +1842,27 @@ public static class Accessor
         for (int i = 0; i < p.Length; ++i)
             dynMethod.DefineParameter(i + 1, p[i].Attributes, p[i].Name);
 
-        ILGenerator generator = dynMethod.GetILGenerator();
+        IOpCodeEmitter generator = dynMethod
+            .AsEmitter(LogILTraceMessages && reflectionToolsLogger != null)
+            .WithLogSource(source);
 
         for (int i = 0; i < p.Length; ++i)
-            generator.EmitParameter(source, i, $"Invalid argument type passed to static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i], p[i].ParameterType);
+            generator.EmitParameter(i, $"Invalid argument type passed to static caller for {method.DeclaringType?.Name ?? "<unknown-type>"}.{method.Name} at parameter {i.ToString(CultureInfo.InvariantCulture)} ({p[i].Name}). Expected {p[i].ParameterType.FullName}.", false, type: parameterTypes[i], p[i].ParameterType);
 
         generator.Emit(OpCodes.Call, method);
-        if (logIl && reflectionToolsLogger != null)
-        {
-            ParameterInfo[] parameters = method.GetParameters();
-            string[] typeNames = new string[parameters.Length];
-            for (int i = 0; i < parameters.Length; ++i)
-                typeNames[i] = parameters[i].ParameterType.FullName ?? "<null>";
-            reflectionToolsLogger.LogDebug(source, $"IL:  call <{method.DeclaringType?.FullName ?? "<unknown type>"}.{method.Name}({string.Join(", ", typeNames)})>");
-        }
         if (method.ReturnType != typeof(void) && delegateReturnType == typeof(void))
         {
             generator.Emit(OpCodes.Pop);
-            if (logIl)
-                reflectionToolsLogger?.LogDebug(source, "IL:  pop");
         }
         else if (method.ReturnType != typeof(void))
         {
             if (method.ReturnType.IsValueType && !delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Box, method.ReturnType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  box <{method.ReturnType.FullName}>");
             }
             else if (!method.ReturnType.IsValueType && delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Unbox_Any, delegateReturnType);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, $"IL:  unbox.any <{delegateReturnType.FullName}>");
             }
         }
         else if (delegateReturnType != typeof(void))
@@ -2098,8 +1870,6 @@ public static class Accessor
             if (!delegateReturnType.IsValueType)
             {
                 generator.Emit(OpCodes.Ldnull);
-                if (logIl)
-                    reflectionToolsLogger?.LogDebug(source, "IL:  ldnull");
             }
             else
             {
@@ -2107,18 +1877,10 @@ public static class Accessor
                 generator.Emit(OpCodes.Ldloca_S, 0);
                 generator.Emit(OpCodes.Initobj, delegateReturnType);
                 generator.Emit(OpCodes.Ldloc_0);
-                if (logIl && reflectionToolsLogger != null)
-                {
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldloca.s <0>");
-                    reflectionToolsLogger.LogDebug(source, $"IL:  initobj <{delegateReturnType.FullName}>");
-                    reflectionToolsLogger.LogDebug(source, "IL:  ldloc.0");
-                }
             }
         }
 
         generator.Emit(OpCodes.Ret);
-        if (logIl)
-            reflectionToolsLogger?.LogDebug(source, "IL:  ret");
 
         try
         {

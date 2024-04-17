@@ -1,6 +1,5 @@
 ﻿using DanielWillett.ReflectionTools.Formatting;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace DanielWillett.ReflectionTools.Tests;
 
@@ -8,7 +7,109 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("DefaultOpCodeFormatter")]
 public class DefaultOpCodeFormatter_Methods
 {
+    public DefaultOpCodeFormatter_Methods()
+    {
+        Console.WriteLine("c1");
+    }
+    static DefaultOpCodeFormatter_Methods()
+    {
+        Console.WriteLine("sc1");
+    }
+    public DefaultOpCodeFormatter_Methods(string str1)
+    {
+        Console.WriteLine("c2");
+    }
+    private unsafe DefaultOpCodeFormatter_Methods(scoped in Version**[][,,][,] test, SpinLock l)
+    {
+        Console.WriteLine("c3");
+    }
     private static void TestMethod1() { }
+
+    [TestMethod]
+    public void WriteStaticCtorMethod()
+    {
+        ConstructorInfo method = GetType()
+            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
+            .First();
+
+        const string expectedResult = "static DefaultOpCodeFormatter_Methods()";
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(method);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(method);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(method, span)];
+        string separateFormat = new string(span);
+
+        Console.WriteLine(separateFormat);
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
+    }
+
+    [TestMethod]
+    [DataRow(0, "DefaultOpCodeFormatter_Methods()")]
+    [DataRow(1, "DefaultOpCodeFormatter_Methods(string str1)")]
+    [DataRow(2, "DefaultOpCodeFormatter_Methods(scoped in Version**[][,,][,] test, SpinLock l)")]
+    public void WriteCtorMethod(int paramCt, string expectedResult)
+    {
+        ConstructorInfo method = GetType()
+            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
+            .First(x => x.GetParameters().Length == paramCt);
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(method);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(method);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(method, span)];
+        string separateFormat = new string(span);
+
+        Console.WriteLine(separateFormat);
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
+    }
+
+    [TestMethod]
+    [DataRow(0, "public DefaultOpCodeFormatter_Methods()")]
+    [DataRow(1, "public DefaultOpCodeFormatter_Methods(string str1)")]
+    [DataRow(2, "private DefaultOpCodeFormatter_Methods(scoped in Version**[][,,][,] test, SpinLock l)")]
+    public void WriteCtorMethodDeclaritave(int paramCt, string expectedResult)
+    {
+        ConstructorInfo method = GetType()
+            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
+            .First(x => x.GetParameters().Length == paramCt);
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(method, includeDefinitionKeywords: true);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(method, includeDefinitionKeywords: true);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(method, span, includeDefinitionKeywords: true)];
+        string separateFormat = new string(span);
+
+        Console.WriteLine(separateFormat);
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
+    }
 
     [TestMethod]
     public void WriteParameterlessStaticMethod()

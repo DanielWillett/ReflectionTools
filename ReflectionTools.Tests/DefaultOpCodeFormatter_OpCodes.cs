@@ -311,6 +311,8 @@ public class DefaultOpCodeFormatter_OpCodes
 
     [TestMethod]
     [DataRow("ldtoken", "ldtoken DefaultOpCodeFormatter_OpCodes", OpCodeFormattingContext.InLine)]
+    [DataRow("isinst", "isinst DefaultOpCodeFormatter_OpCodes", OpCodeFormattingContext.InLine)]
+    [DataRow("castclass", "castclass DefaultOpCodeFormatter_OpCodes", OpCodeFormattingContext.InLine)]
     public void WriteOpCodeWithType(string opCodeStr, string expectedResult, OpCodeFormattingContext mode)
     {
         Type type = GetType();
