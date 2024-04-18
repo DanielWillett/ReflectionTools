@@ -18,7 +18,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 {
     private bool _init;
     private bool _lastWasPrefix;
-    private static MethodInfo? _logMethod;
+    private static readonly MethodInfo? LogMethod = Accessor.GetMethod(TryLogDebug);
     private string _logSource = nameof(DebuggableEmitter);
 #if !(NET40_OR_GREATER || !NETFRAMEWORK)
     private int _logIndent;
@@ -99,24 +99,35 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     {
         Accessor.Logger?.LogDebug(logSource, message);
     }
-    private void CheckInit()
+
+    /// <summary>
+    /// Write any starter logging and initialize before the first log.
+    /// </summary>
+    protected virtual void Initialize()
     {
-        if (_init || Method is null) return;
-        _logMethod ??= Accessor.GetMethod(TryLogDebug);
         IReflectionToolsLogger? reflectionToolsLogger = Accessor.Logger;
         if (DebugLog && reflectionToolsLogger != null)
         {
-            reflectionToolsLogger.LogDebug(LogSource, ".method " + Accessor.Formatter.Format(Method));
+            reflectionToolsLogger.LogDebug(LogSource, ".method " + Accessor.Formatter.Format(Method!));
             if (Breakpointing)
                 reflectionToolsLogger.LogDebug(LogSource, " (with breakpointing)");
         }
         if (Breakpointing)
         {
             Generator.Emit(OpCodes.Ldstr, LogSource);
-            Generator.Emit(OpCodes.Ldstr, ".method " + Accessor.Formatter.Format(Method));
-            if (_logMethod != null)
-                Generator.Emit(_logMethod.GetCallRuntime(), _logMethod);
+            Generator.Emit(OpCodes.Ldstr, ".method " + Accessor.Formatter.Format(Method!));
+            if (LogMethod != null)
+                Generator.Emit(LogMethod.GetCallRuntime(), LogMethod);
         }
+    }
+
+    /// <summary>
+    /// Run <see cref="Initialize"/> if it hasn't already been ran.
+    /// </summary>
+    protected void CheckInit()
+    {
+        if (_init || Method is null) return;
+        Initialize();
         _init = true;
     }
     private string GetCommentStarter()
@@ -135,7 +146,11 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         return _ilOffsetRepl ??= "IL" + new string(' ', LogIndent + 6);
 #endif
     }
-    private void Log(string txt)
+
+    /// <summary>
+    /// Log a comment/verbose message.
+    /// </summary>
+    protected virtual void Log(string txt)
     {
         string msg;
         bool comment = txt.StartsWith("//", StringComparison.Ordinal);
@@ -153,10 +168,14 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         {
             Generator.Emit(OpCodes.Ldstr, LogSource);
             Generator.Emit(OpCodes.Ldstr, msg);
-            Generator.Emit(_logMethod!.GetCallRuntime(), _logMethod!);
+            Generator.Emit(LogMethod!.GetCallRuntime(), LogMethod!);
         }
     }
-    private void Log(OpCode code, object? operand)
+
+    /// <summary>
+    /// Log the given <see cref="OpCode"/> and it's operand if it exists.
+    /// </summary>
+    protected virtual void Log(OpCode code, object? operand)
     {
         CheckInit();
         string msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent)) + Accessor.Formatter.Format(code, operand, OpCodeFormattingContext.List);
@@ -167,13 +186,13 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         {
             Generator.Emit(OpCodes.Ldstr, LogSource);
             Generator.Emit(OpCodes.Ldstr, msg);
-            Generator.Emit(_logMethod!.GetCallRuntime(), _logMethod!);
+            Generator.Emit(LogMethod!.GetCallRuntime(), LogMethod!);
         }
         _lastWasPrefix = code.OpCodeType == OpCodeType.Prefix;
     }
 
     /// <inheritdoc />
-    public void BeginCatchBlock(Type exceptionType)
+    public virtual void BeginCatchBlock(Type exceptionType)
     {
         --LogIndent;
         if (DebugLog || Breakpointing)
@@ -187,7 +206,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void BeginExceptFilterBlock()
+    public virtual void BeginExceptFilterBlock()
     {
         if (DebugLog || Breakpointing)
         {
@@ -200,7 +219,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void BeginExceptionBlock()
+    public virtual void BeginExceptionBlock()
     {
         if (DebugLog || Breakpointing)
         {
@@ -213,7 +232,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void BeginFaultBlock()
+    public virtual void BeginFaultBlock()
     {
         if (DebugLog || Breakpointing)
         {
@@ -226,7 +245,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void BeginFinallyBlock()
+    public virtual void BeginFinallyBlock()
     {
         --LogIndent;
         if (DebugLog || Breakpointing)
@@ -241,7 +260,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void BeginScope()
+    public virtual void BeginScope()
     {
         if (DebugLog || Breakpointing)
         {
@@ -254,7 +273,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Comment(string comment)
+    public virtual void Comment(string comment)
     {
         CheckInit();
         if (DebugLog)
@@ -263,10 +282,10 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
     }
     /// <inheritdoc />
-    public LocalBuilder DeclareLocal(Type localType) => DeclareLocal(localType, false);
+    public virtual LocalBuilder DeclareLocal(Type localType) => DeclareLocal(localType, false);
 
     /// <inheritdoc />
-    public LocalBuilder DeclareLocal(Type localType, bool pinned)
+    public virtual LocalBuilder DeclareLocal(Type localType, bool pinned)
     {
         LocalBuilder lcl = Generator.DeclareLocal(localType, pinned);
         if (DebugLog || Breakpointing)
@@ -279,7 +298,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public Label DefineLabel()
+    public virtual Label DefineLabel()
     {
         Label lbl = Generator.DefineLabel();
         if (DebugLog || Breakpointing)
@@ -292,7 +311,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode)
+    public virtual void Emit(OpCode opcode)
     {
         if (DebugLog || Breakpointing)
         {
@@ -304,7 +323,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, byte arg)
+    public virtual void Emit(OpCode opcode, byte arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -316,7 +335,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, double arg)
+    public virtual void Emit(OpCode opcode, double arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -328,7 +347,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, float arg)
+    public virtual void Emit(OpCode opcode, float arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -340,7 +359,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, int arg)
+    public virtual void Emit(OpCode opcode, int arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -352,7 +371,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, long arg)
+    public virtual void Emit(OpCode opcode, long arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -364,7 +383,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, sbyte arg)
+    public virtual void Emit(OpCode opcode, sbyte arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -376,7 +395,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, short arg)
+    public virtual void Emit(OpCode opcode, short arg)
     {
         if (DebugLog || Breakpointing)
         {
@@ -388,7 +407,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, string str)
+    public virtual void Emit(OpCode opcode, string str)
     {
         if (DebugLog || Breakpointing)
         {
@@ -400,7 +419,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, ConstructorInfo con)
+    public virtual void Emit(OpCode opcode, ConstructorInfo con)
     {
         if (DebugLog || Breakpointing)
         {
@@ -412,7 +431,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, Label label)
+    public virtual void Emit(OpCode opcode, Label label)
     {
         if (DebugLog || Breakpointing)
         {
@@ -424,7 +443,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, Label[] labels)
+    public virtual void Emit(OpCode opcode, Label[] labels)
     {
         if (DebugLog || Breakpointing)
         {
@@ -436,7 +455,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, LocalBuilder local)
+    public virtual void Emit(OpCode opcode, LocalBuilder local)
     {
         if (DebugLog || Breakpointing)
         {
@@ -448,7 +467,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, SignatureHelper signature)
+    public virtual void Emit(OpCode opcode, SignatureHelper signature)
     {
         if (DebugLog || Breakpointing)
         {
@@ -460,7 +479,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, FieldInfo field)
+    public virtual void Emit(OpCode opcode, FieldInfo field)
     {
         if (DebugLog || Breakpointing)
         {
@@ -472,7 +491,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, MethodInfo meth)
+    public virtual void Emit(OpCode opcode, MethodInfo meth)
     {
         if (DebugLog || Breakpointing)
         {
@@ -484,7 +503,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, Type cls)
+    public virtual void Emit(OpCode opcode, Type cls)
     {
         if (DebugLog || Breakpointing)
         {
@@ -496,7 +515,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
+    public virtual void EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
     {
         if (DebugLog || Breakpointing)
         {
@@ -508,7 +527,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void EmitCalli(OpCode opcode, CallingConventions callingConvention, Type returnType, Type[] parameterTypes, Type[]? optionalParameterTypes)
+    public virtual void EmitCalli(OpCode opcode, CallingConventions callingConvention, Type returnType, Type[] parameterTypes, Type[]? optionalParameterTypes)
     {
         if (DebugLog || Breakpointing)
         {
@@ -521,7 +540,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 
 #if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
     /// <inheritdoc />
-    public void EmitCalli(OpCode opcode, CallingConvention unmanagedCallConv, Type returnType, Type[] parameterTypes)
+    public virtual void EmitCalli(OpCode opcode, CallingConvention unmanagedCallConv, Type returnType, Type[] parameterTypes)
     {
         if (DebugLog || Breakpointing)
         {
@@ -534,7 +553,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 #endif
 
     /// <inheritdoc />
-    public void EmitWriteLine(string value)
+    public virtual void EmitWriteLine(string value)
     {
         if (DebugLog || Breakpointing)
         {
@@ -546,7 +565,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void EmitWriteLine(LocalBuilder localBuilder)
+    public virtual void EmitWriteLine(LocalBuilder localBuilder)
     {
         if (DebugLog || Breakpointing)
         {
@@ -558,7 +577,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void EmitWriteLine(FieldInfo fld)
+    public virtual void EmitWriteLine(FieldInfo fld)
     {
         if (DebugLog || Breakpointing)
         {
@@ -570,7 +589,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void EndExceptionBlock()
+    public virtual void EndExceptionBlock()
     {
         --LogIndent;
         if (DebugLog || Breakpointing)
@@ -583,7 +602,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void EndScope()
+    public virtual void EndScope()
     {
         --LogIndent;
         if (DebugLog || Breakpointing)
@@ -596,7 +615,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void MarkLabel(Label loc)
+    public virtual void MarkLabel(Label loc)
     {
         if (DebugLog || Breakpointing)
         {
@@ -612,7 +631,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 
 #if NETFRAMEWORK
     /// <inheritdoc />
-    public void MarkSequencePoint(ISymbolDocumentWriter document, int startLine, int startColumn, int endLine, int endColumn)
+    public virtual void MarkSequencePoint(ISymbolDocumentWriter document, int startLine, int startColumn, int endLine, int endColumn)
     {
         if (DebugLog || Breakpointing)
         {
@@ -624,7 +643,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 #endif
 
     /// <inheritdoc />
-    public void ThrowException(Type excType)
+    public virtual void ThrowException(Type excType)
     {
         if (DebugLog || Breakpointing)
         {
@@ -635,7 +654,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public void UsingNamespace(string usingNamespace)
+    public virtual void UsingNamespace(string usingNamespace)
     {
         if (DebugLog || Breakpointing)
         {

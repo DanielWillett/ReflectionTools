@@ -186,36 +186,6 @@ public class Accessor_GenerateInstanceSetter
     [TestMethod]
     // field: private, non-readonly, value type
     // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as-is (value type)
-    public void TestPrivateValueTypeFieldInValueType()
-    {
-        const string fieldName = "_privateValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, non-readonly, value type
-    // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as a boxed value type
-    public void TestPrivateBoxedValueTypeFieldInValueType()
-    {
-        const string fieldName = "_privateValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, non-readonly, value type
-    // instance: value type
     // instance: passed as a boxed value type
     // value: passed as-is (value type)
     public void TestPrivateValueTypeFieldInObjectValueType()
@@ -258,36 +228,6 @@ public class Accessor_GenerateInstanceSetter
     /*
      * Public value type field in value type
      */
-
-    [TestMethod]
-    // field: public, non-readonly, value type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as-is (value type)
-    public void TestPublicValueTypeFieldInValueType()
-    {
-        const string fieldName = "PublicValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: public, non-readonly, value type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as a boxed value type
-    public void TestPublicBoxedValueTypeFieldInValueType()
-    {
-        const string fieldName = "PublicValTypeField";
-        
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, object>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
 
     [TestMethod]
     // field: public, non-readonly, value type
@@ -508,36 +448,6 @@ public class Accessor_GenerateInstanceSetter
     [TestMethod]
     // field: private, non-readonly, reference type
     // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as-is (value type)
-    public void TestPrivateReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "_privateRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, object>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, non-readonly, reference type
-    // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as a boxed value type
-    public void TestPrivateObjectReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "_privateRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, object>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, non-readonly, reference type
-    // instance: value type
     // instance: passed as a boxed value type
     // value: passed as-is (value type)
     public void TestPrivateReferenceTypeFieldInObjectValueType()
@@ -580,36 +490,6 @@ public class Accessor_GenerateInstanceSetter
     /*
      * Public reference type field in value type
      */
-
-    [TestMethod]
-    // field: public, non-readonly, reference type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as-is (value type)
-    public void TestPublicReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "PublicRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, object>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: public, non-readonly, reference type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as a boxed value type
-    public void TestPublicObjectReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "PublicRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, object>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
 
     [TestMethod]
     // field: public, non-readonly, reference type
@@ -830,36 +710,6 @@ public class Accessor_GenerateInstanceSetter
     [TestMethod]
     // field: private, readonly, value type
     // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as-is (value type)
-    public void TestReadonlyPrivateValueTypeFieldInValueType()
-    {
-        const string fieldName = "_privateReadonlyValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, readonly, value type
-    // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as a boxed value type
-    public void TestReadonlyPrivateBoxedValueTypeFieldInValueType()
-    {
-        const string fieldName = "_privateReadonlyValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, readonly, value type
-    // instance: value type
     // instance: passed as a boxed value type
     // value: passed as-is (value type)
     public void TestReadonlyPrivateValueTypeFieldInObjectValueType()
@@ -902,36 +752,6 @@ public class Accessor_GenerateInstanceSetter
     /*
      * Public readonly value type field in value type
      */
-
-    [TestMethod]
-    // field: public, readonly, value type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as-is (value type)
-    public void TestReadonlyPublicValueTypeFieldInValueType()
-    {
-        const string fieldName = "PublicReadonlyValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: public, readonly, value type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as a boxed value type
-    public void TestReadonlyPublicBoxedValueTypeFieldInValueType()
-    {
-        const string fieldName = "PublicReadonlyValTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
 
     [TestMethod]
     // field: public, readonly, value type
@@ -1152,36 +972,6 @@ public class Accessor_GenerateInstanceSetter
     [TestMethod]
     // field: private, readonly, reference type
     // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as-is (value type)
-    public void TestReadonlyPrivateReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "_privateReadonlyRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, readonly, reference type
-    // instance: value type
-    // instance: passed as-is (value type)
-    // value: passed as a boxed value type
-    public void TestReadonlyPrivateObjectReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "_privateReadonlyRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: private, readonly, reference type
-    // instance: value type
     // instance: passed as a boxed value type
     // value: passed as-is (value type)
     public void TestReadonlyPrivateReferenceTypeFieldInObjectValueType()
@@ -1228,36 +1018,6 @@ public class Accessor_GenerateInstanceSetter
     [TestMethod]
     // field: public, readonly, reference type
     // instance: value type
-    // instance: passed as-is
-    // value: passed as-is (value type)
-    public void TestReadonlyPublicReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "PublicReadonlyRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: public, readonly, reference type
-    // instance: value type
-    // instance: passed as-is
-    // value: passed as a boxed value type
-    public void TestReadonlyPublicObjectReferenceTypeFieldInValueType()
-    {
-        const string fieldName = "PublicReadonlyRefTypeField";
-
-        Assert.ThrowsException<Exception>(() =>
-        {
-            _ = Accessor.GenerateInstanceSetter<SampleStruct, int>(fieldName, throwOnError: true)!;
-        }, "Does not throw exceptions for setting value types.");
-    }
-
-    [TestMethod]
-    // field: public, readonly, reference type
-    // instance: value type
     // instance: passed as an object
     // value: passed as-is (value type)
     public void TestReadonlyPublicReferenceTypeFieldInObjectValueType()
@@ -1287,6 +1047,634 @@ public class Accessor_GenerateInstanceSetter
 
         InstanceSetter<object, object> setter = Accessor.GenerateInstanceSetter<object>(typeof(SampleStruct), fieldName, throwOnError: true)!;
 
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, ((SampleStruct)instance).PublicReadonlyRefTypeField);
+    }
+    /*
+     * Private value type field in reference type
+     */
+
+    [TestMethod]
+    // field: private, non-readonly, value type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestPrivateValueTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "_privateValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, int> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    [TestMethod]
+    // field: private, non-readonly, value type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestPrivateValueTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "_privateValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public value type field in reference type
+     */
+
+    [TestMethod]
+    // field: public, non-readonly, value type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestPublicValueTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "PublicValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, int> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+        
+        Assert.IsNotNull(setter);
+        
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicValTypeField);
+    }
+
+    [TestMethod]
+    // field: public, non-readonly, value type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestPublicValueTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "PublicValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicValTypeField);
+    }
+
+    /*
+     * Private value type field in value type
+     */
+
+    [TestMethod]
+    // field: private, non-readonly, value type
+    // instance: value type
+    // instance: passed as a boxed value type
+    // value: passed as-is (value type)
+    public void TestPrivateValueTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "_privateValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleStruct, int>? variable = Variables.FindInstance<SampleStruct, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStruct).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public value type field in value type
+     */
+
+    [TestMethod]
+    // field: public, non-readonly, value type
+    // instance: value type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestPublicValueTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "PublicValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleStruct, int>? variable = Variables.FindInstance<SampleStruct, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, ((SampleStruct)instance).PublicValTypeField);
+    }
+
+    /*
+     * Private reference type field in reference type
+     */
+
+    [TestMethod]
+    // field: private, non-readonly, reference type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestPrivateReferenceTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "_privateRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, string> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    [TestMethod]
+    // field: private, non-readonly, reference type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestPrivateReferenceTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "_privateRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public reference type field in reference type
+     */
+
+    [TestMethod]
+    // field: public, non-readonly, reference type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestPublicReferenceTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "PublicRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, string> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicRefTypeField);
+    }
+
+    [TestMethod]
+    // field: public, non-readonly, reference type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestPublicReferenceTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "PublicRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicRefTypeField);
+    }
+
+    /*
+     * Private reference type field in value type
+     */
+
+    [TestMethod]
+    // field: private, non-readonly, reference type
+    // instance: value type
+    // instance: passed as a boxed value type
+    // value: passed as-is (value type)
+    public void TestPrivateReferenceTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "_privateRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleStruct, string>? variable = Variables.FindInstance<SampleStruct, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStruct).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public reference type field in value type
+     */
+
+    [TestMethod]
+    // field: public, non-readonly, reference type
+    // instance: value type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestPublicReferenceTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "PublicRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleStruct, string>? variable = Variables.FindInstance<SampleStruct, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, ((SampleStruct)instance).PublicRefTypeField);
+    }
+
+    /*
+     * Private readonly value type field in reference type
+     */
+
+    [TestMethod]
+    // field: private, readonly, value type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestReadonlyPrivateValueTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "_privateReadonlyValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, int> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, (int)field.GetValue(instance));
+    }
+
+    [TestMethod]
+    // field: private, readonly, value type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestReadonlyPrivateValueTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "_privateReadonlyValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, (int)field.GetValue(instance));
+    }
+
+    /*
+     * Public readonly value type field in reference type
+     */
+
+    [TestMethod]
+    // field: public, readonly, value type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestReadonlyPublicValueTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "PublicReadonlyValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, int> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicReadonlyValTypeField);
+    }
+
+    [TestMethod]
+    // field: public, readonly, value type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestReadonlyPublicValueTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "PublicReadonlyValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleClass, int>? variable = Variables.FindInstance<SampleClass, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicReadonlyValTypeField);
+    }
+
+    /*
+     * Private readonly value type field in value type
+     */
+
+    [TestMethod]
+    // field: private, readonly, value type
+    // instance: value type
+    // instance: passed as a boxed value type
+    // value: passed as-is (value type)
+    public void TestReadonlyPrivateValueTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "_privateReadonlyValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleStruct, int>? variable = Variables.FindInstance<SampleStruct, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStruct).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public readonly value type field in value type
+     */
+
+    [TestMethod]
+    // field: public, readonly, value type
+    // instance: value type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestReadonlyPublicValueTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "PublicReadonlyValTypeField";
+        const int value = 1;
+
+        IInstanceVariable<SampleStruct, int>? variable = Variables.FindInstance<SampleStruct, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, int> setter = variable.GenerateSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, ((SampleStruct)instance).PublicReadonlyValTypeField);
+    }
+
+    /*
+     * Private readonly reference type field in reference type
+     */
+
+    [TestMethod]
+    // field: private, readonly, reference type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestReadonlyPrivateReferenceTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "_privateReadonlyRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, string> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    [TestMethod]
+    // field: private, readonly, reference type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestReadonlyPrivateReferenceTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "_privateReadonlyRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public readonly reference type field in reference type
+     */
+
+    [TestMethod]
+    // field: public, readonly, reference type
+    // instance: reference type
+    // instance: passed as-is
+    // value: passed as-is (value type)
+    public void TestReadonlyPublicReferenceTypeFieldInReferenceType_IVariable()
+    {
+        const string fieldName = "PublicReadonlyRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<SampleClass, string> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicReadonlyRefTypeField);
+    }
+
+    [TestMethod]
+    // field: public, readonly, reference type
+    // instance: reference type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestReadonlyPublicReferenceTypeFieldInObjectReferenceType_IVariable()
+    {
+        const string fieldName = "PublicReadonlyRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleClass, string>? variable = Variables.FindInstance<SampleClass, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        
+        Assert.IsNotNull(setter);
+
+        SampleClass instance = new SampleClass();
+        setter(instance, value);
+
+        Assert.AreEqual(value, instance.PublicReadonlyRefTypeField);
+    }
+
+    /*
+     * Private readonly reference type field in value type
+     */
+
+    [TestMethod]
+    // field: private, readonly, reference type
+    // instance: value type
+    // instance: passed as a boxed value type
+    // value: passed as-is (value type)
+    public void TestReadonlyPrivateReferenceTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "_privateReadonlyRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleStruct, string>? variable = Variables.FindInstance<SampleStruct, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStruct).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        Assert.IsNotNull(setter);
+
+        object instance = new SampleStruct();
+        setter(instance, value);
+
+        Assert.AreEqual(value, field.GetValue(instance));
+    }
+
+    /*
+     * Public readonly reference type field in value type
+     */
+
+    [TestMethod]
+    // field: public, readonly, reference type
+    // instance: value type
+    // instance: passed as an object
+    // value: passed as-is (value type)
+    public void TestReadonlyPublicReferenceTypeFieldInObjectValueType_IVariable()
+    {
+        const string fieldName = "PublicReadonlyRefTypeField";
+        const string value = "test";
+
+        IInstanceVariable<SampleStruct, string>? variable = Variables.FindInstance<SampleStruct, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        InstanceSetter<object, string> setter = variable.GenerateSetter(throwOnError: true);
+        
         Assert.IsNotNull(setter);
 
         object instance = new SampleStruct();
