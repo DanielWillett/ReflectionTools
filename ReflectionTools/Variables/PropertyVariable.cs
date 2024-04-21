@@ -5,21 +5,21 @@ using System.Reflection;
 namespace DanielWillett.ReflectionTools;
 
 /// <summary>
-/// See <see cref="Variables.AsInstanceVariable{TDeclaringType,TMemberType}(PropertyInfo)"/>.
+/// See <see cref="Variables.AsInstanceVariable{TDeclaringType,TMemberType}(PropertyInfo,IAccessor)"/>.
 /// </summary>
 internal sealed class InstancePropertyVariable<TDeclaringType, TMemberType> : PropertyVariable, IInstanceVariable<TDeclaringType, TMemberType>, IEquatable<IInstanceVariable<TDeclaringType, TMemberType>>
 {
     private readonly bool _isInstanceValueType;
-    public InstancePropertyVariable(PropertyInfo property) : base(property)
+    internal InstancePropertyVariable(PropertyInfo property, IAccessor accessor) : base(property, accessor)
     {
         if (property.PropertyType != typeof(TMemberType))
-            throw new ArgumentException($"Member type is {Accessor.ExceptionFormatter.Format(property.PropertyType)} but expected {Accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(property));
+            throw new ArgumentException($"Member type is {accessor.ExceptionFormatter.Format(property.PropertyType)} but expected {accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(property));
 
         if (property.DeclaringType == null)
-            throw new ArgumentException($"Declaring type is null but expected {Accessor.ExceptionFormatter.Format(typeof(TDeclaringType))}.", nameof(property));
+            throw new ArgumentException($"Declaring type is null but expected {accessor.ExceptionFormatter.Format(typeof(TDeclaringType))}.", nameof(property));
 
         if (!property.DeclaringType.IsAssignableFrom(typeof(TDeclaringType)))
-            throw new ArgumentException($"Declaring type is {Accessor.ExceptionFormatter.Format(property.DeclaringType)} but expected {Accessor.ExceptionFormatter.Format(typeof(TDeclaringType))} or one of it's parents.", nameof(property));
+            throw new ArgumentException($"Declaring type is {accessor.ExceptionFormatter.Format(property.DeclaringType)} but expected {accessor.ExceptionFormatter.Format(typeof(TDeclaringType))} or one of it's parents.", nameof(property));
 
         if (IsStatic)
             throw new ArgumentException("Property is static but expected instance.", nameof(property));
@@ -54,7 +54,7 @@ internal sealed class InstancePropertyVariable<TDeclaringType, TMemberType> : Pr
     {
         return Accessor.GenerateInstancePropertyGetter<TDeclaringType, TMemberType>(Property, throwOnError, allowUnsafeTypeBinding);
     }
-    public new InstanceSetter<TDeclaringType, TMemberType>? GenerateReferenceTypeSetter(bool throwOnError = true, bool allowUnsafeTypeBinding = false)
+    public InstanceSetter<TDeclaringType, TMemberType>? GenerateReferenceTypeSetter(bool throwOnError = true, bool allowUnsafeTypeBinding = false)
     {
         if (_isInstanceValueType)
             throw new ArgumentException($"{Accessor.ExceptionFormatter.Format(typeof(TDeclaringType))} is a value type. Use 'GenerateSetter' which returns a setter with a boxed instance argument.");
@@ -68,14 +68,14 @@ internal sealed class InstancePropertyVariable<TDeclaringType, TMemberType> : Pr
 }
 
 /// <summary>
-/// See <see cref="Variables.AsStaticVariable{TMemberType}(PropertyInfo)"/>.
+/// See <see cref="Variables.AsStaticVariable{TMemberType}(PropertyInfo,IAccessor)"/>.
 /// </summary>
 internal sealed class StaticPropertyVariable<TMemberType> : PropertyVariable, IStaticVariable<TMemberType>, IEquatable<IStaticVariable<TMemberType>>
 {
-    public StaticPropertyVariable(PropertyInfo property) : base(property)
+    internal StaticPropertyVariable(PropertyInfo property, IAccessor accessor) : base(property, accessor)
     {
         if (property.PropertyType != typeof(TMemberType))
-            throw new ArgumentException($"Member type is {Accessor.ExceptionFormatter.Format(property.PropertyType)} but expected {Accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(property));
+            throw new ArgumentException($"Member type is {accessor.ExceptionFormatter.Format(property.PropertyType)} but expected {accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(property));
 
         if (!IsStatic)
             throw new ArgumentException("Property is instance but expected static.", nameof(property));
@@ -102,6 +102,7 @@ internal class PropertyVariable : IVariable, IEquatable<IVariable>
     private static readonly object[] EmptyObjArray = [ ];
 #endif
     private protected readonly PropertyInfo Property;
+    private protected readonly IAccessor Accessor;
     private readonly MethodInfo? _getter;
     private readonly MethodInfo? _setter;
     public bool CanGet { get; }
@@ -112,7 +113,7 @@ internal class PropertyVariable : IVariable, IEquatable<IVariable>
     public Type? DeclaringType => Property.DeclaringType;
     public Type MemberType => Property.PropertyType;
     public MemberInfo Member => Property;
-    public PropertyVariable(PropertyInfo property)
+    internal PropertyVariable(PropertyInfo property, IAccessor accessor)
     {
         Property = property ?? throw new ArgumentNullException(nameof(property));
         _getter = property.GetGetMethod();
@@ -120,6 +121,7 @@ internal class PropertyVariable : IVariable, IEquatable<IVariable>
         CanGet = _getter != null && _getter.GetParameters().Length == 0;
         CanSet = _setter != null && _setter.GetParameters().Length == 1;
         IsStatic = _getter == null ? _setter != null && _setter.IsStatic : _getter.IsStatic;
+        Accessor = accessor;
     }
     public object? GetValue(object? instance)
     {

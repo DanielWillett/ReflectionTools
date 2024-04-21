@@ -3,28 +3,11 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
-
-/* Unmerged change from project 'ReflectionTools (net40)'
-Before:
-#if NET40_OR_GREATER || !NETFRAMEWORK
-After:
-using DanielWillett.ReflectionTools.Emit;
-using DanielWillett;
-using DanielWillett.ReflectionTools;
-
-
-#if NET40_OR_GREATER || !NETFRAMEWORK
-*/
-#if NET40_OR_GREATER || !NETFRAMEWORK
-using System.Diagnostics.Contracts;
-using DanielWillett.ReflectionTools.Emit;
-using DanielWillett;
-using DanielWillett.ReflectionTools;
-
-
-#endif
 #if NET45_OR_GREATER || !NETFRAMEWORK
 using System.Collections.Generic;
+#endif
+#if NET40_OR_GREATER || !NETFRAMEWORK
+using System.Diagnostics.Contracts;
 #endif
 
 namespace DanielWillett.ReflectionTools.Emit;
@@ -42,6 +25,7 @@ public static class EmitUtility
     /// <summary>
     /// A list of all op-codes sorted by their value code.
     /// </summary>
+    /// <remarks>In .NET Framework 4.0 and less, this is a <see cref="ReadOnlyCollection{T}"/> instead of <see cref="IReadOnlyList{T}"/>.</remarks>
 #if NET45_OR_GREATER || !NETFRAMEWORK
     public static IReadOnlyList<OpCode> AllOpCodes
 #else
@@ -230,7 +214,7 @@ public static class EmitUtility
         if (type == null || targetType == null || type == typeof(void) || targetType == typeof(void))
             return;
 
-        Accessor.CheckExceptionConstructors();
+        DefaultAccessor.CheckExceptionConstructors();
         if (type.IsValueType && !targetType.IsValueType)
         {
             generator.Emit(OpCodes.Box, type);
@@ -239,7 +223,7 @@ public static class EmitUtility
         {
             generator.Emit(OpCodes.Unbox_Any, targetType);
         }
-        else if (!targetType.IsAssignableFrom(type) && (Accessor.CastExCtor != null || Accessor.NreExCtor != null))
+        else if (!targetType.IsAssignableFrom(type) && (DefaultAccessor.CastExCtor != null || DefaultAccessor.NreExCtor != null))
         {
             Label lbl = generator.DefineLabel();
             generator.Emit(OpCodes.Isinst, targetType);
@@ -259,9 +243,9 @@ public static class EmitUtility
             generator.Emit(OpCodes.Brfalse, lbl);
             generator.Emit(OpCodes.Pop);
             castErrorMessage ??= $"Invalid type passed to parameter {index.ToString(CultureInfo.InvariantCulture)}.";
-            if (Accessor.CastExCtor != null)
+            if (DefaultAccessor.CastExCtor != null)
                 generator.Emit(OpCodes.Ldstr, castErrorMessage);
-            generator.Emit(OpCodes.Newobj, Accessor.CastExCtor ?? Accessor.NreExCtor!);
+            generator.Emit(OpCodes.Newobj, DefaultAccessor.CastExCtor ?? DefaultAccessor.NreExCtor!);
             generator.Emit(OpCodes.Throw);
             generator.MarkLabel(lbl);
         }
@@ -591,30 +575,6 @@ public static class EmitUtility
     }
 
     /// <summary>
-    /// Return the correct call <see cref="OpCode"/> to use depending on the method. Usually you will use <see cref="GetCallRuntime"/> instead as it doesn't account for possible future keyword changes.
-    /// </summary>
-    /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    public static OpCode GetCall(this MethodBase method)
-    {
-        return method.ShouldCallvirt() ? OpCodes.Callvirt : OpCodes.Call;
-    }
-
-    /// <summary>
-    /// Return the correct call <see cref="OpCode"/> to use depending on the method at runtime. Doesn't account for future changes.
-    /// </summary>
-    /// <remarks>Note that not using call instead of callvirt may remove the check for a null instance.</remarks>
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    public static OpCode GetCallRuntime(this MethodBase method)
-    {
-        return method.ShouldCallvirtRuntime() ? OpCodes.Callvirt : OpCodes.Call;
-    }
-
-    /// <summary>
     /// Parse an op-code in <see langword="ilasm"/> style, ex. <c>ldarg.1</c>. Case and culture insensitive.
     /// </summary>
     /// <exception cref="ArgumentNullException">Given string was <see langword="null"/>.</exception>
@@ -688,16 +648,7 @@ public static class EmitUtility
         {
             SetupOpCodeInfo();
             if (_opCodeEnumType == null)
-            {
-                if (Accessor.LogWarningMessages)
-                {
-                    Accessor.Logger?.LogWarning(
-                        "EmitUtility.TryParseOpCode",
-                        "The type 'System.Reflection.Emit.OpCodeValues' could not be found in the current environment."
-                    );
-                }
-                return false;
-            }
+                throw new NotSupportedException("The type 'System.Reflection.Emit.OpCodeValues' could not be found in the current environment.");
         }
 
         ushort value;

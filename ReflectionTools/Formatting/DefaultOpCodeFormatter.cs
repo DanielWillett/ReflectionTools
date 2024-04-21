@@ -70,6 +70,29 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <summary>Keyword: <see langword="raise"/>.</summary>
     protected const string LitRaise = "raise";
 
+    private IAccessor _accessor;
+
+    internal IAccessor Accessor
+    {
+        get => _accessor;
+        set => _accessor = value;
+    }
+
+    /// <summary>
+    /// Create a formatter.
+    /// </summary>
+#if NET461_OR_GREATER || !NETFRAMEWORK
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+#endif
+    public DefaultOpCodeFormatter()
+    {
+        _accessor = ReflectionTools.Accessor.Active;
+    }
+    internal DefaultOpCodeFormatter(IAccessor? accessor)
+    {
+        _accessor = accessor ?? ReflectionTools.Accessor.Active;
+    }
+
     /// <summary>
     /// Should formatted members and types use their full (namespace-declared) names? Defaults to <see langword="false"/>.
     /// </summary>
@@ -81,7 +104,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     public bool UseTypeKeywords { get; set; } = true;
 
     /// <inheritdoc />
-    public virtual object Clone() => new DefaultOpCodeFormatter
+    public virtual object Clone() => new DefaultOpCodeFormatter(_accessor)
     {
         UseFullTypeNames = UseFullTypeNames,
         UseTypeKeywords = UseTypeKeywords
@@ -531,12 +554,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         TypeMetaInfo delegateRtnType = default;
 
-        MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
+        MemberVisibility vis = includeDefinitionKeywords ? _accessor.GetVisibility(type) : default;
         bool isValueType = type.IsValueType;
         bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false, IsInterface: false };
         bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
-        bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
-        bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
+        bool isReadOnly = isValueType && includeDefinitionKeywords && _accessor.IsReadOnly(type);
+        bool isStatic = !isValueType && includeDefinitionKeywords && _accessor.GetIsStatic(type);
         bool isByRefType = includeDefinitionKeywords && type.IsByRefLike;
 
         int length = main.Length;
@@ -558,7 +581,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 try
                 {
-                    MethodInfo invokeMethod = Accessor.GetInvokeMethod(type);
+                    MethodInfo invokeMethod = _accessor.GetInvokeMethod(type);
                     Type delegateReturnType = invokeMethod.ReturnType;
                     Type originalDelegateReturnType = delegateReturnType;
                     delegateRtnType.Init(ref delegateReturnType, out string? delegateKeyword, this);
@@ -646,12 +669,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         TypeMetaInfo delegateRtnType = default;
 
-        MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
+        MemberVisibility vis = includeDefinitionKeywords ? _accessor.GetVisibility(type) : default;
         bool isValueType = type.IsValueType;
         bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false, IsInterface: false };
         bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
-        bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
-        bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
+        bool isReadOnly = isValueType && includeDefinitionKeywords && _accessor.IsReadOnly(type);
+        bool isStatic = !isValueType && includeDefinitionKeywords && _accessor.GetIsStatic(type);
         bool isByRefType = includeDefinitionKeywords && type.IsByRefLike;
         int index = 0;
         WritePreDimensionsAndOrdering(in main, output, ref index);
@@ -678,7 +701,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             }
             else if (isDelegate)
             {
-                MethodInfo invokeMethod = Accessor.GetInvokeMethod(type);
+                MethodInfo invokeMethod = _accessor.GetInvokeMethod(type);
                 Type delegateReturnType = invokeMethod.ReturnType;
                 originalType = delegateReturnType;
                 delegateRtnType.Init(ref delegateReturnType, out string? delegateKeyword, this);
@@ -737,17 +760,17 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual unsafe int GetFormatLength(MethodBase method, bool includeDefinitionKeywords = false)
     {
-        MemberVisibility vis = method.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(method);
         ParameterInfo[] parameters = method.GetParameters();
         string methodName = method.Name;
         int len = 0;
-        bool isReadOnly = method.IsReadOnly();
+        bool isReadOnly = _accessor.IsReadOnly(method);
         bool isCtor = method is ConstructorInfo;
         if (includeDefinitionKeywords && (!isCtor || !method.IsStatic))
             len += GetVisibilityLength(vis) + 1;
 
         Type? declType = method.DeclaringType;
-        if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
+        if (!isReadOnly && declType is { IsValueType: true } && _accessor.IsReadOnly(declType))
             isReadOnly = true;
 
         if (method.IsStatic)
@@ -787,7 +810,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             Type originalParamType = parameterType;
             string? name = parameter.Name;
 
-            if (i == 0 && method.IsStatic && declType != null && declType.GetIsStatic() && method.IsDefinedSafe<ExtensionAttribute>())
+            if (i == 0 && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && _accessor.IsDefinedSafe<ExtensionAttribute>(method))
                 len += 5;
 
             if (!string.IsNullOrEmpty(name))
@@ -808,7 +831,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual unsafe int Format(MethodBase method, Span<char> output, bool includeDefinitionKeywords = false)
     {
-        MemberVisibility vis = method.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(method);
         ParameterInfo[] parameters = method.GetParameters();
         string methodName = method.Name;
         bool isCtor = method is ConstructorInfo;
@@ -820,11 +843,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             ++index;
         }
         
-        bool isReadOnly = method.IsReadOnly();
+        bool isReadOnly = _accessor.IsReadOnly(method);
         Type? declType = method.DeclaringType;
         Type? originalDeclType = declType;
 
-        if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
+        if (!isReadOnly && declType is { IsValueType: true } && _accessor.IsReadOnly(declType))
             isReadOnly = true;
 
         if (method.IsStatic)
@@ -895,7 +918,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             paramMeta.SetupDimensionsAndOrdering(originalParameterType);
             paramMeta.LoadParameter(parameter, this);
             WriteParameter(parameters[i], parameterType, elementKeyword, output, ref index, in paramMeta,
-                isExtensionThisParameter: i == 0 && method.IsStatic && declType != null && declType.GetIsStatic() && method.IsDefinedSafe<ExtensionAttribute>());
+                isExtensionThisParameter: i == 0 && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && _accessor.IsDefinedSafe<ExtensionAttribute>(method));
         }
         output[index] = ')';
         return index + 1;
@@ -904,7 +927,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual int GetFormatLength(FieldInfo field, bool includeDefinitionKeywords = false)
     {
-        MemberVisibility vis = field.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(field);
         int len = 0;
         if (includeDefinitionKeywords)
         {
@@ -930,7 +953,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual int Format(FieldInfo field, Span<char> output, bool includeDefinitionKeywords = false)
     {
-        MemberVisibility vis = field.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(field);
         int index = 0;
         if (includeDefinitionKeywords)
         {
@@ -983,7 +1006,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MethodInfo? getMethod = property.GetGetMethod(true);
         MethodInfo? setMethod = property.GetSetMethod(true);
 
-        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod, null);
+        MemberVisibility vis = _accessor.GetHighestVisibility(getMethod, setMethod, null);
 
         if (includeDefinitionKeywords)
         {
@@ -1043,7 +1066,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MethodInfo? setMethod = property.GetSetMethod(true);
 
         int index = 0;
-        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod);
+        MemberVisibility vis = _accessor.GetHighestVisibility(getMethod, setMethod);
         if (includeDefinitionKeywords)
         {
             WriteVisibility(vis, ref index, output);
@@ -1130,7 +1153,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MethodInfo? removeMethod = @event.GetRemoveMethod(true);
         MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
 
-        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
+        MemberVisibility vis = _accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
 
         // get delegate type
         Type delegateType = typeof(Delegate);
@@ -1188,7 +1211,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MethodInfo? removeMethod = @event.GetRemoveMethod(true);
         MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
 
-        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
+        MemberVisibility vis = _accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
 
         // get delegate type
         Type delegateType = typeof(Delegate);
@@ -1598,7 +1621,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         if (method == null)
             return;
 
-        MemberVisibility vis = method.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(method);
         if (vis != defVis)
         {
             length += GetVisibilityLength(vis) + 1;
@@ -1821,7 +1844,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MethodInfo? getMethod = property.GetGetMethod(true);
         MethodInfo? setMethod = property.GetSetMethod(true);
 
-        MemberVisibility vis = Accessor.GetHighestVisibility(getMethod, setMethod);
+        MemberVisibility vis = _accessor.GetHighestVisibility(getMethod, setMethod);
 
         Type? declaringType = property.DeclaringType;
         Type? originalDeclaringType = declaringType;
@@ -1977,7 +2000,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         MethodInfo? removeMethod = @event.GetRemoveMethod(true);
         MethodInfo? raiseMethod = @event.GetRaiseMethod(true);
 
-        MemberVisibility vis = Accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
+        MemberVisibility vis = _accessor.GetHighestVisibility(addMethod, removeMethod, raiseMethod);
 
         // get delegate type
         Type delegateType = typeof(Delegate);
@@ -2120,15 +2143,15 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         TypeMetaInfo delegateRtnType = default;
 
-        MemberVisibility vis = includeDefinitionKeywords ? type.GetVisibility() : default;
+        MemberVisibility vis = includeDefinitionKeywords ? _accessor.GetVisibility(type) : default;
         bool isValueType = type.IsValueType;
         bool isAbstract = !isValueType && includeDefinitionKeywords && type is { IsAbstract: true, IsSealed: false, IsInterface: false };
         bool isDelegate = !isValueType && includeDefinitionKeywords && type != typeof(MulticastDelegate) && type.IsSubclassOf(typeof(Delegate));
-        bool isReadOnly = isValueType && includeDefinitionKeywords && type.IsReadOnly();
-        bool isStatic = !isValueType && includeDefinitionKeywords && type.GetIsStatic();
+        bool isReadOnly = isValueType && includeDefinitionKeywords && _accessor.IsReadOnly(type);
+        bool isStatic = !isValueType && includeDefinitionKeywords && _accessor.GetIsStatic(type);
         bool isByRefType = false;
         Type? delegateReturnType = null;
-        isByRefType = includeDefinitionKeywords && type.IsByRefLikeType();
+        isByRefType = includeDefinitionKeywords && _accessor.IsByRefLikeType(type);
 
         int length = main.Length;
         if (includeDefinitionKeywords && elementKeyword is null)
@@ -2149,7 +2172,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 try
                 {
-                    MethodInfo invokeMethod = Accessor.GetInvokeMethod(type);
+                    MethodInfo invokeMethod = _accessor.GetInvokeMethod(type);
                     delegateReturnType = invokeMethod.ReturnType;
                     originalType = delegateReturnType;
                     delegateRtnType.Init(ref delegateReturnType, out _, this);
@@ -2588,7 +2611,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         if (method == null)
             return;
 
-        MemberVisibility vis = method.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(method);
         if (vis != defVis)
         {
             WriteVisibility(vis, ref index, output);
@@ -2657,13 +2680,13 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual unsafe string Format(MethodBase method, bool includeDefinitionKeywords = false)
     {
-        MemberVisibility vis = method.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(method);
         ParameterInfo[] parameters = method.GetParameters();
         TypeMetaInfo* paramInfo = stackalloc TypeMetaInfo[parameters.Length];
         string methodName = method.Name;
         int len = 0;
         bool isCtor = method is ConstructorInfo;
-        bool isReadOnly = method.IsReadOnly();
+        bool isReadOnly = _accessor.IsReadOnly(method);
 
         if (includeDefinitionKeywords && (!isCtor || !method.IsStatic))
             len += GetVisibilityLength(vis) + 1;
@@ -2671,10 +2694,10 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         Type? declType = method.DeclaringType;
         Type? originalDeclType = declType;
 
-        if (!isReadOnly && declType is { IsValueType: true } && declType.IsReadOnly())
+        if (!isReadOnly && declType is { IsValueType: true } && _accessor.IsReadOnly(declType))
             isReadOnly = true;
 
-        bool isExtensionMethod = !isCtor && method.IsStatic && declType != null && declType.GetIsStatic() && method.IsDefinedSafe<ExtensionAttribute>();
+        bool isExtensionMethod = !isCtor && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && _accessor.IsDefinedSafe<ExtensionAttribute>(method);
 
         if (method.IsStatic)
             len += 7;
@@ -2811,7 +2834,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     /// <inheritdoc/>
     public virtual unsafe string Format(FieldInfo field, bool includeDefinitionKeywords = false)
     {
-        MemberVisibility vis = field.GetVisibility();
+        MemberVisibility vis = _accessor.GetVisibility(field);
         string fieldName = field.Name;
         int len = 0;
         if (includeDefinitionKeywords)
@@ -2935,14 +2958,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         public unsafe void LoadParameter(ParameterInfo parameter, DefaultOpCodeFormatter formatter)
         {
             Type parameterType = parameter.ParameterType;
-            IsParams = parameterType.IsArray && parameter.IsDefinedSafe<ParamArrayAttribute>();
+            IsParams = parameterType.IsArray && formatter._accessor.IsDefinedSafe<ParamArrayAttribute>(parameter);
             if (IsParams)
                 Length += 7;
 
             if (!parameterType.IsByRef)
                 return;
 
-            bool isScoped = !parameter.IsOut && parameter.IsCompilerAttributeDefinedSafe("ScopedRefAttribute");
+            bool isScoped = !parameter.IsOut && formatter._accessor.IsCompilerAttributeDefinedSafe(parameter, "ScopedRefAttribute");
 
             if (parameter.IsIn)
             {
@@ -2986,11 +3009,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         /// </summary>
         public unsafe void LoadReturnType(MethodBase method, DefaultOpCodeFormatter formatter)
         {
-            if (method is MethodInfo returnableMEthod
+            if (method is MethodInfo returnableMethod
                 && ElementTypesLength > 0
-                && returnableMEthod.ReturnType.IsByRef
-                && returnableMEthod.ReturnParameter != null
-                && returnableMEthod.ReturnParameter.IsReadOnly())
+                && returnableMethod.ReturnType.IsByRef
+                && returnableMethod.ReturnParameter != null
+                && formatter._accessor.IsReadOnly(returnableMethod.ReturnParameter))
             {
                 Length += 13 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
                 ElementTypes[0] = -(int)ByRefTypeMode.RefReadonly - 1;

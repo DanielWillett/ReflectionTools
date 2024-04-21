@@ -5,21 +5,21 @@ using System.Reflection;
 namespace DanielWillett.ReflectionTools;
 
 /// <summary>
-/// See <see cref="Variables.AsInstanceVariable{TDeclaringType,TMemberType}(FieldInfo)"/>.
+/// See <see cref="Variables.AsInstanceVariable{TDeclaringType,TMemberType}(FieldInfo,IAccessor)"/>.
 /// </summary>
 internal sealed class InstanceFieldVariable<TDeclaringType, TMemberType> : FieldVariable, IInstanceVariable<TDeclaringType, TMemberType>, IEquatable<IInstanceVariable<TDeclaringType, TMemberType>>
 {
     private readonly bool _isInstanceValueType;
-    public InstanceFieldVariable(FieldInfo field) : base(field)
+    public InstanceFieldVariable(FieldInfo field, IAccessor accessor) : base(field, accessor)
     {
         if (field.FieldType != typeof(TMemberType))
-            throw new ArgumentException($"Member type is {Accessor.ExceptionFormatter.Format(field.FieldType)} but expected {Accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(field));
+            throw new ArgumentException($"Member type is {accessor.ExceptionFormatter.Format(field.FieldType)} but expected {accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(field));
 
         if (field.DeclaringType == null)
-            throw new ArgumentException($"Declaring type is null but expected {Accessor.ExceptionFormatter.Format(typeof(TDeclaringType))}.", nameof(field));
+            throw new ArgumentException($"Declaring type is null but expected {accessor.ExceptionFormatter.Format(typeof(TDeclaringType))}.", nameof(field));
 
         if (!field.DeclaringType.IsAssignableFrom(typeof(TDeclaringType)))
-            throw new ArgumentException($"Declaring type is {Accessor.ExceptionFormatter.Format(field.DeclaringType)} but expected {Accessor.ExceptionFormatter.Format(typeof(TDeclaringType))} or one of it's parents.", nameof(field));
+            throw new ArgumentException($"Declaring type is {accessor.ExceptionFormatter.Format(field.DeclaringType)} but expected {accessor.ExceptionFormatter.Format(typeof(TDeclaringType))} or one of it's parents.", nameof(field));
 
         if (IsStatic)
             throw new ArgumentException("Property is static but expected instance.", nameof(field));
@@ -68,14 +68,14 @@ internal sealed class InstanceFieldVariable<TDeclaringType, TMemberType> : Field
 }
 
 /// <summary>
-/// See <see cref="Variables.AsStaticVariable{TMemberType}(FieldInfo)"/>.
+/// See <see cref="Variables.AsStaticVariable{TMemberType}(FieldInfo,IAccessor)"/>.
 /// </summary>
 internal sealed class StaticFieldVariable<TMemberType> : FieldVariable, IStaticVariable<TMemberType>, IEquatable<IStaticVariable<TMemberType>>
 {
-    public StaticFieldVariable(FieldInfo field) : base(field)
+    internal StaticFieldVariable(FieldInfo field, IAccessor accessor) : base(field, accessor)
     {
         if (field.FieldType != typeof(TMemberType))
-            throw new ArgumentException($"Member type is {Accessor.ExceptionFormatter.Format(field.FieldType)} but expected {Accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(field));
+            throw new ArgumentException($"Member type is {accessor.ExceptionFormatter.Format(field.FieldType)} but expected {accessor.ExceptionFormatter.Format(typeof(TMemberType))}.", nameof(field));
 
         if (!IsStatic)
             throw new ArgumentException("Property is instance but expected static.", nameof(field));
@@ -94,11 +94,12 @@ internal sealed class StaticFieldVariable<TMemberType> : FieldVariable, IStaticV
 }
 
 /// <summary>
-/// See <see cref="Variables.AsVariable(FieldInfo)"/>.
+/// See <see cref="Variables.AsVariable(FieldInfo,IAccessor)"/>.
 /// </summary>
 internal class FieldVariable : IVariable, IEquatable<IVariable>
 {
     private protected readonly FieldInfo Field;
+    private protected readonly IAccessor Accessor;
     public bool CanGet => true;
     public bool CanSet => true;
     public bool IsProperty => false;
@@ -107,9 +108,10 @@ internal class FieldVariable : IVariable, IEquatable<IVariable>
     public Type MemberType => Field.FieldType;
     public bool IsStatic => Field.IsStatic;
     public MemberInfo Member => Field;
-    public FieldVariable(FieldInfo field)
+    internal FieldVariable(FieldInfo field, IAccessor accessor)
     {
         Field = field ?? throw new ArgumentNullException(nameof(field));
+        Accessor = accessor;
     }
     public object? GetValue(object? instance) => Field.GetValue(instance);
     public void SetValue(object? instance, object? value) => Field.SetValue(instance, value);

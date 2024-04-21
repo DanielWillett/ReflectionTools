@@ -1,8 +1,10 @@
 ﻿using System;
-using System.Diagnostics.SymbolStore;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+#if NETFRAMEWORK
+using System.Diagnostics.SymbolStore;
+#endif
 
 namespace DanielWillett.ReflectionTools.Emit;
 

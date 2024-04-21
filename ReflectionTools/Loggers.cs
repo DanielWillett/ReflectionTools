@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-
 #if NET461_OR_GREATER || !NETFRAMEWORK
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
 #endif
 
 namespace DanielWillett.ReflectionTools;
@@ -46,7 +45,7 @@ public interface IReflectionToolsLogger
 [Ignore]
 public class ReflectionToolsLoggerProxy : IReflectionToolsLogger, IDisposable
 {
-    private Dictionary<string, ILogger>? _loggers;
+    private readonly ConcurrentDictionary<string, ILogger> _loggers = new ConcurrentDictionary<string, ILogger>();
 
     /// <summary>
     /// Factory to create loggers from.
@@ -61,9 +60,16 @@ public class ReflectionToolsLoggerProxy : IReflectionToolsLogger, IDisposable
     /// <summary>
     /// Creates a proxy to implement <see cref="IReflectionToolsLogger"/> with <see cref="ILogger"/>.
     /// </summary>
+    /// <param name="loggerFactory">Factory to create loggers from.</param>
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public ReflectionToolsLoggerProxy(ILoggerFactory loggerFactory) : this(loggerFactory, false) { }
+
+    /// <summary>
+    /// Creates a proxy to implement <see cref="IReflectionToolsLogger"/> with <see cref="ILogger"/>.
+    /// </summary>
     /// <param name="disposeFactoryOnDispose">Should <see cref="LoggerFactory"/> be disposed when this object gets disposed?</param>
     /// <param name="loggerFactory">Factory to create loggers from.</param>
-    public ReflectionToolsLoggerProxy(ILoggerFactory loggerFactory, bool disposeFactoryOnDispose = false)
+    public ReflectionToolsLoggerProxy(ILoggerFactory loggerFactory, bool disposeFactoryOnDispose)
     {
         LoggerFactory = loggerFactory;
         DisposeFactoryOnDispose = disposeFactoryOnDispose;
@@ -103,17 +109,9 @@ public class ReflectionToolsLoggerProxy : IReflectionToolsLogger, IDisposable
 
     private ILogger GetOrAddLogger(string? source)
     {
-        if (source == null)
-            return LoggerFactory.CreateLogger("DanielWillett.ReflectionTools");
+        source ??= "DanielWillett.ReflectionTools";
 
-        lock (this)
-        {
-            _loggers ??= new Dictionary<string, ILogger>(4);
-            if (!_loggers.TryGetValue(source, out ILogger? logger))
-                _loggers.Add(source, logger = LoggerFactory.CreateLogger("DanielWillett.ReflectionTools::" + source));
-
-            return logger;
-        }
+        return _loggers.GetOrAdd(source, LoggerFactory.CreateLogger);
     }
 
     /// <inheritdoc />

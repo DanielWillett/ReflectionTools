@@ -16,52 +16,58 @@ public static class Variables
     /// Creates an abstracted <see cref="IVariable"/> for <paramref name="field"/>.
     /// </summary>
     /// <param name="field">The underlying field.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns>An abstracted variable with <paramref name="field"/> as it's underlying field.</returns>
     /// <exception cref="ArgumentNullException"/>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IVariable AsVariable(this FieldInfo field)
+    public static IVariable AsVariable(this FieldInfo field, IAccessor? accessor = null)
     {
         if (field == null)
             throw new ArgumentNullException(nameof(field));
 
-        return new FieldVariable(field);
+        accessor ??= Accessor.Active;
+        return new FieldVariable(field, accessor);
     }
 
     /// <summary>
     /// Creates an abstracted <see cref="IVariable"/> for <paramref name="property"/>.
     /// </summary>
     /// <param name="property">The underlying property.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns>An abstracted variable with <paramref name="property"/> as it's underlying property.</returns>
     /// <exception cref="ArgumentNullException"/>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IVariable AsVariable(this PropertyInfo property)
+    public static IVariable AsVariable(this PropertyInfo property, IAccessor? accessor = null)
     {
         if (property == null)
             throw new ArgumentNullException(nameof(property));
-        
-        return new PropertyVariable(property);
+
+        accessor ??= Accessor.Active;
+        return new PropertyVariable(property, accessor);
     }
 
     /// <summary>
     /// Creates an abstracted <see cref="IVariable"/> for <paramref name="member"/>, a field or property.
     /// </summary>
     /// <param name="member">The underlying field or property. Must be of type <see cref="FieldInfo"/> or <see cref="PropertyInfo"/>.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns>An abstracted variable with <paramref name="member"/> as it's underlying field or property.</returns>
     /// <exception cref="ArgumentNullException"/>
     /// <exception cref="ArgumentException"><paramref name="member"/> is not a field or property.</exception>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IVariable AsVariable(MemberInfo member)
+    public static IVariable AsVariable(MemberInfo member, IAccessor? accessor = null)
     {
+        accessor ??= Accessor.Active;
         return member switch
         {
-            PropertyInfo property => new PropertyVariable(property),
-            FieldInfo field => new FieldVariable(field),
+            PropertyInfo property => new PropertyVariable(property, accessor),
+            FieldInfo field => new FieldVariable(field, accessor),
             null => throw new ArgumentNullException(nameof(member)),
             _ => throw new ArgumentException($"Invalid member type: {member.MemberType}.", nameof(member))
         };
@@ -71,42 +77,47 @@ public static class Variables
     /// Creates a static, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="field"/>.
     /// </summary>
     /// <param name="field">The underlying field.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TMemberType">The field type of <paramref name="field"/>.</typeparam>
     /// <returns>An abstracted variable with <paramref name="field"/> as it's underlying field.</returns>
     /// <exception cref="ArgumentNullException"/>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IStaticVariable<TMemberType> AsStaticVariable<TMemberType>(this FieldInfo field)
+    public static IStaticVariable<TMemberType> AsStaticVariable<TMemberType>(this FieldInfo field, IAccessor? accessor = null)
     {
         if (field == null)
             throw new ArgumentNullException(nameof(field));
 
-        return new StaticFieldVariable<TMemberType>(field);
+        accessor ??= Accessor.Active;
+        return new StaticFieldVariable<TMemberType>(field, accessor);
     }
 
     /// <summary>
     /// Creates a static, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="property"/>.
     /// </summary>
     /// <param name="property">The underlying property.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TMemberType">The property type of <paramref name="property"/>.</typeparam>
     /// <returns>An abstracted variable with <paramref name="property"/> as it's underlying property.</returns>
     /// <exception cref="ArgumentNullException"/>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IStaticVariable<TMemberType> AsStaticVariable<TMemberType>(this PropertyInfo property)
+    public static IStaticVariable<TMemberType> AsStaticVariable<TMemberType>(this PropertyInfo property, IAccessor? accessor = null)
     {
         if (property == null)
             throw new ArgumentNullException(nameof(property));
 
-        return new StaticPropertyVariable<TMemberType>(property);
+        accessor ??= Accessor.Active;
+        return new StaticPropertyVariable<TMemberType>(property, accessor);
     }
 
     /// <summary>
     /// Creates an instance, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="field"/>.
     /// </summary>
     /// <param name="field">The underlying field.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TMemberType">The field type of <paramref name="field"/>.</typeparam>
     /// <typeparam name="TDeclaringType">The type that <paramref name="field"/> is declared in.</typeparam>
     /// <returns>An abstracted variable with <paramref name="field"/> as it's underlying field.</returns>
@@ -114,18 +125,20 @@ public static class Variables
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IInstanceVariable<TDeclaringType, TMemberType> AsInstanceVariable<TDeclaringType, TMemberType>(this FieldInfo field)
+    public static IInstanceVariable<TDeclaringType, TMemberType> AsInstanceVariable<TDeclaringType, TMemberType>(this FieldInfo field, IAccessor? accessor = null)
     {
         if (field == null)
             throw new ArgumentNullException(nameof(field));
 
-        return new InstanceFieldVariable<TDeclaringType, TMemberType>(field);
+        accessor ??= Accessor.Active;
+        return new InstanceFieldVariable<TDeclaringType, TMemberType>(field, accessor);
     }
 
     /// <summary>
     /// Creates an instance, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="property"/>.
     /// </summary>
     /// <param name="property">The underlying property.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TMemberType">The property type of <paramref name="property"/>.</typeparam>
     /// <typeparam name="TDeclaringType">The type that <paramref name="property"/> is declared in.</typeparam>
     /// <returns>An abstracted variable with <paramref name="property"/> as it's underlying property.</returns>
@@ -133,12 +146,13 @@ public static class Variables
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IInstanceVariable<TDeclaringType, TMemberType> AsInstanceVariable<TDeclaringType, TMemberType>(this PropertyInfo property)
+    public static IInstanceVariable<TDeclaringType, TMemberType> AsInstanceVariable<TDeclaringType, TMemberType>(this PropertyInfo property, IAccessor? accessor = null)
     {
         if (property == null)
             throw new ArgumentNullException(nameof(property));
 
-        return new InstancePropertyVariable<TDeclaringType, TMemberType>(property);
+        accessor ??= Accessor.Active;
+        return new InstancePropertyVariable<TDeclaringType, TMemberType>(property, accessor);
     }
 
     /// <summary>
@@ -147,14 +161,15 @@ public static class Variables
     /// <param name="name">Exact name of the field or property.</param>
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
     /// <param name="variable">The found variable, or <see langword="null"/>.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
     /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool TryFind<TDeclaringType>(string name, out IVariable? variable, bool ignoreCase = false)
+    public static bool TryFind<TDeclaringType>(string name, out IVariable? variable, bool ignoreCase = false, IAccessor? accessor = null)
     {
-        variable = Find(typeof(TDeclaringType), name, ignoreCase)!;
+        variable = Find(typeof(TDeclaringType), name, ignoreCase, accessor)!;
         return variable != null;
     }
 
@@ -165,13 +180,14 @@ public static class Variables
     /// <param name="name">Exact name of the field or property.</param>
     /// <param name="variable">The found variable, or <see langword="null"/>.</param>
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool TryFind(Type declaringType, string name, out IVariable? variable, bool ignoreCase = false)
+    public static bool TryFind(Type declaringType, string name, out IVariable? variable, bool ignoreCase = false, IAccessor? accessor = null)
     {
-        variable = Find(declaringType, name, ignoreCase)!;
+        variable = Find(declaringType, name, ignoreCase, accessor)!;
         return variable != null;
     }
 
@@ -181,15 +197,16 @@ public static class Variables
     /// <param name="name">Exact name of the field or property.</param>
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
     /// <param name="variable">The found variable, or <see langword="null"/>.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
     /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
     /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool TryFindStatic<TDeclaringType, TMemberType>(string name, out IStaticVariable<TMemberType>? variable, bool ignoreCase = false)
+    public static bool TryFindStatic<TDeclaringType, TMemberType>(string name, out IStaticVariable<TMemberType>? variable, bool ignoreCase = false, IAccessor? accessor = null)
     {
-        variable = FindStatic<TMemberType>(typeof(TDeclaringType), name, ignoreCase)!;
+        variable = FindStatic<TMemberType>(typeof(TDeclaringType), name, ignoreCase, accessor)!;
         return variable != null;
     }
 
@@ -200,37 +217,44 @@ public static class Variables
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
     /// <param name="variable">The found variable, or <see langword="null"/>.</param>
     /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
     /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool TryFindStatic<TMemberType>(Type declaringType, string name, out IStaticVariable<TMemberType>? variable, bool ignoreCase = false)
+    public static bool TryFindStatic<TMemberType>(Type declaringType, string name, out IStaticVariable<TMemberType>? variable, bool ignoreCase = false, IAccessor? accessor = null)
     {
-        variable = FindStatic<TMemberType>(declaringType, name, ignoreCase)!;
+        variable = FindStatic<TMemberType>(declaringType, name, ignoreCase, accessor)!;
         return variable != null;
     }
 
     /// <summary>
     /// Find a variable by declaring type and name.
     /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
     /// <returns>The found variable, or <see langword="null"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IVariable? Find<TDeclaringType>(string name, bool ignoreCase = false) => Find(typeof(TDeclaringType), name, ignoreCase);
+    public static IVariable? Find<TDeclaringType>(string name, bool ignoreCase = false, IAccessor? accessor = null) => Find(typeof(TDeclaringType), name, ignoreCase, accessor);
 
     /// <summary>
     /// Find a variable by declaring type and name.
     /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
     /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
     /// <returns>The found variable, or <see langword="null"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IStaticVariable<TMemberType>? FindStatic<TDeclaringType, TMemberType>(string name, bool ignoreCase = false) => FindStatic<TMemberType>(typeof(TDeclaringType), name, ignoreCase);
+    public static IStaticVariable<TMemberType>? FindStatic<TDeclaringType, TMemberType>(string name, bool ignoreCase = false, IAccessor? accessor = null) => FindStatic<TMemberType>(typeof(TDeclaringType), name, ignoreCase, accessor);
 
     /// <summary>
     /// Find a variable by declaring type and name.
@@ -238,17 +262,19 @@ public static class Variables
     /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
     /// <param name="name">Exact name of the field or property.</param>
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns>The found variable, or <see langword="null"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IVariable? Find(Type declaringType, string name, bool ignoreCase = false)
+    public static IVariable? Find(Type declaringType, string name, bool ignoreCase = false, IAccessor? accessor = null)
     {
+        accessor ??= Accessor.Active;
         BindingFlags defaultFlags = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | (BindingFlags)((ignoreCase ? 1 : 0) * (int)BindingFlags.IgnoreCase); 
 
         FieldInfo? field = declaringType.GetField(name, defaultFlags);
         if (field != null)
-            return new FieldVariable(field);
+            return new FieldVariable(field, accessor);
 
         PropertyInfo? property;
         try
@@ -260,7 +286,7 @@ public static class Variables
             property = declaringType.GetProperties(defaultFlags).FirstOrDefault(x => x.Name.Equals(name, StringComparison.Ordinal));
         }
         if (property != null)
-            return new PropertyVariable(property);
+            return new PropertyVariable(property, accessor);
 
         declaringType = declaringType.BaseType!;
         if (declaringType == null)
@@ -268,7 +294,7 @@ public static class Variables
 
         field = declaringType.GetField(name, defaultFlags | BindingFlags.FlattenHierarchy);
         if (field != null)
-            return new FieldVariable(field);
+            return new FieldVariable(field, accessor);
 
         try
         {
@@ -279,7 +305,7 @@ public static class Variables
             property = declaringType.GetProperties(defaultFlags | BindingFlags.FlattenHierarchy).FirstOrDefault(x => x.Name.Equals(name, StringComparison.Ordinal));
         }
 
-        return property != null ? new PropertyVariable(property) : null;
+        return property != null ? new PropertyVariable(property, accessor) : null;
     }
 
     /// <summary>
@@ -289,19 +315,21 @@ public static class Variables
     /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
     /// <param name="name">Exact name of the field or property.</param>
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns>The found variable, or <see langword="null"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IStaticVariable<TMemberType>? FindStatic<TMemberType>(Type declaringType, string name, bool ignoreCase = false)
+    public static IStaticVariable<TMemberType>? FindStatic<TMemberType>(Type declaringType, string name, bool ignoreCase = false, IAccessor? accessor = null)
     {
+        accessor ??= Accessor.Active;
         BindingFlags defaultFlags = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | (BindingFlags)((ignoreCase ? 1 : 0) * (int)BindingFlags.IgnoreCase); 
 
         FieldInfo? field = declaringType.GetField(name, defaultFlags);
         if (field != null)
         {
             if (field.FieldType == typeof(TMemberType))
-                return new StaticFieldVariable<TMemberType>(field);
+                return new StaticFieldVariable<TMemberType>(field, accessor);
 
             return null;
         }
@@ -318,7 +346,7 @@ public static class Variables
         if (property != null)
         {
             if (property.PropertyType == typeof(TMemberType))
-                return new StaticPropertyVariable<TMemberType>(property);
+                return new StaticPropertyVariable<TMemberType>(property, accessor);
 
             return null;
         }
@@ -331,7 +359,7 @@ public static class Variables
         if (field != null)
         {
             if (field.FieldType == typeof(TMemberType))
-                return new StaticFieldVariable<TMemberType>(field);
+                return new StaticFieldVariable<TMemberType>(field, accessor);
 
             return null;
         }
@@ -349,7 +377,7 @@ public static class Variables
             return null;
 
         if (property.PropertyType == typeof(TMemberType))
-            return new StaticPropertyVariable<TMemberType>(property);
+            return new StaticPropertyVariable<TMemberType>(property, accessor);
 
         return null;
     }
@@ -361,19 +389,21 @@ public static class Variables
     /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
     /// <param name="name">Exact name of the field or property.</param>
     /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="accessor"><see cref="IAccessor"/> instance to use for accessors. Defaults to <see cref="Accessor.Active"/>.</param>
     /// <returns>The found variable, or <see langword="null"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static IInstanceVariable<TDeclaringType, TMemberType>? FindInstance<TDeclaringType, TMemberType>(string name, bool ignoreCase = false)
+    public static IInstanceVariable<TDeclaringType, TMemberType>? FindInstance<TDeclaringType, TMemberType>(string name, bool ignoreCase = false, IAccessor? accessor = null)
     {
+        accessor ??= Accessor.Active;
         BindingFlags defaultFlags = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | (BindingFlags)((ignoreCase ? 1 : 0) * (int)BindingFlags.IgnoreCase);
         Type declaringType = typeof(TDeclaringType);
         FieldInfo? field = declaringType.GetField(name, defaultFlags);
         if (field != null)
         {
             if (field.FieldType == typeof(TMemberType) && field.DeclaringType != null && field.DeclaringType.IsAssignableFrom(declaringType))
-                return new InstanceFieldVariable<TDeclaringType, TMemberType>(field);
+                return new InstanceFieldVariable<TDeclaringType, TMemberType>(field, accessor);
 
             return null;
         }
@@ -390,7 +420,7 @@ public static class Variables
         if (property != null)
         {
             if (property.PropertyType == typeof(TMemberType) && property.DeclaringType != null && property.DeclaringType.IsAssignableFrom(declaringType))
-                return new InstancePropertyVariable<TDeclaringType, TMemberType>(property);
+                return new InstancePropertyVariable<TDeclaringType, TMemberType>(property, accessor);
 
             return null;
         }
@@ -403,7 +433,7 @@ public static class Variables
         if (field != null)
         {
             if (field.FieldType == typeof(TMemberType) && field.DeclaringType != null && field.DeclaringType.IsAssignableFrom(declaringType))
-                return new InstanceFieldVariable<TDeclaringType, TMemberType>(field);
+                return new InstanceFieldVariable<TDeclaringType, TMemberType>(field, accessor);
 
             return null;
         }
@@ -421,7 +451,7 @@ public static class Variables
             return null;
 
         if (property.PropertyType == typeof(TMemberType) && property.DeclaringType != null && property.DeclaringType.IsAssignableFrom(declaringType))
-            return new InstancePropertyVariable<TDeclaringType, TMemberType>(property);
+            return new InstancePropertyVariable<TDeclaringType, TMemberType>(property, accessor);
 
         return null;
     }

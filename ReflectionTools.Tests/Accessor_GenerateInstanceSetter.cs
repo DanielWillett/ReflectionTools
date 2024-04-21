@@ -1124,7 +1124,6 @@ public class Accessor_GenerateInstanceSetter
         Assert.IsNotNull(variable);
 
         InstanceSetter<SampleClass, int> setter = variable.GenerateReferenceTypeSetter(throwOnError: true);
-        FieldInfo field = typeof(SampleClass).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
         
         Assert.IsNotNull(setter);
         
