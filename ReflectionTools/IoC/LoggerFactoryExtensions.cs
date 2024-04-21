@@ -10,7 +10,7 @@ namespace DanielWillett.ReflectionTools.IoC;
 public static class LoggerFactoryExtensions
 {
     /// <summary>
-    /// Creates a logger proxy for <see cref="Accessor.Logger"/>
+    /// Creates a logger proxy for <see cref="IAccessor.Logger"/>
     /// </summary>
     /// <param name="disposeFactoryOnDispose">Should <paramref name="loggerFactory"/> be disposed when this object gets disposed?</param>
     /// <param name="loggerFactory">Factory to create loggers from.</param>

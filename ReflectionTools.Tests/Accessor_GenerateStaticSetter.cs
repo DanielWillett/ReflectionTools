@@ -346,4 +346,213 @@ public class Accessor_GenerateStaticSetter
 
         Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyRefTypeField);
     }
+    /*
+     * Private value type
+     */
+
+    [TestMethod]
+    // field: private, non-readonly, value type
+    // value: passed as-is (value type)
+    public void TestPrivateValueTypeField_IVariable()
+    {
+        const string fieldName = "PrivateValTypeField";
+        const int value = 1;
+
+        IStaticVariable<int>? variable = Variables.FindStatic<SampleStaticMembers, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        StaticSetter<int> setter = variable.GenerateSetter(throwOnError: true);
+
+        FieldInfo field = typeof(SampleStaticMembers).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        Assert.IsNotNull(setter);
+
+        setter(value);
+
+        Assert.AreEqual(value, field.GetValue(null));
+    }
+
+    /*
+     * Private reference type
+     */
+
+    [TestMethod]
+    // field: private, non-readonly, value type
+    // value: passed as-is (value type)
+    public void TestPrivateReferenceTypeField_IVariable()
+    {
+        const string fieldName = "PrivateRefTypeField";
+        const string value = "test";
+
+        IStaticVariable<string>? variable = Variables.FindStatic<SampleStaticMembers, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        StaticSetter<string> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStaticMembers).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        Assert.IsNotNull(setter);
+        
+        setter(value);
+
+        Assert.AreEqual(value, field.GetValue(null));
+    }
+
+    /*
+     * Public value type
+     */
+
+    [TestMethod]
+    // field: public, non-readonly, value type
+    // value: passed as-is (value type)
+    public void TestPublicValueTypeField_IVariable()
+    {
+        const string fieldName = "PublicValTypeField";
+        const int value = 1;
+
+        IStaticVariable<int>? variable = Variables.FindStatic<SampleStaticMembers, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+        StaticSetter<int> setter = variable.GenerateSetter(throwOnError: true);
+
+        Assert.IsNotNull(setter);
+
+        setter(value);
+
+        Assert.AreEqual(value, SampleStaticMembers.PublicValTypeField);
+    }
+
+    /*
+     * Public reference type
+     */
+
+    [TestMethod]
+    // field: public, non-readonly, value type
+    // value: passed as-is (value type)
+    public void TestPublicReferenceTypeField_IVariable()
+    {
+        const string fieldName = "PublicRefTypeField";
+        const string value = "test";
+
+        IStaticVariable<string>? variable = Variables.FindStatic<SampleStaticMembers, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        StaticSetter<string> setter = variable.GenerateSetter(throwOnError: true);
+
+        Assert.IsNotNull(setter);
+
+        setter(value);
+
+        Assert.AreEqual(value, SampleStaticMembers.PublicRefTypeField);
+    }
+
+    /*
+     * Private readonly value type
+     */
+
+    [TestMethod]
+    // field: private, readonly, value type
+    // value: passed as-is (value type)
+    public void TestPrivateReadonlyValueTypeField_IVariable()
+    {
+        const string fieldName = "PrivateReadonlyValTypeField";
+        IStaticVariable<int>? variable = Variables.FindStatic<SampleStaticMembers, int>(fieldName);
+        Assert.IsNotNull(variable);
+
+#if !NET && !NETCOREAPP
+        const int value = 1;
+
+        StaticSetter<int> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStaticMembers).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        Assert.IsNotNull(setter);
+
+        setter(value);
+
+        Assert.AreEqual(value, field.GetValue(null));
+#else
+        Assert.ThrowsException<NotSupportedException>(() =>
+        {
+            _ = variable.GenerateSetter(throwOnError: true);
+        }, "Didn't throw NotSupportedException for readonly static value type field.");
+#endif
+    }
+
+    /*
+     * Private readonly reference type
+     */
+
+    [TestMethod]
+    // field: private, readonly, value type
+    // value: passed as-is (value type)
+    public void TestPrivateReadonlyReferenceTypeField_IVariable()
+    {
+        const string fieldName = "PrivateReadonlyRefTypeField";
+        const string value = "test";
+
+        IStaticVariable<string>? variable = Variables.FindStatic<SampleStaticMembers, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        StaticSetter<string> setter = variable.GenerateSetter(throwOnError: true);
+        FieldInfo field = typeof(SampleStaticMembers).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        Assert.IsNotNull(setter);
+        
+        setter(value);
+
+        Assert.AreEqual(value, field.GetValue(null));
+    }
+
+    /*
+     * Public readonly value type
+     */
+
+    [TestMethod]
+    // field: public, readonly, value type
+    // value: passed as-is (value type)
+    public void TestPublicReadonlyValueTypeField_IVariable()
+    {
+        const string fieldName = "PublicReadonlyValTypeField";
+        IStaticVariable<int>? variable = Variables.FindStatic<SampleStaticMembers, int>(fieldName);
+        Assert.IsNotNull(variable);
+#if !NET && !NETCOREAPP
+        const int value = 1;
+
+        StaticSetter<int> setter = variable.GenerateSetter(throwOnError: true);
+
+        Assert.IsNotNull(setter);
+
+        setter(value);
+
+        Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyValTypeField);
+#else
+        Assert.ThrowsException<NotSupportedException>(() =>
+        {
+            _ = variable.GenerateSetter(throwOnError: true);
+        }, "Didn't throw NotSupportedException for readonly static value type field.");
+#endif
+    }
+
+    /*
+     * Public readonly reference type
+     */
+
+    [TestMethod]
+    // field: public, readonly, value type
+    // value: passed as-is (value type)
+    public void TestPublicReadonlyReferenceTypeField_IVariable()
+    {
+        const string fieldName = "PublicReadonlyRefTypeField";
+        const string value = "test";
+
+        IStaticVariable<string>? variable = Variables.FindStatic<SampleStaticMembers, string>(fieldName);
+        Assert.IsNotNull(variable);
+
+        StaticSetter<string> setter = variable.GenerateSetter(throwOnError: true);
+
+        Assert.IsNotNull(setter);
+
+        setter(value);
+
+        Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyRefTypeField);
+    }
 }

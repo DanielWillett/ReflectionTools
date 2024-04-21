@@ -1,144 +1,83 @@
-﻿using DanielWillett.ReflectionTools.Formatting;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using System.Threading;
+using DanielWillett.ReflectionTools.Emit;
+using DanielWillett.ReflectionTools.Formatting;
 #if NET40_OR_GREATER || !NETFRAMEWORK
 using System.Diagnostics.Contracts;
 #endif
 
-
 namespace DanielWillett.ReflectionTools;
 
 /// <summary>
-/// Reflection utilities for accessing private or internal members.
+/// Reflection utilities for accessing private or internal members. Interface for <see cref="Accessor"/>.
 /// </summary>
-public static class Accessor
+public interface IAccessor
 {
-    private static IAccessor _accessor = new DefaultAccessor();
-
-    /// <summary>
-    /// Implementation of <see cref="IAccessor"/> currently in use by all static/extension methods.
-    /// </summary>
-    public static IAccessor Active
-    {
-        get => _accessor;
-        set
-        {
-            value ??= new DefaultAccessor();
-            IAccessor old = Interlocked.Exchange(ref _accessor, value);
-            if (!ReferenceEquals(old, value) && old is IDisposable disp)
-                disp.Dispose();
-
-            if (value.LogDebugMessages)
-                value.Logger?.LogDebug("Accessor.Formatter", $"Accessor implementation updated: {value.Formatter.Format(value.GetType())}.");
-        }
-    }
-
-    internal static void RemoveActiveIfThis(IAccessor accessor)
-    {
-        if (_accessor != accessor)
-            return;
-
-        Interlocked.CompareExchange(ref _accessor, new DefaultAccessor(), accessor);
-    }
-
     /// <summary>
     /// Should <see cref="Logger"/> log generated IL code (as debug messages)?
     /// </summary>
     /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
-    public static bool LogILTraceMessages
-    {
-        get => _accessor.LogILTraceMessages;
-        set => _accessor.LogILTraceMessages = value;
-    }
+    bool LogILTraceMessages { get; set; }
 
     /// <summary>
     /// Should <see cref="Logger"/> log debug messages?
     /// </summary>
     /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
-    public static bool LogDebugMessages
-    {
-        get => _accessor.LogDebugMessages;
-        set => _accessor.LogDebugMessages = value;
-    }
+    bool LogDebugMessages { get; set; }
 
     /// <summary>
     /// Should <see cref="Logger"/> log info messages?
     /// </summary>
     /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
-    public static bool LogInfoMessages
-    {
-        get => _accessor.LogInfoMessages;
-        set => _accessor.LogInfoMessages = value;
-    }
+    bool LogInfoMessages { get; set; }
 
     /// <summary>
     /// Should <see cref="Logger"/> log warning messages?
     /// </summary>
     /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
-    public static bool LogWarningMessages
-    {
-        get => _accessor.LogWarningMessages;
-        set => _accessor.LogWarningMessages = value;
-    }
+    bool LogWarningMessages { get; set; }
 
     /// <summary>
     /// Should <see cref="Logger"/> log error messages?
     /// </summary>
     /// <remarks>Returns <see langword="false"/> if <see cref="Logger"/> is <see langword="null"/>.</remarks>
-    public static bool LogErrorMessages
-    {
-        get => _accessor.LogErrorMessages;
-        set => _accessor.LogErrorMessages = value;
-    }
+    bool LogErrorMessages { get; set; }
 
     /// <summary>
-    /// Logging IO for all methods in this library.
-    /// <para>Assigning a value to this will dispose the previous value if needed.</para>
+    /// Logging IO for all methods in library.
+    /// <para>Assigning a value to will dispose the previous value if needed.</para>
     /// </summary>
     /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
-    public static IReflectionToolsLogger? Logger
-    {
-        get => _accessor.Logger;
-        set => _accessor.Logger = value;
-    }
-    
-    /// <summary>
-    /// Logging IO for all methods in this library for standard output.
-    /// <para>Assigning a value to this will dispose the previous value if needed.</para>
-    /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
-    public static IOpCodeFormatter Formatter
-    {
-        get => _accessor.Formatter;
-        set => _accessor.Formatter = value;
-    }
+    IReflectionToolsLogger? Logger { get; set; }
 
     /// <summary>
-    /// Logging IO for all methods in this library for exceptions.
-    /// <para>Assigning a value to this will dispose the previous value if needed.</para>
+    /// Logging IO for all methods in library for standard output.
+    /// <para>Assigning a value to will dispose the previous value if needed.</para>
     /// </summary>
     /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
-    public static IOpCodeFormatter ExceptionFormatter
-    {
-        get => _accessor.ExceptionFormatter;
-        set => _accessor.ExceptionFormatter = value;
-    }
+    IOpCodeFormatter Formatter { get; set; }
+
+    /// <summary>
+    /// Logging IO for all methods in library for exceptions.
+    /// <para>Assigning a value to will dispose the previous value if needed.</para>
+    /// </summary>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    IOpCodeFormatter ExceptionFormatter { get; set; }
 
     /// <summary>
     /// System primary assembly.
     /// </summary>
     /// <remarks>Lazily cached.</remarks>
     /// <exception cref="TypeLoadException"/>
-    public static Assembly MSCoreLib => _accessor.MSCoreLib;
+    Assembly MSCoreLib { get; }
 
     /// <summary>
     /// Whether or not the <c>Mono.Runtime</c> class is available. Indicates if the current runtime is Mono.
     /// </summary>
-    public static bool IsMono => _accessor.IsMono;
+    bool IsMono { get; }
 
     /// <summary>
     /// Generates a dynamic method that sets an instance field value. For value types use <see cref="GenerateInstanceSetter{TValue}(Type,string,bool)"/> instead.
@@ -151,9 +90,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<TInstance, TValue>? GenerateInstanceSetter<TInstance, TValue>(string fieldName, bool throwOnError = false) where TInstance : class
-        => _accessor.GenerateInstanceSetter<TInstance, TValue>(fieldName, throwOnError);
-
+    InstanceSetter<TInstance, TValue>? GenerateInstanceSetter<TInstance, TValue>(string fieldName, bool throwOnError = false) where TInstance : class;
     /// <summary>
     /// Generates a dynamic method that sets an instance field value. For value types use <see cref="GenerateInstanceSetter{TValue}(FieldInfo,bool)"/> instead.
     /// </summary>
@@ -165,8 +102,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<TInstance, TValue>? GenerateInstanceSetter<TInstance, TValue>(FieldInfo field, bool throwOnError = false) where TInstance : class
-        => _accessor.GenerateInstanceSetter<TInstance, TValue>(field, throwOnError);
+    InstanceSetter<TInstance, TValue>? GenerateInstanceSetter<TInstance, TValue>(FieldInfo field, bool throwOnError = false) where TInstance : class;
 
     /// <summary>
     /// Generates a dynamic method that sets an instance field value.
@@ -178,8 +114,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstanceSetter(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateInstanceSetter(field, throwOnError);
+    Delegate? GenerateInstanceSetter(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets an instance field value. Works for reference or value types.
@@ -192,8 +127,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<TInstance, TValue>? GenerateInstanceGetter<TInstance, TValue>(string fieldName, bool throwOnError = false)
-        => _accessor.GenerateInstanceGetter<TInstance, TValue>(fieldName, throwOnError);
+    InstanceGetter<TInstance, TValue>? GenerateInstanceGetter<TInstance, TValue>(string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets an instance field value. Works for reference or value types.
@@ -206,8 +140,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<TInstance, TValue>? GenerateInstanceGetter<TInstance, TValue>(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateInstanceGetter<TInstance, TValue>(field, throwOnError);
+    InstanceGetter<TInstance, TValue>? GenerateInstanceGetter<TInstance, TValue>(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets an instance field value. Works for reference or value types.
@@ -219,8 +152,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstanceGetter(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateInstanceGetter(field, throwOnError);
+    Delegate? GenerateInstanceGetter(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that sets an instance field value.
@@ -239,8 +171,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<object, TValue>? GenerateInstanceSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
-        => _accessor.GenerateInstanceSetter<TValue>(declaringType, fieldName, throwOnError);
+    InstanceSetter<object, TValue>? GenerateInstanceSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that sets an instance field value.
@@ -258,8 +189,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<object, TValue>? GenerateInstanceSetter<TValue>(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateInstanceSetter<TValue>(field, throwOnError);
+    InstanceSetter<object, TValue>? GenerateInstanceSetter<TValue>(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets an instance field value. Works for reference or value types.
@@ -272,8 +202,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<object, TValue>? GenerateInstanceGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
-        => _accessor.GenerateInstanceGetter<TValue>(declaringType, fieldName, throwOnError);
+    InstanceGetter<object, TValue>? GenerateInstanceGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets an instance field value. Works for reference or value types.
@@ -285,8 +214,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<object, TValue>? GenerateInstanceGetter<TValue>(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateInstanceGetter<TValue>(field, throwOnError);
+    InstanceGetter<object, TValue>? GenerateInstanceGetter<TValue>(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a delegate that sets an instance property value. For value types use <see cref="GenerateInstancePropertySetter{TValue}(Type,string,bool,bool)"/> instead.
@@ -302,8 +230,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<TInstance, TValue>? GenerateInstancePropertySetter<TInstance, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TInstance : class
-        => _accessor.GenerateInstancePropertySetter<TInstance, TValue>(propertyName, throwOnError, allowUnsafeTypeBinding);
+    InstanceSetter<TInstance, TValue>? GenerateInstancePropertySetter<TInstance, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TInstance : class;
 
     /// <summary>
     /// Generates a delegate that gets an instance property value. Works for reference or value types.
@@ -319,8 +246,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<TInstance, TValue>? GenerateInstancePropertyGetter<TInstance, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstancePropertyGetter<TInstance, TValue>(propertyName, throwOnError, allowUnsafeTypeBinding);
+    InstanceGetter<TInstance, TValue>? GenerateInstancePropertyGetter<TInstance, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate that sets an instance property value. For value types use <see cref="GenerateInstancePropertySetter{TValue}(PropertyInfo,bool,bool)"/> instead.
@@ -336,8 +262,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<TInstance, TValue>? GenerateInstancePropertySetter<TInstance, TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TInstance : class
-        => _accessor.GenerateInstancePropertySetter<TInstance, TValue>(property, throwOnError, allowUnsafeTypeBinding);
+    InstanceSetter<TInstance, TValue>? GenerateInstancePropertySetter<TInstance, TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TInstance : class;
 
     /// <summary>
     /// Generates a delegate that gets an instance property value. Works for reference or value types.
@@ -353,8 +278,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<TInstance, TValue>? GenerateInstancePropertyGetter<TInstance, TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstancePropertyGetter<TInstance, TValue>(property, throwOnError, allowUnsafeTypeBinding);
+    InstanceGetter<TInstance, TValue>? GenerateInstancePropertyGetter<TInstance, TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate that sets an instance property value.
@@ -366,8 +290,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstancePropertySetter(PropertyInfo property, bool throwOnError = false)
-        => _accessor.GenerateInstancePropertySetter(property, throwOnError);
+    Delegate? GenerateInstancePropertySetter(PropertyInfo property, bool throwOnError = false);
 
     /// <summary>
     /// Generates a delegate that gets an instance property value. Works for reference or value types.
@@ -379,8 +302,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstancePropertyGetter(PropertyInfo property, bool throwOnError = false)
-        => _accessor.GenerateInstancePropertyGetter(property, throwOnError);
+    Delegate? GenerateInstancePropertyGetter(PropertyInfo property, bool throwOnError = false);
 
     /// <summary>
     /// Generates a delegate if possible, otherwise a dynamic method, that sets an instance property value.
@@ -402,8 +324,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<object, TValue>? GenerateInstancePropertySetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstancePropertySetter<TValue>(declaringType, propertyName, throwOnError, allowUnsafeTypeBinding);
+    InstanceSetter<object, TValue>? GenerateInstancePropertySetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate if possible, otherwise a dynamic method, that gets an instance property value. Works for reference or value types.
@@ -419,8 +340,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<object, TValue>? GenerateInstancePropertyGetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstancePropertyGetter<TValue>(declaringType, propertyName, throwOnError, allowUnsafeTypeBinding);
+    InstanceGetter<object, TValue>? GenerateInstancePropertyGetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate if possible, otherwise a dynamic method, that sets an instance property value.
@@ -441,8 +361,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceSetter<object, TValue>? GenerateInstancePropertySetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstancePropertySetter<TValue>(property, throwOnError, allowUnsafeTypeBinding);
+    InstanceSetter<object, TValue>? GenerateInstancePropertySetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate if possible, otherwise a dynamic method, that gets an instance property value. Works for reference or value types.
@@ -457,8 +376,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static InstanceGetter<object, TValue>? GenerateInstancePropertyGetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstancePropertyGetter<TValue>(property, throwOnError, allowUnsafeTypeBinding);
+    InstanceGetter<object, TValue>? GenerateInstancePropertyGetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a dynamic method that sets a static field value.
@@ -471,8 +389,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticSetter<TValue>? GenerateStaticSetter<TDeclaringType, TValue>(string fieldName, bool throwOnError = false)
-        => _accessor.GenerateStaticSetter<TDeclaringType, TValue>(fieldName, throwOnError);
+    StaticSetter<TValue>? GenerateStaticSetter<TDeclaringType, TValue>(string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets a static field value.
@@ -485,8 +402,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticGetter<TValue>? GenerateStaticGetter<TDeclaringType, TValue>(string fieldName, bool throwOnError = false)
-        => _accessor.GenerateStaticGetter<TDeclaringType, TValue>(fieldName, throwOnError);
+    StaticGetter<TValue>? GenerateStaticGetter<TDeclaringType, TValue>(string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that sets a static field value.
@@ -499,8 +415,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticSetter<TValue>? GenerateStaticSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
-        => _accessor.GenerateStaticSetter<TValue>(declaringType, fieldName, throwOnError);
+    StaticSetter<TValue>? GenerateStaticSetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that sets a static field value.
@@ -512,8 +427,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticSetter<TValue>? GenerateStaticSetter<TValue>(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateStaticSetter<TValue>(field, throwOnError);
+    StaticSetter<TValue>? GenerateStaticSetter<TValue>(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets a static field value.
@@ -526,8 +440,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticGetter<TValue>? GenerateStaticGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false)
-        => _accessor.GenerateStaticGetter<TValue>(declaringType, fieldName, throwOnError);
+    StaticGetter<TValue>? GenerateStaticGetter<TValue>(Type declaringType, string fieldName, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that sets a static field value.
@@ -539,8 +452,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticSetter(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateStaticSetter(field, throwOnError);
+    Delegate? GenerateStaticSetter(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets a static field value.
@@ -552,8 +464,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticGetter<TValue>? GenerateStaticGetter<TValue>(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateStaticGetter<TValue>(field, throwOnError);
+    StaticGetter<TValue>? GenerateStaticGetter<TValue>(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a dynamic method that gets a static field value.
@@ -565,11 +476,26 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticGetter(FieldInfo field, bool throwOnError = false)
-        => _accessor.GenerateStaticGetter(field, throwOnError);
+    Delegate? GenerateStaticGetter(FieldInfo field, bool throwOnError = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that sets a static property value.
+    /// </summary>
+    /// <typeparam name="TDeclaringType">Declaring type of the property.</typeparam>
+    /// <typeparam name="TValue">Property return type.</typeparam>
+    /// <param name="propertyName">Name of property that will be referenced.</param>
+    /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
+    /// <param name="allowUnsafeTypeBinding">Enables unsafe type binding to non-matching delegates, meaning classes of different
+    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
+    /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
+    /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
+
+    /// <summary>
+    /// Generates a delegate that gets a static property value.
     /// </summary>
     /// <typeparam name="TDeclaringType">Declaring type of the property.</typeparam>
     /// <typeparam name="TValue">Property return type.</typeparam>
@@ -579,11 +505,10 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false)
-        => _accessor.GenerateStaticPropertySetter<TDeclaringType, TValue>(propertyName, throwOnError);
+    StaticGetter<TValue>? GenerateStaticPropertyGetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false);
 
     /// <summary>
-    /// Generates a delegate or dynamic method that sets a static property value.
+    /// Generates a delegate that gets a static property value.
     /// </summary>
     /// <typeparam name="TDeclaringType">Declaring type of the property.</typeparam>
     /// <typeparam name="TValue">Property return type.</typeparam>
@@ -597,25 +522,7 @@ public static class Accessor
     [Pure]
 #endif
     // ReSharper disable once MethodOverloadWithOptionalParameter
-    public static StaticSetter<TValue>? GenerateStaticPropertySetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticPropertySetter<TDeclaringType, TValue>(propertyName, throwOnError, allowUnsafeTypeBinding);
-
-    /// <summary>
-    /// Generates a delegate that gets a static property value.
-    /// </summary>
-    /// <typeparam name="TDeclaringType">Declaring type of the property.</typeparam>
-    /// <typeparam name="TValue">Property return type.</typeparam>
-    /// <param name="propertyName">Name of property that will be referenced.</param>
-    /// <param name="throwOnError">Throw an error instead of writing to console and returning <see langword="null"/>.</param>
-    /// <param name="allowUnsafeTypeBinding">Enables unsafe type binding to non-matching delegates, meaning classes of different
-    /// types can be passed as parameters and an exception will not be thrown (may cause unintended behavior if the wrong type is passed).
-    /// This also must be <see langword="true"/> to not null-check instance methods of parameter-less reference types with a dynamic method.</param>
-    /// <remarks>Will never return <see langword="null"/> if <paramref name="throwOnError"/> is <see langword="true"/>.</remarks>
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = true)
-        => _accessor.GenerateStaticPropertyGetter<TDeclaringType, TValue>(propertyName, throwOnError, allowUnsafeTypeBinding);
+    StaticGetter<TValue>? GenerateStaticPropertyGetter<TDeclaringType, TValue>(string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = true);
 
     /// <summary>
     /// Generates a delegate or dynamic method that sets a static property value.
@@ -631,8 +538,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticSetter<TValue>? GenerateStaticPropertySetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticPropertySetter<TValue>(declaringType, propertyName, throwOnError, allowUnsafeTypeBinding);
+    StaticSetter<TValue>? GenerateStaticPropertySetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate that gets a static property value.
@@ -648,8 +554,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticPropertyGetter<TValue>(declaringType, propertyName, throwOnError, allowUnsafeTypeBinding);
+    StaticGetter<TValue>? GenerateStaticPropertyGetter<TValue>(Type declaringType, string propertyName, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that sets a static property value.
@@ -664,8 +569,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticSetter<TValue>? GenerateStaticPropertySetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticPropertySetter<TValue>(property, throwOnError, allowUnsafeTypeBinding);
+    StaticSetter<TValue>? GenerateStaticPropertySetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate that gets a static property value.
@@ -680,8 +584,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static StaticGetter<TValue>? GenerateStaticPropertyGetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticPropertyGetter<TValue>(property, throwOnError, allowUnsafeTypeBinding);
+    StaticGetter<TValue>? GenerateStaticPropertyGetter<TValue>(PropertyInfo property, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that sets a static property value.
@@ -693,8 +596,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticPropertySetter(PropertyInfo property, bool throwOnError = false)
-        => _accessor.GenerateStaticPropertySetter(property, throwOnError);
+    Delegate? GenerateStaticPropertySetter(PropertyInfo property, bool throwOnError = false);
 
     /// <summary>
     /// Generates a delegate that gets a static property value.
@@ -706,8 +608,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticPropertyGetter(PropertyInfo property, bool throwOnError = false)
-        => _accessor.GenerateStaticPropertyGetter(property, throwOnError);
+    Delegate? GenerateStaticPropertyGetter(PropertyInfo property, bool throwOnError = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls an instance method. For non-readonly methods with value types, the instance must be boxed (passed as <see cref="object"/>) to keep any changes made.
@@ -724,8 +625,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstanceCaller<TInstance>(string methodName, Type[]? parameters = null, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstanceCaller<TInstance>(methodName, parameters, throwOnError, allowUnsafeTypeBinding);
+    Delegate? GenerateInstanceCaller<TInstance>(string methodName, Type[]? parameters = null, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls an instance method. For non-readonly methods with value types, the instance must be boxed (passed as <see cref="object"/>) to keep any changes made.
@@ -741,8 +641,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TDelegate? GenerateInstanceCaller<TInstance, TDelegate>(string methodName, bool throwOnError = false, bool allowUnsafeTypeBinding = false, Type[]? parameters = null) where TDelegate : Delegate
-        => _accessor.GenerateInstanceCaller<TInstance, TDelegate>(methodName, throwOnError, allowUnsafeTypeBinding, parameters);
+    TDelegate? GenerateInstanceCaller<TInstance, TDelegate>(string methodName, bool throwOnError = false, bool allowUnsafeTypeBinding = false, Type[]? parameters = null) where TDelegate : Delegate;
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls an instance method. For non-readonly methods with value types, the instance must be boxed (passed as <see cref="object"/>) to keep any changes made.
@@ -758,8 +657,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstanceCaller(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstanceCaller(method, throwOnError, allowUnsafeTypeBinding);
+    Delegate? GenerateInstanceCaller(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls an instance method. For non-readonly methods with value types, the instance must be boxed (passed as <see cref="object"/>) to keep any changes made.
@@ -774,8 +672,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TDelegate? GenerateInstanceCaller<TDelegate>(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TDelegate : Delegate
-        => _accessor.GenerateInstanceCaller<TDelegate>(method, throwOnError, allowUnsafeTypeBinding);
+    TDelegate? GenerateInstanceCaller<TDelegate>(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TDelegate : Delegate;
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls an instance method. For non-readonly methods with value types, the instance must be boxed (passed as <see cref="object"/>) to keep any changes made.
@@ -791,8 +688,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateInstanceCaller(Type delegateType, MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateInstanceCaller(delegateType, method, throwOnError, allowUnsafeTypeBinding);
+    Delegate? GenerateInstanceCaller(Type delegateType, MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls a static method.
@@ -807,8 +703,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticCaller<TDeclaringType>(string methodName, Type[]? parameters = null, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticCaller<TDeclaringType>(methodName, parameters, throwOnError, allowUnsafeTypeBinding);
+    Delegate? GenerateStaticCaller<TDeclaringType>(string methodName, Type[]? parameters = null, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls a static method.
@@ -822,8 +717,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TDelegate? GenerateStaticCaller<TDeclaringType, TDelegate>(string methodName, bool throwOnError = false, bool allowUnsafeTypeBinding = false, Type[]? parameters = null) where TDelegate : Delegate
-        => _accessor.GenerateStaticCaller<TDeclaringType, TDelegate>(methodName, throwOnError, allowUnsafeTypeBinding, parameters);
+    TDelegate? GenerateStaticCaller<TDeclaringType, TDelegate>(string methodName, bool throwOnError = false, bool allowUnsafeTypeBinding = false, Type[]? parameters = null) where TDelegate : Delegate;
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls a static method.
@@ -837,8 +731,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticCaller(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticCaller(method, throwOnError, allowUnsafeTypeBinding);
+    Delegate? GenerateStaticCaller(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls a static method.
@@ -851,8 +744,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TDelegate? GenerateStaticCaller<TDelegate>(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TDelegate : Delegate
-        => _accessor.GenerateStaticCaller<TDelegate>(method, throwOnError, allowUnsafeTypeBinding);
+    TDelegate? GenerateStaticCaller<TDelegate>(MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false) where TDelegate : Delegate;
 
     /// <summary>
     /// Generates a delegate or dynamic method that calls a static method.
@@ -866,8 +758,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Delegate? GenerateStaticCaller(Type delegateType, MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false)
-        => _accessor.GenerateStaticCaller(delegateType, method, throwOnError, allowUnsafeTypeBinding);
+    Delegate? GenerateStaticCaller(Type delegateType, MethodInfo method, bool throwOnError = false, bool allowUnsafeTypeBinding = false);
 
     /// <summary>
     /// Gets platform-specific flags for creating dynamic methods.
@@ -875,20 +766,18 @@ public static class Accessor
     /// <param name="static">Whether or not the method has no 'instance', only considered when on mono.</param>
     /// <param name="attributes">Method attributes to pass to <see cref="DynamicMethod"/> constructor.</param>
     /// <param name="convention">Method convention to pass to <see cref="DynamicMethod"/> constructor.</param>
-    public static void GetDynamicMethodFlags(bool @static, out MethodAttributes attributes, out CallingConventions convention)
-        => _accessor.GetDynamicMethodFlags(@static, out attributes, out convention);
+    void GetDynamicMethodFlags(bool @static, out MethodAttributes attributes, out CallingConventions convention);
 
     /// <summary>
     /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="type"/>.
     /// </summary>
     /// <remarks>Takes nested types into account, returning the lowest visibility in the nested hierarchy
-    /// (ex. if an internal class is nested in a private nested type, this method will consider it private).</remarks>
+    /// (ex. if an internal class is nested in a private nested type, method will consider it private).</remarks>
     /// <exception cref="ArgumentNullException"/>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetVisibility(this Type type)
-        => _accessor.GetVisibility(type);
+    MemberVisibility GetVisibility(Type type);
 
     /// <summary>
     /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="method"/>.
@@ -897,8 +786,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetVisibility(this MethodBase method)
-        => _accessor.GetVisibility(method);
+    MemberVisibility GetVisibility(MethodBase method);
 
     /// <summary>
     /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="field"/>.
@@ -907,8 +795,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetVisibility(this FieldInfo field)
-        => _accessor.GetVisibility(field);
+    MemberVisibility GetVisibility(FieldInfo field);
 
     /// <summary>
     /// Gets a simplified enum representing the visiblity (accessibility) of a <paramref name="property"/>.
@@ -917,8 +804,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetVisibility(this PropertyInfo property)
-        => _accessor.GetVisibility(property);
+    MemberVisibility GetVisibility(PropertyInfo property);
 
     /// <summary>
     /// Gets a simplified enum representing the visiblity (accessibility) of an <paramref name="event"/>.
@@ -927,8 +813,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetVisibility(this EventInfo @event)
-        => _accessor.GetVisibility(@event);
+    MemberVisibility GetVisibility(EventInfo @event);
 
     /// <summary>
     /// Get the highest visibilty needed for both of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
@@ -938,8 +823,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2)
-        => _accessor.GetHighestVisibility(method1, method2);
+    MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2);
 
     /// <summary>
     /// Get the highest visibilty needed for all three of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
@@ -949,8 +833,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2, MethodInfo? method3)
-        => _accessor.GetHighestVisibility(method1, method2, method3);
+    MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2, MethodInfo? method3);
 
     /// <summary>
     /// Get the highest visibilty needed for all of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
@@ -960,8 +843,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetHighestVisibility(params MethodInfo?[] methods)
-        => _accessor.GetHighestVisibility(methods);
+    MemberVisibility GetHighestVisibility(params MethodInfo?[] methods);
 
     /// <summary>
     /// Checks if <paramref name="assembly"/> has a <see cref="InternalsVisibleToAttribute"/> with the given <paramref name="assemblyName"/>.
@@ -970,8 +852,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool AssemblyGivesInternalAccess(Assembly assembly, string assemblyName)
-        => _accessor.AssemblyGivesInternalAccess(assembly, assemblyName);
+    bool AssemblyGivesInternalAccess(Assembly assembly, string assemblyName);
 
     /// <summary>
     /// Checks <paramref name="method"/> for the <see langword="extern"/> flag.
@@ -979,8 +860,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsExtern(this MethodBase method)
-        => _accessor.IsExtern(method);
+    bool IsExtern(MethodBase method);
 
     /// <summary>
     /// Checks <paramref name="field"/> for the <see langword="extern"/> flag.
@@ -988,8 +868,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsExtern(this FieldInfo field)
-        => _accessor.IsExtern(field);
+    bool IsExtern(FieldInfo field);
 
     /// <summary>
     /// Checks <paramref name="property"/>'s getter and setter for the <see langword="extern"/> flag.
@@ -997,8 +876,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsExtern(this PropertyInfo property, bool checkGetterFirst = true)
-        => _accessor.IsExtern(property, checkGetterFirst);
+    bool IsExtern(PropertyInfo property, bool checkGetterFirst = true);
 
     /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
@@ -1007,8 +885,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsDefinedSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
-        => _accessor.IsDefinedSafe<TAttribute>(member, inherit);
+    bool IsDefinedSafe<TAttribute>(ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute;
 
     /// <summary>
     /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
@@ -1021,8 +898,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsDefinedSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
-        => _accessor.IsDefinedSafe(member, attributeType, inherit);
+    bool IsDefinedSafe(ICustomAttributeProvider member, Type attributeType, bool inherit = false);
 
     /// <summary>
     /// Checks for the attribute of type <c>System.Runtime.CompilerServices.<paramref name="typeName"/></c> on <paramref name="member"/>.
@@ -1034,8 +910,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsCompilerAttributeDefinedSafe(this ICustomAttributeProvider member, string typeName, bool inherit = false)
-        => _accessor.IsCompilerAttributeDefinedSafe(member, typeName, inherit);
+    bool IsCompilerAttributeDefinedSafe(ICustomAttributeProvider member, string typeName, bool inherit = false);
 
     /// <summary>
     /// Checks for the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
@@ -1044,8 +919,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool HasAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
-        => _accessor.HasAttributeSafe<TAttribute>(member, inherit);
+    bool HasAttributeSafe<TAttribute>(ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute;
 
     /// <summary>
     /// Checks for the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
@@ -1058,8 +932,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool HasAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
-        => _accessor.HasAttributeSafe(member, attributeType, inherit);
+    bool HasAttributeSafe(ICustomAttributeProvider member, Type attributeType, bool inherit = false);
 
     /// <summary>
     /// Checks for the attribute of type <c>System.Runtime.CompilerServices.<paramref name="typeName"/></c> on <paramref name="member"/>.
@@ -1071,8 +944,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool HasCompilerAttributeSafe(this ICustomAttributeProvider member, string typeName, bool inherit = false)
-        => _accessor.HasCompilerAttributeSafe(member, typeName, inherit);
+    bool HasCompilerAttributeSafe(ICustomAttributeProvider member, string typeName, bool inherit = false);
 
     /// <summary>
     /// Checks for and returns the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
@@ -1084,8 +956,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TAttribute? GetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
-        => _accessor.GetAttributeSafe<TAttribute>(member, inherit);
+    TAttribute? GetAttributeSafe<TAttribute>(ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute;
 
     /// <summary>
     /// Checks for and returns the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
@@ -1098,8 +969,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Attribute? GetAttributeSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
-        => _accessor.GetAttributeSafe(member, attributeType, inherit);
+    Attribute? GetAttributeSafe(ICustomAttributeProvider member, Type attributeType, bool inherit = false);
 
     /// <summary>
     /// Checks for and returns the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
@@ -1110,8 +980,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TAttribute[] GetAttributesSafe<TAttribute>(this ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute
-        => _accessor.GetAttributesSafe<TAttribute>(member, inherit);
+    TAttribute[] GetAttributesSafe<TAttribute>(ICustomAttributeProvider member, bool inherit = false) where TAttribute : Attribute;
 
     /// <summary>
     /// Checks for and returns the attribute of type <paramref name="attributeType"/> on <paramref name="member"/>.
@@ -1123,8 +992,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Attribute[] GetAttributesSafe(this ICustomAttributeProvider member, Type attributeType, bool inherit = false)
-        => _accessor.GetAttributesSafe(member, attributeType, inherit);
+    Attribute[] GetAttributesSafe(ICustomAttributeProvider member, Type attributeType, bool inherit = false);
 
     /// <summary>
     /// Checks for and outputs the the attribute of type <typeparamref name="TAttribute"/> on <paramref name="member"/>.
@@ -1137,8 +1005,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool TryGetAttributeSafe<TAttribute>(this ICustomAttributeProvider member, out TAttribute attribute, bool inherit = false) where TAttribute : Attribute
-        => _accessor.TryGetAttributeSafe(member, out attribute, inherit);
+    bool TryGetAttributeSafe<TAttribute>(ICustomAttributeProvider member, out TAttribute attribute, bool inherit = false) where TAttribute : Attribute;
 
     /// <summary>
     /// Checks for the <see cref="T:System.Runtime.CompilerServices.IsReadOnlyAttribute"/> on <paramref name="member"/>, which signifies the readonly value.
@@ -1147,8 +1014,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsReadOnly(this ICustomAttributeProvider member)
-        => _accessor.IsReadOnly(member);
+    bool IsReadOnly(ICustomAttributeProvider member);
 
     /// <summary>
     /// Checks for the <see cref="T:System.Runtime.CompilerServices.IsByRefLikeAttribute"/> on <paramref name="type"/>, or <see cref="P:System.Type.IsByRefLike"/> on newer platforms.
@@ -1156,8 +1022,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsByRefLikeType(this Type type)
-        => _accessor.IsByRefLikeType(type);
+    bool IsByRefLikeType(Type type);
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="type"/>.
@@ -1165,8 +1030,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsIgnored(this Type type)
-        => _accessor.IsIgnored(type);
+    bool IsIgnored(Type type);
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="member"/>.
@@ -1174,8 +1038,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsIgnored(this MemberInfo member)
-        => _accessor.IsIgnored(member);
+    bool IsIgnored(MemberInfo member);
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="assembly"/>.
@@ -1183,8 +1046,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsIgnored(this Assembly assembly)
-        => _accessor.IsIgnored(assembly);
+    bool IsIgnored(Assembly assembly);
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="parameter"/>.
@@ -1192,8 +1054,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsIgnored(this ParameterInfo parameter)
-        => _accessor.IsIgnored(parameter);
+    bool IsIgnored(ParameterInfo parameter);
 
     /// <summary>
     /// Checks for the <see cref="IgnoreAttribute"/> on <paramref name="module"/>.
@@ -1201,8 +1062,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool IsIgnored(this Module module)
-        => _accessor.IsIgnored(module);
+    bool IsIgnored(Module module);
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="type"/> and returns the priority (or zero if not found).
@@ -1210,8 +1070,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static int GetPriority(this Type type)
-        => _accessor.GetPriority(type);
+    int GetPriority(Type type);
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="member"/> and returns the priority (or zero if not found).
@@ -1219,8 +1078,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static int GetPriority(this MemberInfo member)
-        => _accessor.GetPriority(member);
+    int GetPriority(MemberInfo member);
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="assembly"/> and returns the priority (or zero if not found).
@@ -1228,8 +1086,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static int GetPriority(this Assembly assembly)
-        => _accessor.GetPriority(assembly);
+    int GetPriority(Assembly assembly);
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="parameter"/> and returns the priority (or zero if not found).
@@ -1237,8 +1094,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static int GetPriority(this ParameterInfo parameter)
-        => _accessor.GetPriority(parameter);
+    int GetPriority(ParameterInfo parameter);
 
     /// <summary>
     /// Checks for the <see cref="PriorityAttribute"/> on <paramref name="module"/> and returns the priority (or zero if not found).
@@ -1246,8 +1102,23 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static int GetPriority(this Module module)
-        => _accessor.GetPriority(module);
+    int GetPriority(Module module);
+
+    /// <summary>
+    /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
+    /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    int SortTypesByPriorityHandler(Type a, Type b);
+
+    /// <summary>
+    /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
+    /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    int SortMembersByPriorityHandler(MemberInfo a, MemberInfo b);
 
     /// <summary>
     /// Safely gets the reflection method info of the passed method. Works best with static methods.<br/><br/>
@@ -1259,8 +1130,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MethodInfo? GetMethod(Delegate @delegate)
-        => _accessor.GetMethod(@delegate);
+    MethodInfo? GetMethod(Delegate @delegate);
 
     /// <param name="returnType">Return type of the method.</param>
     /// <param name="parameters">Method parameters, not including the instance.</param>
@@ -1270,14 +1140,13 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Type? GetDefaultDelegate(Type returnType,
+    Type? GetDefaultDelegate(Type returnType,
 #if NET45_OR_GREATER
         IReadOnlyList<ParameterInfo> parameters,
 #else
         IList<ParameterInfo> parameters,
 #endif
-        Type? instanceType)
-        => _accessor.GetDefaultDelegate(returnType, parameters, instanceType);
+        Type? instanceType);
 
     /// <summary>
     /// Used to perform a repeated <paramref name="action"/> for each base type of a <paramref name="type"/>.
@@ -1286,8 +1155,7 @@ public static class Accessor
     /// <param name="action">Called optionally for <paramref name="type"/>, then for each base type in order from most related to least related.</param>
     /// <param name="includeParent">Call <paramref name="action"/> on <paramref name="type"/>. Overrides <paramref name="excludeSystemBase"/>.</param>
     /// <param name="excludeSystemBase">Excludes calling <paramref name="action"/> for <see cref="object"/> or <see cref="ValueType"/>.</param>
-    public static void ForEachBaseType(this Type type, ForEachBaseType action, bool includeParent = true, bool excludeSystemBase = true)
-        => _accessor.ForEachBaseType(type, action, includeParent, excludeSystemBase);
+    void ForEachBaseType(Type type, ForEachBaseType action, bool includeParent = true, bool excludeSystemBase = true);
 
     /// <summary>
     /// Used to perform a repeated <paramref name="action"/> for each base type of a <paramref name="type"/>.
@@ -1297,30 +1165,26 @@ public static class Accessor
     /// <param name="action">Called optionally for <paramref name="type"/>, then for each base type in order from most related to least related.</param>
     /// <param name="includeParent">Call <paramref name="action"/> on <paramref name="type"/>. Overrides <paramref name="excludeSystemBase"/>.</param>
     /// <param name="excludeSystemBase">Excludes calling <paramref name="action"/> for <see cref="object"/> or <see cref="ValueType"/>.</param>
-    public static void ForEachBaseType(this Type type, ForEachBaseTypeWhile action, bool includeParent = true, bool excludeSystemBase = true)
-        => _accessor.ForEachBaseType(type, action, includeParent, excludeSystemBase);
+    void ForEachBaseType(Type type, ForEachBaseTypeWhile action, bool includeParent = true, bool excludeSystemBase = true);
 
     /// <returns>Every type defined in the calling assembly.</returns>
     [MethodImpl(MethodImplOptions.NoInlining)]
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static List<Type> GetTypesSafe(bool removeIgnored = false)
-        => _accessor.GetTypesSafe(Assembly.GetCallingAssembly(), removeIgnored);
+    List<Type> GetTypesSafe(bool removeIgnored = false);
 
     /// <returns>Every type defined in <paramref name="assembly"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static List<Type> GetTypesSafe(Assembly assembly, bool removeIgnored = false)
-        => _accessor.GetTypesSafe(assembly, removeIgnored);
+    List<Type> GetTypesSafe(Assembly assembly, bool removeIgnored = false);
 
     /// <returns>Every type defined in the provided <paramref name="assmeblies"/>.</returns>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static List<Type> GetTypesSafe(IEnumerable<Assembly> assmeblies, bool removeIgnored = false)
-        => _accessor.GetTypesSafe(assmeblies, removeIgnored);
+    List<Type> GetTypesSafe(IEnumerable<Assembly> assmeblies, bool removeIgnored = false);
 
     /// <summary>
     /// Takes a method declared in an interface and returns an implementation on <paramref name="type"/>. Useful for getting explicit implementations.
@@ -1329,22 +1193,19 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MethodInfo? GetImplementedMethod(Type type, MethodInfo interfaceMethod)
-        => _accessor.GetImplementedMethod(type, interfaceMethod);
+    MethodInfo? GetImplementedMethod(Type type, MethodInfo interfaceMethod);
 
     /// <summary>
     /// Gets the (cached) <paramref name="returnType"/> and <paramref name="parameters"/> of a <typeparamref name="TDelegate"/> delegate type.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
-    public static void GetDelegateSignature<TDelegate>(out Type returnType, out ParameterInfo[] parameters) where TDelegate : Delegate
-        => _accessor.GetDelegateSignature<TDelegate>(out returnType, out parameters);
+    void GetDelegateSignature<TDelegate>(out Type returnType, out ParameterInfo[] parameters) where TDelegate : Delegate;
 
     /// <summary>
     /// Gets the (cached) <paramref name="returnParameter"/> and <paramref name="parameters"/> of a <typeparamref name="TDelegate"/> delegate type.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
-    public static void GetDelegateSignature<TDelegate>(out ParameterInfo? returnParameter, out ParameterInfo[] parameters) where TDelegate : Delegate
-        => _accessor.GetDelegateSignature<TDelegate>(out returnParameter, out parameters);
+    void GetDelegateSignature<TDelegate>(out ParameterInfo? returnParameter, out ParameterInfo[] parameters) where TDelegate : Delegate;
 
     /// <summary>
     /// Gets the (cached) return type of a <typeparamref name="TDelegate"/> delegate type.
@@ -1353,8 +1214,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Type GetReturnType<TDelegate>() where TDelegate : Delegate
-        => _accessor.GetReturnType<TDelegate>();
+    Type GetReturnType<TDelegate>() where TDelegate : Delegate;
 
     /// <summary>
     /// Gets the (cached) return parameter info of a <typeparamref name="TDelegate"/> delegate type.
@@ -1363,8 +1223,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static ParameterInfo? GetReturnParameter<TDelegate>() where TDelegate : Delegate
-        => _accessor.GetReturnParameter<TDelegate>();
+    ParameterInfo? GetReturnParameter<TDelegate>() where TDelegate : Delegate;
 
     /// <summary>
     /// Gets the (cached) parameters of a <typeparamref name="TDelegate"/> delegate type.
@@ -1373,8 +1232,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static ParameterInfo[] GetParameters<TDelegate>() where TDelegate : Delegate
-        => _accessor.GetParameters<TDelegate>();
+    ParameterInfo[] GetParameters<TDelegate>() where TDelegate : Delegate;
 
     /// <summary>
     /// Gets the (cached) <see langword="Invoke"/> method of a <typeparamref name="TDelegate"/> delegate type. All delegates have one by default.
@@ -1383,22 +1241,19 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MethodInfo GetInvokeMethod<TDelegate>() where TDelegate : Delegate
-        => _accessor.GetInvokeMethod<TDelegate>();
+    MethodInfo GetInvokeMethod<TDelegate>() where TDelegate : Delegate;
 
     /// <summary>
     /// Gets the <paramref name="returnType"/> and <paramref name="parameters"/> of a <paramref name="delegateType"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
-    public static void GetDelegateSignature(Type delegateType, out Type returnType, out ParameterInfo[] parameters)
-        => _accessor.GetDelegateSignature(delegateType, out returnType, out parameters);
+    void GetDelegateSignature(Type delegateType, out Type returnType, out ParameterInfo[] parameters);
 
     /// <summary>
     /// Gets the <paramref name="returnParameter"/> and <paramref name="parameters"/> of a <paramref name="delegateType"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
-    public static void GetDelegateSignature(Type delegateType, out ParameterInfo? returnParameter, out ParameterInfo[] parameters)
-        => _accessor.GetDelegateSignature(delegateType, out returnParameter, out parameters);
+    void GetDelegateSignature(Type delegateType, out ParameterInfo? returnParameter, out ParameterInfo[] parameters);
 
     /// <summary>
     /// Gets the return type of a <paramref name="delegateType"/>.
@@ -1408,8 +1263,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Type GetReturnType(Type delegateType)
-        => _accessor.GetReturnType(delegateType);
+    Type GetReturnType(Type delegateType);
 
     /// <summary>
     /// Gets the return parameter info of a <paramref name="delegateType"/>.
@@ -1419,8 +1273,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static ParameterInfo? GetReturnParameter(Type delegateType)
-        => _accessor.GetReturnParameter(delegateType);
+    ParameterInfo? GetReturnParameter(Type delegateType);
 
     /// <summary>
     /// Gets the parameters of a <paramref name="delegateType"/>.
@@ -1430,8 +1283,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static ParameterInfo[] GetParameters(Type delegateType)
-        => _accessor.GetParameters(delegateType);
+    ParameterInfo[] GetParameters(Type delegateType);
 
     /// <summary>
     /// Gets the (cached) <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
@@ -1441,8 +1293,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MethodInfo GetInvokeMethod(Type delegateType)
-        => _accessor.GetInvokeMethod(delegateType);
+    MethodInfo GetInvokeMethod(Type delegateType);
 
     /// <summary>
     /// Get the 'type' of a member, returns <see cref="FieldInfo.FieldType"/> or <see cref="PropertyInfo.PropertyType"/> or
@@ -1451,8 +1302,8 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static Type? GetMemberType(this MemberInfo member)
-        => _accessor.GetMemberType(member);
+    Type? GetMemberType(MemberInfo member);
+
 
     /// <summary>
     /// Check any member for being static.
@@ -1460,8 +1311,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool GetIsStatic(this MemberInfo member)
-        => _accessor.GetIsStatic(member);
+    bool GetIsStatic(MemberInfo member);
 
     /// <summary>
     /// Decide if a method should be callvirt'd instead of call'd. Usually you will use <see cref="ShouldCallvirtRuntime"/> instead as it doesn't account for possible future keyword changes.
@@ -1470,8 +1320,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool ShouldCallvirt(this MethodBase method)
-        => _accessor.ShouldCallvirt(method);
+    bool ShouldCallvirt(MethodBase method);
 
     /// <summary>
     /// Decide if a method should be callvirt'd instead of call'd at runtime. Doesn't account for future changes.
@@ -1480,8 +1329,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool ShouldCallvirtRuntime(this MethodBase method)
-        => _accessor.ShouldCallvirtRuntime(method);
+    bool ShouldCallvirtRuntime(MethodBase method);
 
     /// <summary>
     /// Return the correct call <see cref="OpCode"/> to use depending on the method. Usually you will use <see cref="GetCallRuntime"/> instead as it doesn't account for possible future keyword changes.
@@ -1490,8 +1338,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static OpCode GetCall(this MethodBase method)
-        => _accessor.GetCall(method);
+    OpCode GetCall(MethodBase method);
 
     /// <summary>
     /// Return the correct call <see cref="OpCode"/> to use depending on the method at runtime. Doesn't account for future changes.
@@ -1500,8 +1347,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static OpCode GetCallRuntime(this MethodBase method)
-        => _accessor.GetCallRuntime(method);
+    OpCode GetCallRuntime(MethodBase method);
 
     /// <summary>
     /// Get the underlying array from a list.
@@ -1511,8 +1357,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TElementType[] GetUnderlyingArray<TElementType>(this List<TElementType> list)
-        => _accessor.GetUnderlyingArray(list);
+    TElementType[] GetUnderlyingArray<TElementType>(List<TElementType> list);
 
     /// <summary>
     /// Get the underlying array from a list, or in the case of a reflection failure calls <see cref="List{TElementType}.ToArray"/> on <paramref name="list"/> and returns that.
@@ -1521,8 +1366,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static TElementType[] GetUnderlyingArrayOrCopy<TElementType>(this List<TElementType> list)
-        => _accessor.GetUnderlyingArrayOrCopy(list);
+    TElementType[] GetUnderlyingArrayOrCopy<TElementType>(List<TElementType> list);
 
     /// <summary>
     /// Get the version of a list, which is incremented each time the list is updated.
@@ -1532,22 +1376,19 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static int GetListVersion<TElementType>(this List<TElementType> list)
-        => _accessor.GetListVersion(list);
+    int GetListVersion<TElementType>(List<TElementType> list);
 
     /// <summary>
     /// Get the underlying array from a list.
     /// </summary>
     /// <exception cref="ArgumentNullException"/>
-    public static bool TryGetUnderlyingArray<TElementType>(List<TElementType> list, out TElementType[] underlyingArray)
-        => _accessor.TryGetUnderlyingArray(list, out underlyingArray);
+    bool TryGetUnderlyingArray<TElementType>(List<TElementType> list, out TElementType[] underlyingArray);
 
     /// <summary>
     /// Get the version of a list, which is incremented each time the list is updated.
     /// </summary>
     /// <exception cref="ArgumentNullException"/>
-    public static bool TryGetListVersion<TElementType>(List<TElementType> list, out int version)
-        => _accessor.TryGetListVersion(list, out version);
+    bool TryGetListVersion<TElementType>(List<TElementType> list, out int version);
 
     /// <summary>
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <paramref name="queriedType"/>. 
@@ -1556,8 +1397,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool CouldBeAssignedTo(this Type actualType, Type queriedType)
-        => _accessor.CouldBeAssignedTo(actualType, queriedType);
+    bool CouldBeAssignedTo(Type actualType, Type queriedType);
 
     /// <summary>
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <typeparamref name="T"/>. 
@@ -1566,47 +1406,241 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static bool CouldBeAssignedTo<T>(this Type actualType)
-        => _accessor.CouldBeAssignedTo<T>(actualType);
+    bool CouldBeAssignedTo<T>(Type actualType);
+
+    /// <summary>
+    /// Nethod to get a <see cref="IOpCodeEmitter"/> from an existing <see cref="ILGenerator"/>.
+    /// </summary>
+    /// <param name="generator"><see cref="ILGenerator"/> to wrap.</param>
+    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IOpCodeEmitter AsEmitter(ILGenerator generator, bool debuggable = false, bool addBreakpoints = false);
+
+    /// <summary>
+    /// Method to get a <see cref="IOpCodeEmitter"/> from an existing <see cref="DynamicMethod"/>.
+    /// </summary>
+    /// <param name="dynMethod">Dynamic method.</param>
+    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IOpCodeEmitter AsEmitter(DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
+
+    /// <summary>
+    /// Method to get a <see cref="IOpCodeEmitter"/> from an existing <see cref="MethodBuilder"/>.
+    /// </summary>
+    /// <param name="methodBuilder">Dynamic method builder.</param>
+    /// <param name="debuggable">Shows debug logging as the method generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+    /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IOpCodeEmitter AsEmitter(MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
+
+    /// <summary>
+    /// Creates an abstracted <see cref="IVariable"/> for <paramref name="field"/>.
+    /// </summary>
+    /// <param name="field">The underlying field.</param>
+    /// <returns>An abstracted variable with <paramref name="field"/> as it's underlying field.</returns>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IVariable AsVariable(FieldInfo field);
+
+    /// <summary>
+    /// Creates an abstracted <see cref="IVariable"/> for <paramref name="property"/>.
+    /// </summary>
+    /// <param name="property">The underlying property.</param>
+    /// <returns>An abstracted variable with <paramref name="property"/> as it's underlying property.</returns>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IVariable AsVariable(PropertyInfo property);
+
+    /// <summary>
+    /// Creates an abstracted <see cref="IVariable"/> for <paramref name="member"/>, a field or property.
+    /// </summary>
+    /// <param name="member">The underlying field or property. Must be of type <see cref="FieldInfo"/> or <see cref="PropertyInfo"/>.</param>
+    /// <returns>An abstracted variable with <paramref name="member"/> as it's underlying field or property.</returns>
+    /// <exception cref="ArgumentNullException"/>
+    /// <exception cref="ArgumentException"><paramref name="member"/> is not a field or property.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IVariable AsVariable(MemberInfo member);
+
+    /// <summary>
+    /// Creates a static, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="field"/>.
+    /// </summary>
+    /// <param name="field">The underlying field.</param>
+    /// <typeparam name="TMemberType">The field type of <paramref name="field"/>.</typeparam>
+    /// <returns>An abstracted variable with <paramref name="field"/> as it's underlying field.</returns>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IStaticVariable<TMemberType> AsStaticVariable<TMemberType>(FieldInfo field);
+
+    /// <summary>
+    /// Creates a static, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="property"/>.
+    /// </summary>
+    /// <param name="property">The underlying property.</param>
+    /// <typeparam name="TMemberType">The property type of <paramref name="property"/>.</typeparam>
+    /// <returns>An abstracted variable with <paramref name="property"/> as it's underlying property.</returns>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IStaticVariable<TMemberType> AsStaticVariable<TMemberType>(PropertyInfo property);
+
+    /// <summary>
+    /// Creates an instance, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="field"/>.
+    /// </summary>
+    /// <param name="field">The underlying field.</param>
+    /// <typeparam name="TMemberType">The field type of <paramref name="field"/>.</typeparam>
+    /// <typeparam name="TDeclaringType">The type that <paramref name="field"/> is declared in.</typeparam>
+    /// <returns>An abstracted variable with <paramref name="field"/> as it's underlying field.</returns>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IInstanceVariable<TDeclaringType, TMemberType> AsInstanceVariable<TDeclaringType, TMemberType>(FieldInfo field);
+
+    /// <summary>
+    /// Creates an instance, strongly-typed, abstracted <see cref="IVariable"/> for <paramref name="property"/>.
+    /// </summary>
+    /// <param name="property">The underlying property.</param>
+    /// <typeparam name="TMemberType">The property type of <paramref name="property"/>.</typeparam>
+    /// <typeparam name="TDeclaringType">The type that <paramref name="property"/> is declared in.</typeparam>
+    /// <returns>An abstracted variable with <paramref name="property"/> as it's underlying property.</returns>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IInstanceVariable<TDeclaringType, TMemberType> AsInstanceVariable<TDeclaringType, TMemberType>(PropertyInfo property);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="variable">The found variable, or <see langword="null"/>.</param>
+    /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
+    /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    bool TryFind<TDeclaringType>(string name, out IVariable? variable, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="variable">The found variable, or <see langword="null"/>.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    bool TryFind(Type declaringType, string name, out IVariable? variable, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="variable">The found variable, or <see langword="null"/>.</param>
+    /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
+    /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
+    /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    bool TryFindStatic<TDeclaringType, TMemberType>(string name, out IStaticVariable<TMemberType>? variable, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <param name="variable">The found variable, or <see langword="null"/>.</param>
+    /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
+    /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
+    /// <returns><see langword="true"/> if the variable was found, otherwise <see langword="false"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    bool TryFindStatic<TMemberType>(Type declaringType, string name, out IStaticVariable<TMemberType>? variable, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
+    /// <returns>The found variable, or <see langword="null"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IVariable? Find<TDeclaringType>(string name, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
+    /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
+    /// <returns>The found variable, or <see langword="null"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IStaticVariable<TMemberType>? FindStatic<TDeclaringType, TMemberType>(string name, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a variable by declaring type and name.
+    /// </summary>
+    /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <returns>The found variable, or <see langword="null"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IVariable? Find(Type declaringType, string name, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find a static variable by declaring type and name.
+    /// </summary>
+    /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
+    /// <param name="declaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</param>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <returns>The found variable, or <see langword="null"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IStaticVariable<TMemberType>? FindStatic<TMemberType>(Type declaringType, string name, bool ignoreCase = false);
+
+    /// <summary>
+    /// Find an instance variable by declaring type and name.
+    /// </summary>
+    /// <typeparam name="TMemberType">The type of the field or property.</typeparam>
+    /// <typeparam name="TDeclaringType">Type which declares the member, or a type up the hierarchy of a type that declares the member.</typeparam>
+    /// <param name="name">Exact name of the field or property.</param>
+    /// <param name="ignoreCase">Whether or not to perform a case-insensitive search.</param>
+    /// <returns>The found variable, or <see langword="null"/>.</returns>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IInstanceVariable<TDeclaringType, TMemberType>? FindInstance<TDeclaringType, TMemberType>(string name, bool ignoreCase = false);
 }
-
-/// <summary>
-/// Represents a setter for an instance field or property.
-/// </summary>
-/// <typeparam name="TInstance">The declaring type of the member.</typeparam>
-/// <typeparam name="T">The return type of the member</typeparam>
-public delegate void InstanceSetter<in TInstance, in T>(TInstance owner, T value);
-
-/// <summary>
-/// Represents a getter for an instance field or property.
-/// </summary>
-/// <typeparam name="TInstance">The declaring type of the member.</typeparam>
-/// <typeparam name="T">The return type of the member</typeparam>
-public delegate T InstanceGetter<in TInstance, out T>(TInstance owner);
-
-/// <summary>
-/// Represents a setter for a static field or property.
-/// </summary>
-/// <typeparam name="T">The return type of the member</typeparam>
-public delegate void StaticSetter<in T>(T value);
-
-/// <summary>
-/// Represents a getter for a static field or property.
-/// </summary>
-/// <typeparam name="T">The return type of the member</typeparam>
-public delegate T StaticGetter<out T>();
-
-/// <summary>
-/// Used with <see cref="Accessor.ForEachBaseType(Type, ForEachBaseType, bool, bool)"/>
-/// </summary>
-/// <param name="type">The current type in the hierarchy.</param>
-/// <param name="depth">Number of types below the provided type this base type is. Will be zero if the type returned is the provided type, 1 for its base type, and so on.</param>
-public delegate void ForEachBaseType(Type type, int depth);
-
-/// <summary>
-/// Used with <see cref="Accessor.ForEachBaseType(Type, ForEachBaseTypeWhile, bool, bool)"/>
-/// </summary>
-/// <param name="type">The current type in the hierarchy.</param>
-/// <param name="depth">Number of types below the provided type this base type is. Will be zero if the type returned is the provided type, 1 for its base type, and so on.</param>
-/// <returns><see langword="True"/> to continue, <see langword="false"/> to break.</returns>
-public delegate bool ForEachBaseTypeWhile(Type type, int depth);
