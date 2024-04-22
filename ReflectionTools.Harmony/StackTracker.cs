@@ -1,27 +1,26 @@
 ﻿using HarmonyLib;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace DanielWillett.ReflectionTools;
+namespace DanielWillett.ReflectionTools.Harmony;
 
 /// <summary>
-/// Tool for keeping up with the stack size of a transpiler.
+/// Tool for keeping up with the stack size of a transpiler. <c>calli</c> instructions are not supported.
 /// </summary>
 /// <remarks>It's okay if the given list changes after passing it.</remarks>
-public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
+public class StackTracker(List<CodeInstruction> instructions, MethodBase method, IAccessor accessor)
 {
-    private static readonly InstanceGetter<SignatureHelper, Type[]>? GetArguments = Accessor.GenerateInstanceGetter<SignatureHelper, Type[]>("arguments");
-    private static readonly InstanceGetter<SignatureHelper, Type>? GetReturnType = Accessor.GenerateInstanceGetter<SignatureHelper, Type>("returnType");
+    private readonly IAccessor _accessor = accessor ?? Accessor.Active;
     private int _lastStackSizeIs0;
     private int _listVersion;
 
     /// <summary>
     /// Get the stack size change of this <see cref="OpCode"/> with the given operand and method.
     /// </summary>
+    /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
     /// <remarks>This does not take into account catch blocks, so if one is present one must be added to the stack change.</remarks>
     public static int GetStackChange(OpCode code, object? operand, MethodBase owningMethod)
     {
@@ -35,9 +34,8 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
                     if (!method.IsStatic && method is MethodInfo)
                         ++pop;
                     break;
-                case SignatureHelper method when code == OpCodes.Calli && GetArguments != null:
-                    pop = GetArguments(method).Length;
-                    break;
+                case SignatureHelper when code == OpCodes.Calli:
+                    throw new NotSupportedException("Calli not supported.");
                 default:
                     if (code == OpCodes.Ret && owningMethod is MethodInfo m && m.ReturnType != typeof(void))
                         pop = 1;
@@ -57,11 +55,8 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
                         push = 1;
                     else push = 0;
                     break;
-                case SignatureHelper method when code == OpCodes.Calli && GetReturnType != null:
-                    if (GetReturnType(method) != typeof(void))
-                        push = 1;
-                    else push = 0;
-                    break;
+                case SignatureHelper when code == OpCodes.Calli:
+                    throw new NotSupportedException("Calli not supported.");
                 default:
                     push = 0;
                     break;
@@ -111,6 +106,7 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
     /// <summary>
     /// Tries to calculate the stack size before the given instruction index.
     /// </summary>
+    /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
     public bool TryGetStackSizeAtIndex(int startIndex, out int stackSize)
     {
         if (startIndex == 0)
@@ -175,6 +171,7 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
     /// <param name="code">Code to match. Use the other overload for a wildcard match.</param>
     /// <param name="operand">Operand to match, or <see langword="null"/> for a wildcard.</param>
     /// <exception cref="InvalidProgramException">At any point your stack size drops below zero.</exception>
+    /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
     public int GetLastUnconsumedIndex(int startIndex, OpCode code, object? operand = null)
     {
         int stackSize = 0;
@@ -215,13 +212,13 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
                 ++stackSize;
             if (stackSize < 0)
             {
-                if (Accessor.LogErrorMessages)
+                if (_accessor.LogErrorMessages)
                 {
-                    IReflectionToolsLogger logger = Accessor.Logger;
+                    IReflectionToolsLogger? logger = _accessor.Logger;
                     logger?.LogError(nameof(StackTracker), null, "Stack size less than 0 around the following lines of IL: ");
 
                     for (int j = Math.Max(0, i - 2); j < Math.Min(instructions.Count - 1, i + 2); ++j)
-                        logger?.LogError(nameof(StackTracker), null, $"#{j.Format("F4")} {instructions[j].Format()}.");
+                        logger?.LogError(nameof(StackTracker), null, $"#{j:F4} {instructions[j]}.");
                 }
 
                 throw new InvalidProgramException($"Stack size should never be less than zero. There is an issue with your IL code around index {i}.");
@@ -239,7 +236,8 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
     /// <param name="startIndex">Index to search backwards from.</param>
     /// <param name="codeFilter">Predicate for <see cref="CodeInstruction"/> to match, or <see langword="null"/> for a wildcard.</param>
     /// <exception cref="InvalidProgramException">At any point your stack size drops below zero.</exception>
-    public int GetLastUnconsumedIndex(int startIndex, PatchUtility.PatternMatch? codeFilter)
+    /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
+    public int GetLastUnconsumedIndex(int startIndex, PatternMatch? codeFilter)
     {
         int stackSize = 0;
         int lastStack = _lastStackSizeIs0;
@@ -280,10 +278,14 @@ public class StackTracker(List<CodeInstruction> instructions, MethodBase method)
                 ++stackSize;
             if (stackSize < 0)
             {
-                Logger.DevkitServer.LogError(nameof(StackTracker), "Stack size less than 0 around the following lines of IL: ");
+                if (_accessor.LogErrorMessages)
+                {
+                    IReflectionToolsLogger? logger = _accessor.Logger;
+                    logger?.LogError(nameof(StackTracker), null, "Stack size less than 0 around the following lines of IL: ");
 
-                for (int j = Math.Max(0, i - 2); j < Math.Min(instructions.Count - 1, i + 2); ++j)
-                    Logger.DevkitServer.LogError(nameof(StackTracker), $"#{j.Format("F4")} {instructions[j].Format()}.");
+                    for (int j = Math.Max(0, i - 2); j < Math.Min(instructions.Count - 1, i + 2); ++j)
+                        logger?.LogError(nameof(StackTracker), null, $"#{j:F4} {instructions[j]}.");
+                }
 
                 throw new InvalidProgramException($"Stack size should never be less than zero. There is an issue with your IL code around index {i}.");
             }

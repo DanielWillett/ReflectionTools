@@ -1,5 +1,4 @@
-﻿using DanielWillett.ReflectionTools;
-using DanielWillett.ReflectionTools.Formatting;
+﻿using DanielWillett.ReflectionTools.Harmony.Formatting;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -9,6 +8,8 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
+
+namespace DanielWillett.ReflectionTools.Harmony;
 
 /// <summary>
 /// Represents a predicate for code instructions.
@@ -24,6 +25,9 @@ public static class PatchUtility
 {
     private static ICodeInstructionFormatter _codeInsFormatter = new DefaultCodeInstructionFormatter();
 
+    /// <summary>
+    /// Formatter used to format <see cref="CodeInstruction"/>'s.
+    /// </summary>
     public static ICodeInstructionFormatter CodeInstructionFormatter
     {
         get => _codeInsFormatter;
@@ -34,9 +38,13 @@ public static class PatchUtility
                 disp.Dispose();
 
             if (Accessor.LogDebugMessages)
-                Accessor.Logger?.LogDebug("PatchUtility.CodeInstructionFormatter", $"Code instruction formatter updated: {value?.GetType().FullName ?? "null"}.");
+            {
+                Accessor.Logger?.LogDebug("PatchUtility.CodeInstructionFormatter", "Code instruction formatter updated: " +
+                    (value == null ? "null" : Accessor.ExceptionFormatter.Format(value.GetType())) + ".");
+            }
         }
     }
+
     /// <summary>
     /// Returns instructions to throw the provided <typeparamref name="TException"/> with an optional <paramref name="message"/>.
     /// </summary>
@@ -132,9 +140,9 @@ public static class PatchUtility
     public static int ReturnIfFalse(IList<CodeInstruction> instructions, ILGenerator generator, ref int index, Func<bool> checker, Label? @goto = null)
     {
         if (index < 0)
-            throw new ArgumentException($"Unable to add ReturnIfFalse ({checker.Method.Name}), index is too small: {index}.", nameof(index));
+            throw new ArgumentException($"Unable to add ReturnIfFalse ({Accessor.ExceptionFormatter.Format(checker.Method)}), index is too small: {index}.", nameof(index));
         if (index >= instructions.Count)
-            throw new ArgumentException($"Unable to add ReturnIfFalse ({checker.Method.Name}), index is too large: {index}.", nameof(index));
+            throw new ArgumentException($"Unable to add ReturnIfFalse ({Accessor.ExceptionFormatter.Format(checker.Method)}), index is too large: {index}.", nameof(index));
         if (@goto.HasValue)
         {
             CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);

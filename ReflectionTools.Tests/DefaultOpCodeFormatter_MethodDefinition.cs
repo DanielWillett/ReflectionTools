@@ -1,38 +1,24 @@
 ﻿using DanielWillett.ReflectionTools.Formatting;
-using System.Reflection;
 
 namespace DanielWillett.ReflectionTools.Tests;
 
 [TestClass]
 [TestCategory("DefaultOpCodeFormatter")]
-public class DefaultOpCodeFormatter_Methods
+public class DefaultOpCodeFormatter_MethodDefinition
 {
-    public DefaultOpCodeFormatter_Methods()
-    {
-        Console.WriteLine("c1");
-    }
-    static DefaultOpCodeFormatter_Methods()
-    {
-        Console.WriteLine("sc1");
-    }
-    public DefaultOpCodeFormatter_Methods(string str1)
-    {
-        Console.WriteLine("c2");
-    }
-    private unsafe DefaultOpCodeFormatter_Methods(scoped in Version**[][,,][,] test, SpinLock l)
-    {
-        Console.WriteLine("c3");
-    }
-    private static void TestMethod1() { }
 
     [TestMethod]
-    public void WriteStaticCtorMethod()
+    public void WriteCtorMethod()
     {
-        ConstructorInfo method = GetType()
-            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
-            .First();
+        MethodDefinition method =
+            new MethodDefinition(typeof(DefaultOpCodeFormatter_MethodDefinition))
+                .WithParameter<int>("integer")
+                .WithParameter((Type?)null!, "nullParam")
+                .WithParameter((Type?)null!, null)
+                .WithParameter(typeof(string[]), null)
+                .WithParameter(typeof(string[]), "paramsArray", isParams: true);
 
-        const string expectedResult = "static DefaultOpCodeFormatter_Methods()";
+        const string expectedResult = "DefaultOpCodeFormatter_MethodDefinition(int integer, nullParam, , string[], params string[] paramsArray)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -45,64 +31,6 @@ public class DefaultOpCodeFormatter_Methods
         int formatLength = formatter.GetFormatLength(method);
         Span<char> span = stackalloc char[formatLength];
         span = span[..formatter.Format(method, span)];
-        string separateFormat = new string(span);
-
-        Console.WriteLine(separateFormat);
-        Assert.AreEqual(expectedResult, separateFormat);
-        Assert.AreEqual(formatLength, separateFormat.Length);
-#endif
-    }
-
-    [TestMethod]
-    [DataRow(0, "DefaultOpCodeFormatter_Methods()")]
-    [DataRow(1, "DefaultOpCodeFormatter_Methods(string str1)")]
-    [DataRow(2, "DefaultOpCodeFormatter_Methods(scoped in Version**[][,,][,] test, SpinLock l)")]
-    public void WriteCtorMethod(int paramCt, string expectedResult)
-    {
-        ConstructorInfo method = GetType()
-            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
-            .First(x => x.GetParameters().Length == paramCt);
-
-        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
-
-        string format = formatter.Format(method);
-        Console.WriteLine(format);
-
-        Assert.AreEqual(expectedResult, format);
-
-#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
-        int formatLength = formatter.GetFormatLength(method);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..formatter.Format(method, span)];
-        string separateFormat = new string(span);
-
-        Console.WriteLine(separateFormat);
-        Assert.AreEqual(expectedResult, separateFormat);
-        Assert.AreEqual(formatLength, separateFormat.Length);
-#endif
-    }
-
-    [TestMethod]
-    [DataRow(0, "public DefaultOpCodeFormatter_Methods()")]
-    [DataRow(1, "public DefaultOpCodeFormatter_Methods(string str1)")]
-    [DataRow(2, "private DefaultOpCodeFormatter_Methods(scoped in Version**[][,,][,] test, SpinLock l)")]
-    public void WriteCtorMethodDeclaritave(int paramCt, string expectedResult)
-    {
-        ConstructorInfo method = GetType()
-            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
-            .First(x => x.GetParameters().Length == paramCt);
-
-        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
-
-        string format = formatter.Format(method, includeDefinitionKeywords: true);
-        Console.WriteLine(format);
-
-        Assert.AreEqual(expectedResult, format);
-
-#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
-        int formatLength = formatter.GetFormatLength(method, includeDefinitionKeywords: true);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..formatter.Format(method, span, includeDefinitionKeywords: true)];
         string separateFormat = new string(span);
 
         Console.WriteLine(separateFormat);
@@ -114,10 +42,13 @@ public class DefaultOpCodeFormatter_Methods
     [TestMethod]
     public void WriteParameterlessStaticMethod()
     {
-        MethodInfo? method = Accessor.GetMethod(TestMethod1);
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestMethod1")
+                                    .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: true)
+                                    .WithNoParameters();
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "static void DefaultOpCodeFormatter_Methods.TestMethod1()";
+        const string expectedResult = "static void DefaultOpCodeFormatter_MethodDefinition.TestMethod1()";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -135,15 +66,16 @@ public class DefaultOpCodeFormatter_Methods
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
     }
-    private void TestMethod2() { }
-
     [TestMethod]
     public void WriteParameterlessNonStaticMethod()
     {
-        MethodInfo? method = Accessor.GetMethod(this.TestMethod2);
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestMethod2")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
+            .WithNoParameters();
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "void DefaultOpCodeFormatter_Methods.TestMethod2()";
+        const string expectedResult = "void DefaultOpCodeFormatter_MethodDefinition.TestMethod2()";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -164,17 +96,18 @@ public class DefaultOpCodeFormatter_Methods
 #endif
     }
 
-
-    public void TestGenericMethod1<TParam1>(TParam1 param1) { }
-    public void TestGenericMethod2<TParam1, TParam2>(TParam1 param1, TParam2 param2) { }
-
     [TestMethod]
     public void WriteGenericMethod1Param()
     {
-        MethodInfo? method = GetType().GetMethod("TestGenericMethod1", BindingFlags.Instance | BindingFlags.Public);
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestGenericMethod1")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
+            .WithGenericParameterDefinition("TParam1")
+            .WithParameter(0, "param1")
+                .CompleteGenericParameter();
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "void DefaultOpCodeFormatter_Methods.TestGenericMethod1<TParam1>(TParam1 param1)";
+        const string expectedResult = "void DefaultOpCodeFormatter_MethodDefinition.TestGenericMethod1<TParam1>(TParam1 param1)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -197,10 +130,14 @@ public class DefaultOpCodeFormatter_Methods
     [TestMethod]
     public void WriteGenericMethod1ParamWithTypes()
     {
-        MethodInfo? method = GetType().GetMethod("TestGenericMethod1", BindingFlags.Instance | BindingFlags.Public).MakeGenericMethod(typeof(Version));
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestGenericMethod1")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
+            .WithGenericParameterValue<Version>()
+            .WithParameter<Version>("param1");
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "void DefaultOpCodeFormatter_Methods.TestGenericMethod1<Version>(Version param1)";
+        const string expectedResult = "void DefaultOpCodeFormatter_MethodDefinition.TestGenericMethod1<Version>(Version param1)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -223,14 +160,27 @@ public class DefaultOpCodeFormatter_Methods
     [TestMethod]
     public void WriteGenericMethod1ParamWithElementTypes()
     {
-        MethodInfo? method = GetType().GetMethod("TestGenericMethod2", BindingFlags.Instance | BindingFlags.Public).MakeGenericMethod(typeof(Version**[][,,][,]*[,,,][,][]**[]), typeof(int**[,,,][,]*[]**[]));
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestGenericMethod2")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
+            .WithGenericParameterValue(typeof(Version**[][,,][,]*[,,,][,][]**[]))
+            .WithGenericParameterValue(typeof(int**[,,,][,]*[]**[]))
+            .WithParameter(0, "param1")
+                .CompleteGenericParameter()
+            .WithParameter(1, "param2")
+                .CompleteGenericParameter();
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "void DefaultOpCodeFormatter_Methods.TestGenericMethod2<Version**[][,,][,]*[,,,][,][]**[], int**[,,,][,]*[]**[]>(Version**[][,,][,]*[,,,][,][]**[] param1, int**[,,,][,]*[]**[] param2)";
+        const string expectedResult = "void DefaultOpCodeFormatter_MethodDefinition.TestGenericMethod2<Version**[][,,][,]*[,,,][,][]**[], int**[,,,][,]*[]**[]>(Version**[][,,][,]*[,,,][,][]**[] param1, int**[,,,][,]*[]**[] param2)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
         string format = formatter.Format(method);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+        format = formatter.Format(method);
         Console.WriteLine(format);
 
         Assert.AreEqual(expectedResult, format);
@@ -249,10 +199,31 @@ public class DefaultOpCodeFormatter_Methods
     [TestMethod]
     public void WriteGenericMethod2Param()
     {
-        MethodInfo? method = GetType().GetMethod("TestGenericMethod2", BindingFlags.Instance | BindingFlags.Public);
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestGenericMethod2")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
+            .WithGenericParameterDefinition("TParam1")
+            .WithGenericParameterDefinition("TParam2")
+            .WithParameter(0, "param1", byRefMode: ByRefTypeMode.ScopedIn)
+                .Array()
+                .ByRefType()
+                .CompleteGenericParameter()
+            .WithParameter(1, "param2", byRefMode: ByRefTypeMode.Ref)
+                .Pointer()
+                .Pointer()
+                .Array()
+                .Array(4)
+                .Array(2)
+                .Pointer()
+                .ByRefType()
+                .CompleteGenericParameter()
+            .WithParameter<int>("num3")
+            .WithParameter(0, "paramsParam", isParams: true)
+                .Array()
+                .CompleteGenericParameter();
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "void DefaultOpCodeFormatter_Methods.TestGenericMethod2<TParam1, TParam2>(TParam1 param1, TParam2 param2)";
+        const string expectedResult = "void DefaultOpCodeFormatter_MethodDefinition.TestGenericMethod2<TParam1, TParam2>(scoped in TParam1[] param1, ref TParam2**[][,,,][,]* param2, int num3, params TParam1[] paramsParam)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -272,16 +243,17 @@ public class DefaultOpCodeFormatter_Methods
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
     }
-
-    private static void TestMethod3(Version p1) { }
 
     [TestMethod]
     public void Write1ParameterStaticMethod()
     {
-        MethodInfo? method = Accessor.GetMethod(TestMethod3);
+        MethodDefinition method = new MethodDefinition(typeof(void), "TestMethod3")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: true)
+            .WithParameter<Version>("p1");
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "static void DefaultOpCodeFormatter_Methods.TestMethod3(Version p1)";
+        const string expectedResult = "static void DefaultOpCodeFormatter_MethodDefinition.TestMethod3(Version p1)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -300,25 +272,30 @@ public class DefaultOpCodeFormatter_Methods
         Assert.AreEqual(expectedResult, separateFormat);
         Assert.AreEqual(formatLength, separateFormat.Length);
 #endif
-    }
-
-    private static readonly unsafe int**[][,,][,][] ValTest = null;
-    private static unsafe ref readonly int**[][,,][,][] TestMethod4(Version p1, string s2, in SpinLock inParam, out SpinLock outParam, ref SpinLock refParam,
-        object[][] jaggedArray, object[][,,][,][] jaggedArray2, object[,] dimArray, scoped ref string[,][][,,,,][] refDimArray,
-        ref string[,]**[][,,,,][]* refDimPtrArray, int**[][,,][,] ptrDimArray,
-        params string[] formattingArgs)
-    {
-        outParam = default;
-        return ref ValTest;
     }
 
     [TestMethod]
     public unsafe void WriteMultiParameterStaticMethod()
     {
-        MethodInfo? method = Accessor.GetMethod(TestMethod4);
+        MethodDefinition method = new MethodDefinition(typeof(int**[][,,][,][]), "TestMethod4")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: true)
+            .WithReturnRefMode(ByRefTypeMode.RefReadonly)
+            .WithParameter<Version>("p1")
+            .WithParameter<string>("s2")
+            .WithParameter<SpinLock>("inParam", ByRefTypeMode.In)
+            .WithParameter<SpinLock>("outParam", ByRefTypeMode.Out)
+            .WithParameter<SpinLock>("refParam", ByRefTypeMode.Ref)
+            .WithParameter<object[][]>("jaggedArray")
+            .WithParameter<object[][,,][,][]>("jaggedArray2")
+            .WithParameter<object[,]>("dimArray")
+            .WithParameter<string[,][][,,,,][]>("refDimArray", ByRefTypeMode.ScopedRef)
+            .WithParameter(typeof(string[,]**[][,,,,][]*), "refDimPtrArray", ByRefTypeMode.Ref)
+            .WithParameter<int**[][,,][,]>("ptrDimArray")
+            .WithParameter<string[]>("formattingArgs", isParams: true);
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "static ref readonly int**[][,,][,][] DefaultOpCodeFormatter_Methods.TestMethod4(Version p1, string s2, in SpinLock inParam, out SpinLock outParam, ref SpinLock refParam, object[][] jaggedArray, object[][,,][,][] jaggedArray2, object[,] dimArray, scoped ref string[,][][,,,,][] refDimArray, ref string[,]**[][,,,,][]* refDimPtrArray, int**[][,,][,] ptrDimArray, params string[] formattingArgs)";
+        const string expectedResult = "static ref readonly int**[][,,][,][] DefaultOpCodeFormatter_MethodDefinition.TestMethod4(Version p1, string s2, in SpinLock inParam, out SpinLock outParam, ref SpinLock refParam, object[][] jaggedArray, object[][,,][,][] jaggedArray2, object[,] dimArray, scoped ref string[,][][,,,,][] refDimArray, ref string[,]**[][,,,,][]* refDimPtrArray, int**[][,,][,] ptrDimArray, params string[] formattingArgs)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
@@ -342,22 +319,26 @@ public class DefaultOpCodeFormatter_Methods
     [TestMethod]
     public void WriteInRefStructMethod()
     {
-        MethodInfo? method = typeof(TestStruct1).GetMethod(nameof(TestStruct1.TestMethod5), BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodDefinition method = new MethodDefinition(typeof(ArraySegment<ArraySegment<int>>), "TestMethod5")
+            .DeclaredIn(typeof(TestStruct1), false)
+            .WithParameter<ArraySegment<Version>>("arr")
+            .WithParameter<string[][,]>("arrays", isParams: true);
+
         Assert.IsNotNull(method);
 
-        const string expectedResult = "internal ArraySegment<ArraySegment<int>> DefaultOpCodeFormatter_Methods.TestStruct1.TestMethod5(ArraySegment<Version> arr, params string[][,] arrays)";
+        const string expectedResult = "ArraySegment<ArraySegment<int>> DefaultOpCodeFormatter_MethodDefinition.TestStruct1.TestMethod5(ArraySegment<Version> arr, params string[][,] arrays)";
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
-        string format = formatter.Format(method, includeDefinitionKeywords: true);
+        string format = formatter.Format(method);
         Console.WriteLine(format);
 
         Assert.AreEqual(expectedResult, format);
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
-        int formatLength = formatter.GetFormatLength(method, includeDefinitionKeywords: true);
+        int formatLength = formatter.GetFormatLength(method);
         Span<char> span = stackalloc char[formatLength];
-        span = span[..formatter.Format(method, span, includeDefinitionKeywords: true)];
+        span = span[..formatter.Format(method, span)];
         string separateFormat = new string(span);
 
         Console.WriteLine(separateFormat);
@@ -369,7 +350,12 @@ public class DefaultOpCodeFormatter_Methods
     [TestMethod]
     public void WriteExtMethod()
     {
-        MethodInfo? method = Accessor.GetMethod(Extensions.Ext1);
+        MethodDefinition method = new MethodDefinition(typeof(string), "Ext1")
+            .DeclaredIn(typeof(Extensions), true)
+            .WithParameter<SpinLock>("spinlock", ByRefTypeMode.ScopedIn)
+            .WithReturnRefMode(ByRefTypeMode.RefReadonly)
+            .AsExtensionMethod();
+
         Assert.IsNotNull(method);
 
         const string expectedResult = "static ref readonly string Extensions.Ext1(this scoped in SpinLock spinlock)";
@@ -393,19 +379,64 @@ public class DefaultOpCodeFormatter_Methods
 #endif
     }
 
-    private ref struct TestStruct1
+    private ref struct TestStruct1;
+
+    public delegate void TestDelegate1(int param1);
+    public unsafe delegate TGenType* TestDelegate2<TGenType>(TGenType[]**[,,][,] param1);
+
+    [TestMethod]
+    public void WriteFromDelegate()
     {
-        internal ArraySegment<ArraySegment<int>> TestMethod5(ArraySegment<Version> arr, params string[][,] arrays)
-        {
-            return default;
-        }
+        MethodDefinition method = MethodDefinition.FromDelegate<TestDelegate1>("MethodName");
+
+        Assert.IsNotNull(method);
+
+        const string expectedResult = "void MethodName(int param1)";
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(method);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(method);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(method, span)];
+        string separateFormat = new string(span);
+
+        Console.WriteLine(separateFormat);
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
     }
-}
-public static class Extensions
-{
-    private static readonly string Test;
-    public static ref readonly string Ext1(this scoped in SpinLock spinlock)
+
+    [TestMethod]
+    public void WriteFromDelegate2()
     {
-        return ref Test;
+        MethodDefinition method = MethodDefinition.FromDelegate(typeof(TestDelegate2<>), "MethodName");
+
+        Assert.IsNotNull(method);
+
+        const string expectedResult = "TGenType* MethodName<TGenType>(TGenType[]**[,,][,] param1)";
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(method);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(method);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(method, span)];
+        string separateFormat = new string(span);
+
+        Console.WriteLine(separateFormat);
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -762,6 +763,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     {
         MemberVisibility vis = _accessor.GetVisibility(method);
         ParameterInfo[] parameters = method.GetParameters();
+        Type[] genericTypeParameters = method.IsGenericMethod ? method.GetGenericArguments() : Type.EmptyTypes;
         string methodName = method.Name;
         int len = 0;
         bool isReadOnly = _accessor.IsReadOnly(method);
@@ -801,6 +803,33 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             len += GetNonDeclaritiveTypeNameLengthNoSetup(declType, ref declTypeMeta, declTypeKeyword) + 1;
         }
 
+        if (genericTypeParameters.Length > 0)
+        {
+            len += 2 + (genericTypeParameters.Length - 1) * 2;
+            if (method.IsGenericMethodDefinition)
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    len += genericTypeParameters[i].Name.Length;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    TypeMetaInfo genParamMetaInfo = default;
+                    Type genParameterType = genericTypeParameters[i];
+                    Type originalGenParamType = genParameterType;
+
+                    genParamMetaInfo.Init(ref genParameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* genParamElementStack = stackalloc int[genParamMetaInfo.ElementTypesLength];
+                    genParamMetaInfo.ElementTypes = genParamElementStack;
+                    len += GetNonDeclaritiveTypeNameLength(genParameterType, originalGenParamType, ref genParamMetaInfo, elementKeyword);
+                }
+            }
+        }
+
         len += 2 + (Math.Max(parameters.Length, 1) - 1) * 2;
         for (int i = 0; i < parameters.Length; ++i)
         {
@@ -833,6 +862,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     {
         MemberVisibility vis = _accessor.GetVisibility(method);
         ParameterInfo[] parameters = method.GetParameters();
+        Type[] genericTypeParameters = method.IsGenericMethod ? method.GetGenericArguments() : Type.EmptyTypes;
         string methodName = method.Name;
         bool isCtor = method is ConstructorInfo;
         int index = 0;
@@ -896,6 +926,53 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             index += methodName.Length;
         }
 
+        if (genericTypeParameters.Length > 0)
+        {
+            output[index] = '<';
+            ++index;
+            if (method.IsGenericMethodDefinition)
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    ReadOnlySpan<char> name = genericTypeParameters[i].Name;
+                    name.CopyTo(output[index..]);
+                    index += name.Length;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    TypeMetaInfo genParamMetaInfo = default;
+                    Type genParameterType = genericTypeParameters[i];
+                    Type originalGenParamType = genParameterType;
+
+                    genParamMetaInfo.Init(ref genParameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* genParamElementStack = stackalloc int[genParamMetaInfo.ElementTypesLength];
+                    genParamMetaInfo.ElementTypes = genParamElementStack;
+                    genParamMetaInfo.SetupDimensionsAndOrdering(originalGenParamType);
+                    FormatType(genParameterType, in genParamMetaInfo, elementKeyword, output, ref index);
+                }
+            }
+            output[index] = '>';
+            ++index;
+        }
+
         output[index] = '(';
         ++index;
         for (int i = 0; i < parameters.Length; ++i)
@@ -920,6 +997,313 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             WriteParameter(parameters[i], parameterType, elementKeyword, output, ref index, in paramMeta,
                 isExtensionThisParameter: i == 0 && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && _accessor.IsDefinedSafe<ExtensionAttribute>(method));
         }
+        output[index] = ')';
+        return index + 1;
+    }
+    
+    /// <inheritdoc/>
+    public virtual unsafe int GetFormatLength(MethodDefinition method)
+    {
+        string? methodName = method.Name;
+        IList<MethodParameterDefinition>? parameters = method.Parameters;
+        bool isDef = method.GenericDefinitions != null && (method.GenericParameters == null || method.GenericDefinitions.Count > method.GenericParameters.Count) && method.GenericDefinitions.Count > 0;
+        bool isGenVal = !isDef && method.GenericParameters is { Count: > 0 };
+        int len = 0;
+        bool isCtor = method.IsConstructor;
+
+        Type? declType = method.DeclaringType;
+
+        if (method.IsStatic)
+            len += 7;
+
+        Type? returnType = method.ReturnType;
+        Type originalReturnType = returnType;
+
+        TypeMetaInfo methodTypeMeta = default;
+        TypeMetaInfo declTypeMeta = default;
+
+        if (returnType != null)
+        {
+            methodTypeMeta.Init(ref returnType, out string? methodTypeKeyword, this);
+            int* methodTypeElementStack = stackalloc int[methodTypeMeta.ElementTypesLength];
+            methodTypeMeta.ElementTypes = methodTypeElementStack;
+            methodTypeMeta.SetupDimensionsAndOrdering(originalReturnType);
+            methodTypeMeta.LoadReturnType(method, this);
+            len += GetNonDeclaritiveTypeNameLengthNoSetup(returnType, ref methodTypeMeta, methodTypeKeyword);
+            if (!isCtor && (methodName != null || declType != null))
+            {
+                ++len;
+            }
+        }
+
+        if (declType != null && !isCtor)
+        {
+            declTypeMeta.Init(ref declType, out string? declTypeKeyword, this);
+            len += GetNonDeclaritiveTypeNameLengthNoSetup(declType, ref declTypeMeta, declTypeKeyword);
+            if (methodName != null)
+            {
+                ++len;
+            }
+        }
+
+        if (!isCtor && methodName != null)
+            len += methodName.Length;
+
+        if (isDef || isGenVal)
+        {
+            if (isDef)
+            {
+                len += 2 + (method.GenericDefinitions!.Count - 1) * 2;
+                for (int i = 0; i < method.GenericDefinitions!.Count; ++i)
+                {
+                    string? name = method.GenericDefinitions![i];
+                    if (name != null)
+                        len += name.Length;
+                }
+            }
+            else
+            {
+                len += 2 + (method.GenericParameters!.Count - 1) * 2;
+                for (int i = 0; i < method.GenericParameters.Count; ++i)
+                {
+                    TypeMetaInfo genParamMetaInfo = default;
+                    Type? genParameterType = method.GenericParameters[i];
+                    if (genParameterType == null)
+                        continue;
+
+                    Type originalGenParamType = genParameterType;
+
+                    genParamMetaInfo.Init(ref genParameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* genParamElementStack = stackalloc int[genParamMetaInfo.ElementTypesLength];
+                    genParamMetaInfo.ElementTypes = genParamElementStack;
+                    len += GetNonDeclaritiveTypeNameLength(genParameterType, originalGenParamType, ref genParamMetaInfo, elementKeyword);
+                }
+            }
+        }
+
+        if (parameters != null)
+        {
+            len += 2 + (Math.Max(parameters.Count, 1) - 1) * 2;
+            for (int i = 0; i < parameters.Count; ++i)
+            {
+                MethodParameterDefinition parameter = parameters[i];
+                TypeMetaInfo paramMetaInfo = default;
+                Type? parameterType = parameter.Type;
+                string? name = parameter.Name;
+
+                if (i == 0 && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && method is { IsStatic: true, IsExtensionMethod: true })
+                    len += 5;
+
+                if (parameterType == null && parameter.GenericTypeIndex >= 0 && method.GenericParameters != null &&
+                    (method.GenericDefinitions == null || method.GenericDefinitions.Count < method.GenericParameters.Count))
+                {
+                    parameterType = parameter.GenericTypeIndex < method.GenericParameters!.Count ? method.GenericParameters[parameter.GenericTypeIndex] : null;
+                    parameter.Type = parameterType;
+                    parameters[i] = parameter;
+                }
+                if (parameterType != null)
+                {
+                    if (!string.IsNullOrEmpty(name))
+                        len += name.Length + 1;
+                    Type originalParamType = parameterType;
+                    paramMetaInfo.Init(ref parameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* paramElementStack = stackalloc int[paramMetaInfo.ElementTypesLength];
+                    paramMetaInfo.ElementTypes = paramElementStack;
+                    paramMetaInfo.SetupDimensionsAndOrdering(originalParamType);
+                    paramMetaInfo.LoadParameter(ref parameter, this);
+                    len += GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
+                }
+                else if (parameter.GenericTypeIndex >= 0 && method.GenericDefinitions != null &&
+                         (method.GenericParameters == null || method.GenericParameters.Count < method.GenericDefinitions.Count))
+                {
+                    if (!string.IsNullOrEmpty(name))
+                        len += name.Length + 1;
+                    paramMetaInfo.Init(ref parameter, method, out _, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* parameterElementStack = stackalloc int[paramMetaInfo.ElementTypesLength];
+                    paramMetaInfo.ElementTypes = parameterElementStack;
+                    paramMetaInfo.FlipArrayGroups();
+                    paramMetaInfo.LoadParameter(ref parameter, this);
+                    len += paramMetaInfo.Length;
+                }
+                else if (!string.IsNullOrEmpty(name))
+                    len += name.Length;
+            }
+        }
+
+        return len;
+    }
+
+    /// <inheritdoc/>
+    public virtual unsafe int Format(MethodDefinition method, Span<char> output)
+    {
+        string? methodName = method.Name;
+        IList<MethodParameterDefinition>? parameters = method.Parameters;
+        bool isDef = method.GenericDefinitions != null && (method.GenericParameters == null || method.GenericDefinitions.Count > method.GenericParameters.Count) && method.GenericDefinitions.Count > 0;
+        bool isGenVal = !isDef && method.GenericParameters is { Count: > 0 };
+        bool isCtor = method.IsConstructor;
+
+        int index = 0;
+        
+        Type? declType = method.DeclaringType;
+        Type? originalDeclType = declType;
+
+        if (method.IsStatic)
+        {
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+        }
+
+        Type? returnType = method.ReturnType;
+        Type originalReturnType = returnType;
+
+        TypeMetaInfo methodTypeMeta = default;
+        TypeMetaInfo declTypeMeta = default;
+
+        if (returnType != null)
+        {
+            methodTypeMeta.Init(ref returnType, out string? returnTypeKeyword, this);
+            int* methodTypeElementStack = stackalloc int[methodTypeMeta.ElementTypesLength];
+            methodTypeMeta.ElementTypes = methodTypeElementStack;
+            methodTypeMeta.SetupDimensionsAndOrdering(originalReturnType);
+            methodTypeMeta.LoadReturnType(method, this);
+            FormatType(returnType, in methodTypeMeta, returnTypeKeyword, output, ref index);
+            if (!isCtor && (methodName != null || declType != null))
+            {
+                output[index] = ' ';
+                ++index;
+            }
+        }
+        if (declType != null && !isCtor)
+        {
+            declTypeMeta.Init(ref declType, out string? declTypeKeyword, this);
+            int* declTypeElementStack = stackalloc int[declTypeMeta.ElementTypesLength];
+            declTypeMeta.ElementTypes = declTypeElementStack;
+            declTypeMeta.SetupDimensionsAndOrdering(originalDeclType!);
+            FormatType(declType, in declTypeMeta, declTypeKeyword, output, ref index);
+            if (methodName != null)
+            {
+                output[index] = '.';
+                ++index;
+            }
+        }
+
+        if (!isCtor && methodName != null)
+        {
+            methodName.AsSpan().CopyTo(output[index..]);
+            index += methodName.Length;
+        }
+
+        if (isDef || isGenVal)
+        {
+            output[index] = '<';
+            ++index;
+            if (isDef)
+            {
+                for (int i = 0; i < method.GenericDefinitions!.Count; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    string name = method.GenericDefinitions![i];
+                    if (name == null)
+                        continue;
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+                    name.AsSpan().CopyTo(output[index..]);
+#else
+                    for (int j = 0; j < name.Length; ++j)
+                    {
+                        output[index + j] = name[j];
+                    }
+#endif
+                    index += name.Length;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < method.GenericParameters!.Count; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    TypeMetaInfo genParamMetaInfo = default;
+                    Type? genParameterType = method.GenericParameters![i];
+                    if (genParameterType == null)
+                        continue;
+
+                    Type originalGenParameterType = genParameterType;
+
+                    genParamMetaInfo.Init(ref genParameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* genParamElementStack = stackalloc int[genParamMetaInfo.ElementTypesLength];
+                    genParamMetaInfo.ElementTypes = genParamElementStack;
+                    genParamMetaInfo.SetupDimensionsAndOrdering(originalGenParameterType);
+                    FormatType(genParameterType, in genParamMetaInfo, elementKeyword, output, ref index);
+                }
+            }
+            output[index] = '>';
+            ++index;
+        }
+
+        output[index] = '(';
+        ++index;
+        if (parameters != null)
+        {
+            for (int i = 0; i < parameters.Count; ++i)
+            {
+                if (i != 0)
+                {
+                    output[index] = ',';
+                    output[index + 1] = ' ';
+                    index += 2;
+                }
+
+                MethodParameterDefinition parameter = parameters[i];
+                TypeMetaInfo paramMeta = default;
+                Type? parameterType = parameter.Type;
+                string? elementKeyword = null;
+                if (parameter.GenericTypeIndex >= 0 && method.GenericParameters != null &&
+                    (method.GenericDefinitions == null || method.GenericDefinitions.Count < method.GenericParameters.Count) && parameterType == null)
+                {
+                    parameterType = parameter.GenericTypeIndex < method.GenericParameters!.Count ? method.GenericParameters[parameter.GenericTypeIndex] : null;
+                    parameter.Type = parameterType;
+                    parameters[i] = parameter;
+                }
+                if (parameterType != null)
+                {
+                    Type originalParameterType = parameterType;
+                    paramMeta.Init(ref parameterType, out elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* parameterElementStack = stackalloc int[paramMeta.ElementTypesLength];
+                    paramMeta.ElementTypes = parameterElementStack;
+                    paramMeta.SetupDimensionsAndOrdering(originalParameterType);
+                    paramMeta.LoadParameter(ref parameter, this);
+                }
+                else
+                {
+                    paramMeta.Init(ref parameter, method, out elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* parameterElementStack = stackalloc int[paramMeta.ElementTypesLength];
+                    paramMeta.ElementTypes = parameterElementStack;
+                    paramMeta.FlipArrayGroups();
+                    paramMeta.LoadParameter(ref parameter, this);
+                }
+
+                WriteParameter(ref parameter, parameterType, elementKeyword, output, ref index, in paramMeta,
+                    isExtensionThisParameter: i == 0 && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && method is { IsStatic: true, IsExtensionMethod: true });
+            }
+        }
+
         output[index] = ')';
         return index + 1;
     }
@@ -2600,6 +2984,66 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     }
 
     /// <summary>
+    /// Write parameter to buffer.
+    /// </summary>
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    protected virtual void WriteParameter(ref MethodParameterDefinition parameter, Type? parameterType, string? parameterElementKeyword, Span<char> output, ref int index, in TypeMetaInfo paramMetaInfo, bool isExtensionThisParameter = false)
+#else
+    protected virtual unsafe void WriteParameter(ref MethodParameterDefinition parameter, Type? parameterType, string? parameterElementKeyword, char* output, ref int index, in TypeMetaInfo paramMetaInfo, bool isExtensionThisParameter = false)
+#endif
+    {
+        string? name = parameter.Name;
+        if (isExtensionThisParameter)
+        {
+            WriteKeyword(LitThis, ref index, output, spaceSuffix: true);
+        }
+        if (paramMetaInfo.IsParams)
+        {
+            WriteKeyword(LitParams, ref index, output, spaceSuffix: true);
+        }
+
+        bool wroteType = true;
+        if (parameterType != null)
+            FormatType(parameterType, in paramMetaInfo, parameterElementKeyword, output, ref index);
+        else if (parameter.Method?.GenericDefinitions != null && parameter.GenericTypeIndex >= 0 && parameter.GenericTypeIndex < parameter.Method.GenericDefinitions.Count)
+        {
+            WritePreDimensionsAndOrdering(in paramMetaInfo, output, ref index);
+            parameterElementKeyword = parameter.Method.GenericDefinitions[parameter.GenericTypeIndex];
+            if (parameterElementKeyword != null)
+            {
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+                parameterElementKeyword.AsSpan().CopyTo(output[index..]);
+#else
+                for (int i = 0; i < parameterElementKeyword.Length; ++i)
+                    output[index + i] = parameterElementKeyword[i];
+#endif
+                index += parameterElementKeyword.Length;
+            }
+
+            WritePostDimensionsAndOrdering(in paramMetaInfo, output, ref index);
+        }
+        else wroteType = false;
+
+        if (string.IsNullOrEmpty(name))
+            return;
+
+        if (wroteType)
+        {
+            output[index] = ' ';
+            ++index;
+        }
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        name.AsSpan().CopyTo(output[index..]);
+#else
+        for (int i = 0; i < name!.Length; ++i)
+        {
+            output[index + i] = name[i];
+        }
+#endif
+        index += name.Length;
+    }
+
+    /// <summary>
     /// Writes a property or event method with the given <paramref name="keyword"/>.
     /// </summary>
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
@@ -2682,7 +3126,9 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     {
         MemberVisibility vis = _accessor.GetVisibility(method);
         ParameterInfo[] parameters = method.GetParameters();
+        Type[] genericTypeParameters = method.IsGenericMethod ? method.GetGenericArguments() : Type.EmptyTypes;
         TypeMetaInfo* paramInfo = stackalloc TypeMetaInfo[parameters.Length];
+        TypeMetaInfo* genParamInfo = stackalloc TypeMetaInfo[method.IsGenericMethodDefinition ? 0 : genericTypeParameters.Length];
         string methodName = method.Name;
         int len = 0;
         bool isCtor = method is ConstructorInfo;
@@ -2729,6 +3175,33 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             int* declTypeElementStack = stackalloc int[declTypeMeta.ElementTypesLength];
             declTypeMeta.ElementTypes = declTypeElementStack;
             len += GetNonDeclaritiveTypeNameLength(declType, originalDeclType!, ref declTypeMeta, declTypeKeyword) + 1;
+        }
+
+        if (genericTypeParameters.Length > 0)
+        {
+            len += 2 + (genericTypeParameters.Length - 1) * 2;
+            if (method.IsGenericMethodDefinition)
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    len += genericTypeParameters[i].Name.Length;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    ref TypeMetaInfo genParamMetaInfo = ref genParamInfo[i];
+                    Type genParameterType = genericTypeParameters[i];
+                    Type originalGenParamType = genParameterType;
+
+                    genParamMetaInfo.Init(ref genParameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* genParamElementStack = stackalloc int[genParamMetaInfo.ElementTypesLength];
+                    genParamMetaInfo.ElementTypes = genParamElementStack;
+                    len += GetNonDeclaritiveTypeNameLength(genParameterType, originalGenParamType, ref genParamMetaInfo, elementKeyword);
+                }
+            }
         }
 
         len += 2 + (Math.Max(parameters.Length, 1) - 1) * 2;
@@ -2808,6 +3281,62 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
             index += methodName.Length;
         }
+
+
+        if (genericTypeParameters.Length > 0)
+        {
+            output[index] = '<';
+            ++index;
+            if (method.IsGenericMethodDefinition)
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    string name = genericTypeParameters[i].Name;
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+                    name.AsSpan().CopyTo(output[index..]);
+#else
+                    for (int j = 0; j < name.Length; ++j)
+                    {
+                        output[index + j] = name[j];
+                    }
+#endif
+                    index += name.Length;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < genericTypeParameters.Length; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    ref readonly TypeMetaInfo genParamMetaInfo = ref genParamInfo[i];
+                    Type genParameterType = genericTypeParameters[i];
+                    string? elementKeyword = null;
+                    if (genParamMetaInfo.ElementTypesLength > 0)
+                    {
+                        for (Type? elemType = genParameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                            genParameterType = elemType;
+                        elementKeyword = GetTypeKeyword(genParameterType);
+                    }
+
+                    FormatType(genParameterType, in genParamMetaInfo, elementKeyword, output, ref index);
+                }
+            }
+            output[index] = '>';
+            ++index;
+        }
         output[index] = '(';
         ++index;
         for (int i = 0; i < parameters.Length; ++i)
@@ -2823,6 +3352,292 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
         output[index] = ')';
         ++index;
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        return new string(output[..index]);
+#else
+        return new string(output, 0, index);
+#endif
+    }
+
+    /// <inheritdoc/>
+    public virtual unsafe string Format(MethodDefinition method)
+    {
+        IList<MethodParameterDefinition>? parameters = method.Parameters;
+        bool isDef = method.GenericDefinitions != null && (method.GenericParameters == null || method.GenericDefinitions.Count > method.GenericParameters.Count) && method.GenericDefinitions.Count > 0;
+        bool isGenVal = !isDef && method.GenericParameters is { Count: > 0 };
+        TypeMetaInfo* paramInfo = stackalloc TypeMetaInfo[parameters?.Count ?? 0];
+        TypeMetaInfo* genParamInfo = stackalloc TypeMetaInfo[!isGenVal ? 0 : method.GenericParameters!.Count];
+        string? methodName = method.Name;
+        int len = 0;
+        bool isCtor = method.IsConstructor;
+
+        Type? declType = method.DeclaringType;
+        Type? originalDeclType = declType;
+
+        bool isExtensionMethod = !isCtor && method.IsStatic && declType != null && _accessor.GetIsStatic(declType) && method is { IsStatic: true, IsExtensionMethod: true };
+
+        if (method.IsStatic)
+            len += 7;
+
+        Type? returnType = method.ReturnType;
+        Type originalReturnType = returnType;
+
+        TypeMetaInfo methodTypeMeta = default;
+        TypeMetaInfo declTypeMeta = default;
+        string? declTypeKeyword = null;
+        string? methodTypeKeyword = null;
+
+        if (returnType != null)
+        {
+            methodTypeMeta.Init(ref returnType, out methodTypeKeyword, this);
+            int* returnTypeElementStack = stackalloc int[methodTypeMeta.ElementTypesLength];
+            methodTypeMeta.ElementTypes = returnTypeElementStack;
+            methodTypeMeta.SetupDimensionsAndOrdering(originalReturnType);
+            methodTypeMeta.LoadReturnType(method, this);
+            len += GetNonDeclaritiveTypeNameLengthNoSetup(returnType, ref methodTypeMeta, methodTypeKeyword);
+            if (!isCtor && (methodName != null || declType != null))
+            {
+                ++len;
+            }
+        }
+
+        if (declType != null && !isCtor)
+        {
+            declTypeMeta.Init(ref declType, out declTypeKeyword, this);
+            int* declTypeElementStack = stackalloc int[declTypeMeta.ElementTypesLength];
+            declTypeMeta.ElementTypes = declTypeElementStack;
+            len += GetNonDeclaritiveTypeNameLength(declType, originalDeclType!, ref declTypeMeta, declTypeKeyword) + 1;
+            if (methodName != null)
+            {
+                ++len;
+            }
+        }
+
+        if (!isCtor && methodName != null)
+            len += methodName.Length;
+
+        if (isDef || isGenVal)
+        {
+            if (isDef)
+            {
+                len += 2 + (method.GenericDefinitions!.Count - 1) * 2;
+                for (int i = 0; i < method.GenericDefinitions!.Count; ++i)
+                {
+                    string? name = method.GenericDefinitions![i];
+                    if (name != null)
+                        len += name.Length;
+                }
+            }
+            else
+            {
+                len += 2 + (method.GenericParameters!.Count - 1) * 2;
+                for (int i = 0; i < method.GenericParameters.Count; ++i)
+                {
+                    ref TypeMetaInfo genParamMetaInfo = ref genParamInfo[i];
+                    Type? genParameterType = method.GenericParameters[i];
+                    if (genParameterType == null)
+                        continue;
+
+                    Type originalGenParamType = genParameterType;
+
+                    genParamMetaInfo.Init(ref genParameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* genParamElementStack = stackalloc int[genParamMetaInfo.ElementTypesLength];
+                    genParamMetaInfo.ElementTypes = genParamElementStack;
+                    len += GetNonDeclaritiveTypeNameLength(genParameterType, originalGenParamType, ref genParamMetaInfo, elementKeyword);
+                }
+            }
+        }
+
+        if (parameters != null)
+        {
+            len += 2 + (Math.Max(parameters.Count, 1) - 1) * 2;
+            for (int i = 0; i < parameters.Count; ++i)
+            {
+                MethodParameterDefinition parameter = parameters[i];
+                ref TypeMetaInfo paramMetaInfo = ref paramInfo[i];
+                Type? parameterType = parameter.Type;
+                if (parameter.GenericTypeIndex >= 0 && isGenVal && parameterType == null)
+                {
+                    parameterType = parameter.GenericTypeIndex < method.GenericParameters!.Count ? method.GenericParameters[parameter.GenericTypeIndex] : null;
+                    parameter.Type = parameterType;
+                    parameters[i] = parameter;
+                }
+
+                if (parameterType == null)
+                {
+                    paramMetaInfo.Init(ref parameter, method, out _, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* parameterElementStack = stackalloc int[paramMetaInfo.ElementTypesLength];
+                    paramMetaInfo.ElementTypes = parameterElementStack;
+                    paramMetaInfo.FlipArrayGroups();
+                    paramMetaInfo.LoadParameter(ref parameter, this);
+                    len += paramMetaInfo.Length;
+                }
+                else
+                {
+                    Type originalParameterType = parameterType;
+                    paramMetaInfo.Init(ref parameterType, out string? elementKeyword, this);
+                    // ReSharper disable once StackAllocInsideLoop
+                    int* parameterElementStack = stackalloc int[paramMetaInfo.ElementTypesLength];
+                    paramMetaInfo.ElementTypes = parameterElementStack;
+                    paramMetaInfo.SetupDimensionsAndOrdering(originalParameterType);
+                    paramMetaInfo.LoadParameter(ref parameter, this);
+                    len += GetNonDeclaritiveTypeNameLengthNoSetup(parameterType, ref paramMetaInfo, elementKeyword);
+                }
+
+                string? name = parameter.Name;
+
+                if (isExtensionMethod && i == 0)
+                    len += 5;
+
+                if (!string.IsNullOrEmpty(name))
+                    len += name.Length + 1;
+            }
+        }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        Span<char> output = stackalloc char[len];
+#else
+        char* output = stackalloc char[len];
+#endif
+
+        int index = 0;
+
+        if (method.IsStatic)
+        {
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+        }
+
+        if (returnType != null)
+        {
+            FormatType(returnType, in methodTypeMeta, methodTypeKeyword, output, ref index);
+            if (!isCtor && (declType != null || methodName != null))
+            {
+                output[index] = ' ';
+                ++index;
+            }
+        }
+        if (declType != null && !isCtor)
+        {
+            FormatType(declType, in declTypeMeta, declTypeKeyword, output, ref index);
+            if (methodName != null)
+            {
+                output[index] = '.';
+                ++index;
+            }
+        }
+
+        if (!isCtor && methodName != null)
+        {
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+            methodName.AsSpan().CopyTo(output[index..]);
+#else
+            for (int i = 0; i < methodName.Length; ++i)
+            {
+                output[index + i] = methodName[i];
+            }
+#endif
+
+            index += methodName.Length;
+        }
+
+
+        if (isDef || isGenVal)
+        {
+            output[index] = '<';
+            ++index;
+            if (isDef)
+            {
+                for (int i = 0; i < method.GenericDefinitions!.Count; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    string name = method.GenericDefinitions![i];
+                    if (name == null)
+                        continue;
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+                    name.AsSpan().CopyTo(output[index..]);
+#else
+                    for (int j = 0; j < name.Length; ++j)
+                    {
+                        output[index + j] = name[j];
+                    }
+#endif
+                    index += name.Length;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < method.GenericParameters!.Count; ++i)
+                {
+                    if (i != 0)
+                    {
+                        output[index] = ',';
+                        output[index + 1] = ' ';
+                        index += 2;
+                    }
+
+                    ref readonly TypeMetaInfo genParamMetaInfo = ref genParamInfo[i];
+                    Type? genParameterType = method.GenericParameters![i];
+                    if (genParameterType == null)
+                        continue;
+
+                    string? elementKeyword = null;
+                    if (genParamMetaInfo.ElementTypesLength > 0)
+                    {
+                        for (Type? elemType = genParameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                            genParameterType = elemType;
+                        elementKeyword = GetTypeKeyword(genParameterType);
+                    }
+
+                    FormatType(genParameterType, in genParamMetaInfo, elementKeyword, output, ref index);
+                }
+            }
+            output[index] = '>';
+            ++index;
+        }
+
+        if (parameters != null)
+        {
+            output[index] = '(';
+            ++index;
+            for (int i = 0; i < parameters.Count; ++i)
+            {
+                if (i != 0)
+                {
+                    output[index] = ',';
+                    output[index + 1] = ' ';
+                    index += 2;
+                }
+
+                MethodParameterDefinition parameter = parameters[i];
+
+                ref readonly TypeMetaInfo paramMetaInfo = ref paramInfo[i];
+                Type? parameterType = parameter.Type;
+                string? elementKeyword = null;
+                if (parameterType != null)
+                {
+                    if (paramMetaInfo.ElementTypesLength > 0)
+                    {
+                        for (Type? elemType = parameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                            parameterType = elemType;
+                        elementKeyword = GetTypeKeyword(parameterType);
+                    }
+                }
+
+                WriteParameter(ref parameter, parameterType, elementKeyword, output, ref index, in paramMetaInfo, isExtensionThisParameter: i == 0 && isExtensionMethod);
+            }
+            output[index] = ')';
+            ++index;
+        }
 
 #if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
         return new string(output[..index]);
@@ -2984,6 +3799,53 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 ElementTypes[0] = -(int)ByRefTypeMode.ScopedRef - 1;
             }
         }
+        /// <summary>
+        /// Initialize the values with the given parameter.
+        /// </summary>
+        public unsafe void LoadParameter(ref MethodParameterDefinition parameter, DefaultOpCodeFormatter formatter)
+        {
+            Type? parameterType = parameter.Type;
+            if (parameterType == null)
+            {
+                for (int i = 0; i < ElementTypesLength; ++i)
+                    ElementTypes[i] = parameter.GenericTypeElementTypes![i];
+
+                IsParams = parameter is { IsParams: true, GenericTypeElementTypesLength: > 0 } && parameter.GenericTypeElementTypes![0] > 0;
+                if (IsParams)
+                    Length += 7;
+
+                if (parameter is not { GenericTypeElementTypesLength: > 0 } || parameter.GenericTypeElementTypes![0] >= -1)
+                    return;
+            }
+            else
+            {
+                IsParams = parameter.IsParams && parameterType.IsArray;
+                if (IsParams)
+                    Length += 7;
+
+                if (!parameterType.IsByRef)
+                    return;
+            }
+
+            bool isScoped = parameter.ByRefMode is ByRefTypeMode.ScopedIn or ByRefTypeMode.ScopedRefReadonly or ByRefTypeMode.ScopedRef;
+
+            if (parameter.ByRefMode is ByRefTypeMode.In or ByRefTypeMode.ScopedIn or ByRefTypeMode.RefReadonly or ByRefTypeMode.ScopedRefReadonly)
+            {
+                ByRefTypeMode mode = isScoped ? ByRefTypeMode.ScopedIn : ByRefTypeMode.In;
+                Length += formatter.GetRefTypeLength(mode) - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)mode - 1;
+            }
+            else if (parameter.ByRefMode == ByRefTypeMode.Out)
+            {
+                Length += 4 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)ByRefTypeMode.Out - 1;
+            }
+            else if (isScoped)
+            {
+                Length += 11 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)ByRefTypeMode.ScopedRef - 1;
+            }
+        }
 
         /// <summary>
         /// Initialize the values with the given by-ref type.
@@ -3021,6 +3883,20 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
 
         /// <summary>
+        /// Initialize the values with the given method return value.
+        /// </summary>
+        public unsafe void LoadReturnType(MethodDefinition method, DefaultOpCodeFormatter formatter)
+        {
+            if (ElementTypesLength > 0
+                && method.ReturnType.IsByRef
+                && method.ReturnRefTypeMode is ByRefTypeMode.RefReadonly or ByRefTypeMode.In)
+            {
+                Length += 13 - formatter.GetRefTypeLength((ByRefTypeMode)(-ElementTypes[0] - 1));
+                ElementTypes[0] = -(int)ByRefTypeMode.RefReadonly - 1;
+            }
+        }
+
+        /// <summary>
         /// Initialize the array ranks.
         /// </summary>
         public unsafe void SetupDimensionsAndOrdering(Type originalType)
@@ -3049,9 +3925,15 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 }
             }
 
-            int startIndex = -1;
+            FlipArrayGroups();
+        }
 
-            // flip array groups
+        /// <summary>
+        /// Flips groups of array elements to correspond with their flipped definition notation in C#.
+        /// </summary>
+        public unsafe void FlipArrayGroups()
+        {
+            int startIndex = -1;
             for (int i = 0; i < ElementTypesLength; ++i)
             {
                 int dim = ElementTypes[i];
@@ -3084,6 +3966,39 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     int tmp = *index1;
                     *index1 = *index2;
                     *index2 = tmp;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Initialize the values with the given type.
+        /// </summary>
+        public void Init(ref MethodParameterDefinition parameter, MethodDefinition method, out string? elementKeyword, DefaultOpCodeFormatter formatter)
+        {
+            ElementTypesLength = parameter.GenericTypeElementTypesLength;
+            Length = 0;
+            IsParams = false;
+            elementKeyword =
+                method.GenericDefinitions == null || parameter.GenericTypeIndex < 0 ||
+                parameter.GenericTypeIndex >= method.GenericDefinitions.Count
+                    ? null
+                    : method.GenericDefinitions[parameter.GenericTypeIndex];
+            Length = elementKeyword?.Length ?? 0;
+            if (parameter.GenericTypeElementTypes == null)
+                return;
+            for (int i = 0; i < parameter.GenericTypeElementTypesLength; i++)
+            {
+                switch (parameter.GenericTypeElementTypes[i])
+                {
+                    case -1:
+                        ++Length;
+                        break;
+                    case < -1:
+                        Length += formatter.GetRefTypeLength((ByRefTypeMode)(-parameter.GenericTypeElementTypes[i] - 1));
+                        break;
+                    default:
+                        Length += parameter.GenericTypeElementTypes[i] + 1;
+                        break;
                 }
             }
         }

@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>preview</LangVersion>
 
-    <RootNamespace>DanielWillett.ReflectionTools</RootNamespace>
+    <RootNamespace>DanielWillett.ReflectionTools.Harmony</RootNamespace>
 
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools.Harmony</PackageId>

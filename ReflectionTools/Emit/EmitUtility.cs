@@ -25,7 +25,7 @@ public static class EmitUtility
     /// <summary>
     /// A list of all op-codes sorted by their value code.
     /// </summary>
-    /// <remarks>In .NET Framework 4.0 and less, this is a <see cref="ReadOnlyCollection{T}"/> instead of <see cref="IReadOnlyList{T}"/>.</remarks>
+    /// <remarks>In .NET Framework 4.0 and less, this is a <see cref="ReadOnlyCollection{T}"/> instead of <see cref="T:System.Collections.Generic.IReadOnlyList{T}"/>.</remarks>
 #if NET45_OR_GREATER || !NETFRAMEWORK
     public static IReadOnlyList<OpCode> AllOpCodes
 #else
@@ -580,6 +580,7 @@ public static class EmitUtility
     /// <exception cref="ArgumentNullException">Given string was <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Given string was empty.</exception>
     /// <exception cref="FormatException">Failed to find a matching op-code.</exception>
+    /// <exception cref="NotSupportedException">The type '<see cref="T:System.Reflection.Emit.OpCodeValues"/> is not available in this environment.</exception>
 #if NET6_0_OR_GREATER
     public static OpCode ParseOpCode(ReadOnlySpan<char> opCodeString)
 #else
@@ -603,6 +604,7 @@ public static class EmitUtility
     /// Parse an op-code in <see langword="ilasm"/> style, ex. <c>ldarg.1</c>. Case and culture insensitive.
     /// </summary>
     /// <returns><see langword="true"/> if a matching op-code was found, otherwise <see langword="false"/>.</returns>
+    /// <exception cref="NotSupportedException">The type '<see cref="T:System.Reflection.Emit.OpCodeValues"/> is not available in this environment.</exception>
 #if NET6_0_OR_GREATER
     public static bool TryParseOpCode(ReadOnlySpan<char> opCodeString, out OpCode opCode)
 #else

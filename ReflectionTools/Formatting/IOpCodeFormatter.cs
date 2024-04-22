@@ -101,6 +101,22 @@ public interface IOpCodeFormatter : ICloneable
     int Format(MethodBase method, Span<char> output, bool includeDefinitionKeywords = false);
 
     /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format(MethodDefinition, Span{char})"/>.
+    /// </summary>
+    /// <param name="method">The method to format.</param>
+    /// <returns>The length in characters of <paramref name="method"/> as a string.</returns>
+    int GetFormatLength(MethodDefinition method);
+
+    /// <summary>
+    /// Format <paramref name="method"/> into a string representation. Use <see cref="GetFormatLength(MethodDefinition)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <param name="method">The method to format.</param>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <returns>The length in characters of <paramref name="method"/> as a string that were written to <paramref name="output"/>.</returns>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(MethodDefinition method, Span<char> output);
+
+    /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(FieldInfo, Span{char}, bool)"/>.
     /// </summary>
     /// <param name="field">The field to format.</param>
@@ -244,6 +260,18 @@ public interface IOpCodeFormatter : ICloneable
     }
 
     /// <summary>
+    /// Format <paramref name="method"/> into a string representation.
+    /// </summary>
+    /// <param name="method">The method to format.</param>
+    public string Format(MethodDefinition method)
+    {
+        int formatLength = GetFormatLength(method);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..Format(method, span)];
+        return new string(span);
+    }
+
+    /// <summary>
     /// Format <paramref name="field"/> into a string representation.
     /// </summary>
     /// <param name="field">The field to format.</param>
@@ -330,6 +358,12 @@ public interface IOpCodeFormatter : ICloneable
     /// <param name="method">The method to format.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     string Format(MethodBase method, bool includeDefinitionKeywords = false);
+
+    /// <summary>
+    /// Format <paramref name="method"/> into a string representation.
+    /// </summary>
+    /// <param name="method">The method to format.</param>
+    string Format(MethodDefinition method);
 
     /// <summary>
     /// Format <paramref name="field"/> into a string representation.

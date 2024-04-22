@@ -1,128 +1,105 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+﻿using DanielWillett.ReflectionTools.Emit;
+using DanielWillett.ReflectionTools.Formatting;
+using HarmonyLib;
+using System;
+using System.Globalization;
 using System.Reflection.Emit;
 using System.Text;
-using System.Threading.Tasks;
-using HarmonyLib;
 
-namespace DanielWillett.ReflectionTools.Formatting;
+namespace DanielWillett.ReflectionTools.Harmony.Formatting;
+
+/// <summary>
+/// Default plain-text implementation of <see cref="ICodeInstructionFormatter"/>.
+/// </summary>
 public class DefaultCodeInstructionFormatter : ICodeInstructionFormatter
 {
-    public string FormatCodeInstruction(CodeInstruction codeInstruction, CodeInstructionFormattingUsage expectedUsage)
+    /// <inheritdoc/>
+    public string FormatCodeInstruction(CodeInstruction codeInstruction, OpCodeFormattingContext usageContext)
     {
-        if (instruction == null)
-            return ((object)null!).Format();
-        string op = instruction.opcode.Format();
-        switch (instruction.opcode.OperandType)
-        {
-            case OperandType.ShortInlineBrTarget:
-            case OperandType.InlineBrTarget:
-                if (instruction.operand is Label lbl)
-                    op += " " + lbl.Format();
-                break;
-            case OperandType.InlineField:
-                if (instruction.operand is FieldInfo field)
-                    op += " " + field.Format();
-                break;
-            case OperandType.ShortInlineI:
-            case OperandType.InlineI:
-                try
-                {
-                    int num = Convert.ToInt32(instruction.operand);
-                    op += " " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + num + GetResetSuffix();
-                }
-                catch
-                {
-                    // ignored
-                }
-                break;
-            case OperandType.InlineI8:
-                try
-                {
-                    long lng = Convert.ToInt64(instruction.operand);
-                    op += " " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + lng + GetResetSuffix();
-                }
-                catch
-                {
-                    // ignored
-                }
-                break;
-            case OperandType.InlineMethod:
-                if (instruction.operand is MethodBase method)
-                    op += " " + method.Format();
-                break;
-            case OperandType.ShortInlineR:
-            case OperandType.InlineR:
-                try
-                {
-                    double dbl = Convert.ToDouble(instruction.operand);
-                    op += " " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + dbl + GetResetSuffix();
-                }
-                catch
-                {
-                    // ignored
-                }
-                break;
-            case OperandType.InlineSig:
-                try
-                {
-                    int num = Convert.ToInt32(instruction.operand);
-                    op += " " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + num + GetResetSuffix();
-                }
-                catch
-                {
-                    // ignored
-                }
-                break;
-            case OperandType.InlineString:
-                if (instruction.operand is string str)
-                    op += " " + GetColorPrefix(ToArgb(new Color32(214, 157, 133, 255))) + "\"" + str + "\"" + GetResetSuffix();
-                break;
-            case OperandType.InlineSwitch:
-                if (instruction.operand is Label[] jumps)
-                {
-                    op += Environment.NewLine + "{";
-                    for (int i = 0; i < jumps.Length; ++i)
-                        op += Environment.NewLine + "  " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + i + GetResetSuffix() + " => " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.StructColor) + " Label #" + jumps[i].GetLabelId() + GetResetSuffix();
+        string str = Accessor.Formatter.Format(codeInstruction.opcode, codeInstruction.operand, usageContext);
+        if (codeInstruction.labels.Count == 0 && codeInstruction.blocks.Count == 0)
+            return str;
 
-                    op += Environment.NewLine + "}";
-                }
-                break;
-            case OperandType.InlineTok:
-                switch (instruction.operand)
+        StringBuilder sb = new StringBuilder();
+        if (usageContext == OpCodeFormattingContext.InLine)
+        {
+            for (int i = 0; i < codeInstruction.blocks.Count; i++)
+            {
+                ExceptionBlock block = codeInstruction.blocks[i];
+
+                if (i != 0)
+                    sb.Append(' ');
+
+                sb.Append('[').Append(FormatBlock(block)).Append(']');
+            }
+
+            sb.Append(str);
+
+            for (int i = 0; i < codeInstruction.labels.Count; i++)
+            {
+                Label lbl = codeInstruction.labels[i];
+                if (i != 0)
+                    sb.Append(", ");
+                sb.Append(".lbl ").Append(((uint)lbl.GetLabelId()).ToString(CultureInfo.InvariantCulture));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < codeInstruction.blocks.Count; i++)
+            {
+                ExceptionBlock block = codeInstruction.blocks[i];
+
+                if (i != 0)
+                    sb.Append(Environment.NewLine);
+
+                switch (block.blockType)
                 {
-                    case Type typeToken:
-                        op += " " + typeToken.Format();
+                    case ExceptionBlockType.BeginCatchBlock:
+                        sb.Append('}').Append(Environment.NewLine).Append("catch").Append(Environment.NewLine).Append('{');
                         break;
-                    case MethodBase methodToken:
-                        op += " " + methodToken.Format();
+                    case ExceptionBlockType.BeginExceptionBlock:
+                        sb.Append("try").Append(Environment.NewLine).Append('{');
                         break;
-                    case FieldInfo fieldToken:
-                        op += " " + fieldToken.Format();
+                    case ExceptionBlockType.EndExceptionBlock:
+                        sb.Append('}');
+                        break;
+                    case ExceptionBlockType.BeginFinallyBlock:
+                        sb.Append('}').Append(Environment.NewLine).Append("finally").Append(Environment.NewLine).Append('{');
+                        break;
+                    case ExceptionBlockType.BeginFaultBlock:
+                        sb.Append('}').Append(Environment.NewLine).Append("fault").Append(Environment.NewLine).Append('{');
+                        break;
+                    case ExceptionBlockType.BeginExceptFilterBlock:
+                        sb.Append('}').Append(Environment.NewLine).Append("when").Append(Environment.NewLine).Append('{');
                         break;
                 }
-                break;
-            case OperandType.InlineType:
-                if (instruction.operand is Type type)
-                    op += " " + type.Format();
-                break;
-            case OperandType.ShortInlineVar:
-            case OperandType.InlineVar:
-                if (instruction.operand is LocalBuilder lb)
-                    op += " " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + lb.LocalIndex + GetResetSuffix() + " : " + lb.LocalType!.Format();
-                else if (instruction.operand is int index)
-                    op += " " + GetColorPrefix(FormatProvider.StackCleaner.Configuration.Colors!.ExtraDataColor) + index + GetResetSuffix();
-                break;
+            }
+
+            for (int i = 0; i < codeInstruction.labels.Count; i++)
+            {
+                Label lbl = codeInstruction.labels[i];
+                if (i != 0)
+                    sb.Append(Environment.NewLine);
+                sb.Append(".lbl ").Append(((uint)lbl.GetLabelId()).ToString(CultureInfo.InvariantCulture));
+            }
+
+            sb.Append(str);
+
         }
 
-        foreach (Label lbl in instruction.labels)
+        return sb.ToString();
+    }
+    public string FormatBlock(ExceptionBlock block)
+    {
+        return block.blockType switch
         {
-            op += " .lbl #".Colorize(ConsoleColor.DarkRed) + lbl.GetLabelId().Format();
-        }
-
-
-        return op;
+            ExceptionBlockType.BeginCatchBlock => "catch",
+            ExceptionBlockType.BeginExceptFilterBlock => "filter",
+            ExceptionBlockType.BeginExceptionBlock => "try",
+            ExceptionBlockType.BeginFaultBlock => "fault",
+            ExceptionBlockType.BeginFinallyBlock => "finally",
+            ExceptionBlockType.EndExceptionBlock => "endtry",
+            _ => block.blockType.ToString()
+        };
     }
 }

@@ -1,6 +1,7 @@
-﻿using HarmonyLib;
+﻿using DanielWillett.ReflectionTools.Formatting;
+using HarmonyLib;
 
-namespace DanielWillett.ReflectionTools.Formatting;
+namespace DanielWillett.ReflectionTools.Harmony.Formatting;
 
 /// <summary>
 /// Converts a code instruction into a string representation
