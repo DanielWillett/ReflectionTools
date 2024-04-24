@@ -938,7 +938,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2)
+    public static MemberVisibility GetHighestVisibility(MethodBase? method1, MethodBase? method2)
         => _accessor.GetHighestVisibility(method1, method2);
 
     /// <summary>
@@ -949,7 +949,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2, MethodInfo? method3)
+    public static MemberVisibility GetHighestVisibility(MethodBase? method1, MethodBase? method2, MethodBase? method3)
         => _accessor.GetHighestVisibility(method1, method2, method3);
 
     /// <summary>
@@ -960,7 +960,7 @@ public static class Accessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public static MemberVisibility GetHighestVisibility(params MethodInfo?[] methods)
+    public static MemberVisibility GetHighestVisibility(params MethodBase?[] methods)
         => _accessor.GetHighestVisibility(methods);
 
     /// <summary>
@@ -1434,7 +1434,7 @@ public static class Accessor
         => _accessor.GetParameters(delegateType);
 
     /// <summary>
-    /// Gets the (cached) <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
+    /// Gets the <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
     /// <exception cref="ArgumentException"><paramref name="delegateType"/> is not a <see langword="delegate"/>.</exception>

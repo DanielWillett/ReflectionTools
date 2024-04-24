@@ -110,9 +110,9 @@ public class DefaultOpCodeFormatter_Types
 
         IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
 
-        for (ByRefTypeMode mode = ByRefTypeMode.RefReadonly; mode <= ByRefTypeMode.Out; ++mode)
+        for (ByRefTypeMode mode = ByRefTypeMode.RefReadOnly; mode <= ByRefTypeMode.Out; ++mode)
         {
-            string refExpectedResult = (mode == ByRefTypeMode.RefReadonly ? "ref readonly" : mode.ToString().ToLower()) + " " + expectedResult;
+            string refExpectedResult = (mode == ByRefTypeMode.RefReadOnly ? "ref readonly" : mode.ToString().ToLower()) + " " + expectedResult;
             string fullFormat = formatter.Format(type, refMode: mode);
 
             Assert.AreEqual(refExpectedResult, fullFormat);

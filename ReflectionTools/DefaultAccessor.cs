@@ -2913,7 +2913,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public virtual MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2)
+    public virtual MemberVisibility GetHighestVisibility(MethodBase? method1, MethodBase? method2)
     {
         MemberVisibility highest = MemberVisibility.Private;
 
@@ -2930,7 +2930,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public virtual MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2, MethodInfo? method3)
+    public virtual MemberVisibility GetHighestVisibility(MethodBase? method1, MethodBase? method2, MethodBase? method3)
     {
         MemberVisibility highest = MemberVisibility.Private;
 
@@ -2951,7 +2951,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    public virtual MemberVisibility GetHighestVisibility(params MethodInfo?[] methods)
+    public virtual MemberVisibility GetHighestVisibility(params MethodBase?[] methods)
     {
         MemberVisibility highest = MemberVisibility.Private;
 
@@ -2964,6 +2964,32 @@ public class DefaultAccessor : IAccessor, IDisposable
 
         return highest;
     }
+#if !NETSTANDARD
+    /// <summary>
+    /// Get the highest visibilty needed for all of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
+    /// </summary>
+    /// <remarks>Will always be at least <see cref="MemberVisibility.Private"/>. All parameters should be at least of type <see cref="MethodBase"/>.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+    /// <exception cref="InvalidCastException">A parameter was passed to the arglist that is not a <see cref="MethodBase"/>.</exception>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public virtual MemberVisibility GetHighestVisibility(__arglist)
+    {
+        ArgIterator iterator = new ArgIterator(__arglist);
+        int ct = iterator.GetRemainingCount();
+
+        MemberVisibility highest = MemberVisibility.Private;
+        for (int i = 0; i < ct; ++i)
+        {
+            CheckHighest(__refvalue(iterator.GetNextArg(), MethodBase), ref highest);
+            if (highest == MemberVisibility.Public)
+                return MemberVisibility.Public;
+        }
+
+        return highest;
+    }
+#endif
 
     private static void CheckHighest(MethodBase? method, ref MemberVisibility highest)
     {

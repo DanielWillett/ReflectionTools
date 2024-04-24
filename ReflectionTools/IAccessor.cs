@@ -823,7 +823,7 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2);
+    MemberVisibility GetHighestVisibility(MethodBase? method1, MethodBase? method2);
 
     /// <summary>
     /// Get the highest visibilty needed for all three of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
@@ -833,7 +833,7 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    MemberVisibility GetHighestVisibility(MethodInfo? method1, MethodInfo? method2, MethodInfo? method3);
+    MemberVisibility GetHighestVisibility(MethodBase? method1, MethodBase? method2, MethodBase? method3);
 
     /// <summary>
     /// Get the highest visibilty needed for all of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
@@ -843,7 +843,19 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
-    MemberVisibility GetHighestVisibility(params MethodInfo?[] methods);
+    MemberVisibility GetHighestVisibility(params MethodBase?[] methods);
+
+#if !NETSTANDARD
+    /// <summary>
+    /// Get the highest visibilty needed for all of the given methods to be visible. Methods which are <see langword="null"/> are ignored.
+    /// </summary>
+    /// <remarks>Will always be at least <see cref="MemberVisibility.Private"/>. All parameters should be at least of type <see cref="MethodBase"/>.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    MemberVisibility GetHighestVisibility(__arglist);
+#endif
 
     /// <summary>
     /// Checks if <paramref name="assembly"/> has a <see cref="InternalsVisibleToAttribute"/> with the given <paramref name="assemblyName"/>.
@@ -1286,7 +1298,7 @@ public interface IAccessor
     ParameterInfo[] GetParameters(Type delegateType);
 
     /// <summary>
-    /// Gets the (cached) <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
+    /// Gets the <see langword="Invoke"/> method of a <paramref name="delegateType"/>. All delegates have one by default.
     /// </summary>
     /// <exception cref="NotSupportedException">Reflection failure.</exception>
     /// <exception cref="ArgumentException"><paramref name="delegateType"/> is not a <see langword="delegate"/>.</exception>

@@ -79,7 +79,7 @@ public interface IOpCodeEmitter
     /// <summary>
     /// If the implementation supports it, adds a comment to the IL code.
     /// </summary>
-    /// <remarks>Do not throw <see cref="NotSupportedException"/>.</remarks>
+    /// <remarks>Does not throw <see cref="NotSupportedException"/>.</remarks>
     void Comment(string comment);
 
     /// <summary>Begins a catch block.</summary>
@@ -97,8 +97,8 @@ public interface IOpCodeEmitter
     void BeginExceptFilterBlock();
 
     /// <summary>Begins an exception block for a non-filtered exception.</summary>
-    /// <returns>The label for the end of the block. This will leave you in the correct place to execute finally blocks or to finish the try.</returns>
-    void BeginExceptionBlock();
+    /// <returns>The label for the end of the block, if the implementation supports it, otherwise <see langword="null"/>. This will leave you in the correct place to execute finally blocks or to finish the try.</returns>
+    Label? BeginExceptionBlock();
 
     /// <summary>Begins an exception fault block in the Microsoft intermediate language (MSIL) stream.</summary>
     /// <exception cref="T:System.NotSupportedException">The MSIL being generated is not currently in an exception block.

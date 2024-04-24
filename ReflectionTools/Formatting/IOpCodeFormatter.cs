@@ -83,6 +83,24 @@ public interface IOpCodeFormatter : ICloneable
     int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref);
 
     /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format(TypeDefinition, Span{char}, ByRefTypeMode)"/>.
+    /// </summary>
+    /// <param name="type">The type to format.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    /// <returns>The length in characters of <paramref name="type"/> as a string.</returns>
+    int GetFormatLength(TypeDefinition type, ByRefTypeMode refMode = ByRefTypeMode.Ref);
+
+    /// <summary>
+    /// Format <paramref name="type"/> into a string representation. Use <see cref="GetFormatLength(TypeDefinition, ByRefTypeMode)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <returns>The length in characters of <paramref name="type"/> as a string that were written to <paramref name="output"/>.</returns>
+    /// <param name="type">The type to format.</param>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(TypeDefinition type, Span<char> output, ByRefTypeMode refMode = ByRefTypeMode.Ref);
+
+    /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(MethodBase, Span{char}, bool)"/>.
     /// </summary>
     /// <param name="method">The method to format.</param>
@@ -135,6 +153,22 @@ public interface IOpCodeFormatter : ICloneable
     int Format(FieldInfo field, Span<char> output, bool includeDefinitionKeywords = false);
 
     /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format(FieldDefinition, Span{char})"/>.
+    /// </summary>
+    /// <param name="field">The field to format.</param>
+    /// <returns>The length in characters of <paramref name="field"/> as a string.</returns>
+    int GetFormatLength(FieldDefinition field);
+
+    /// <summary>
+    /// Format <paramref name="field"/> into a string representation. Use <see cref="GetFormatLength(FieldDefinition)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <param name="field">The field to format.</param>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <returns>The length in characters of <paramref name="field"/> as a string that were written to <paramref name="output"/>.</returns>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(FieldDefinition field, Span<char> output);
+
+    /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(PropertyInfo, Span{char}, bool, bool)"/>.
     /// </summary>
     /// <param name="property">The property to format.</param>
@@ -153,6 +187,24 @@ public interface IOpCodeFormatter : ICloneable
     /// <returns>The length in characters of <paramref name="property"/> as a string that were written to <paramref name="output"/>.</returns>
     /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(PropertyInfo property, Span<char> output, bool includeAccessors = true, bool includeDefinitionKeywords = false);
+
+    /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format(PropertyDefinition, Span{char}, bool)"/>.
+    /// </summary>
+    /// <param name="property">The property to format.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <returns>The length in characters of <paramref name="property"/> as a string.</returns>
+    int GetFormatLength(PropertyDefinition property, bool includeAccessors = true);
+
+    /// <summary>
+    /// Format <paramref name="property"/> into a string representation. Use <see cref="GetFormatLength(PropertyDefinition, bool)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <param name="property">The property to format.</param>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <returns>The length in characters of <paramref name="property"/> as a string that were written to <paramref name="output"/>.</returns>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(PropertyDefinition property, Span<char> output, bool includeAccessors = true);
 
     /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(EventInfo, Span{char}, bool, bool, bool)"/>.
@@ -175,6 +227,26 @@ public interface IOpCodeFormatter : ICloneable
     /// <returns>The length in characters of <paramref name="event"/> as a string that were written to <paramref name="output"/>.</returns>
     /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
     int Format(EventInfo @event, Span<char> output, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
+
+    /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format(EventDefinition, Span{char}, bool, bool)"/>.
+    /// </summary>
+    /// <param name="event">The event to format.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
+    /// <returns>The length in characters of <paramref name="event"/> as a string.</returns>
+    int GetFormatLength(EventDefinition @event, bool includeAccessors = true, bool includeEventKeyword = true);
+
+    /// <summary>
+    /// Format <paramref name="event"/> into a string representation. Use <see cref="GetFormatLength(EventDefinition, bool, bool)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <param name="event">The event to format.</param>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
+    /// <returns>The length in characters of <paramref name="event"/> as a string that were written to <paramref name="output"/>.</returns>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    int Format(EventDefinition @event, Span<char> output, bool includeAccessors = true, bool includeEventKeyword = true);
 
     /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(ParameterInfo, Span{char}, bool)"/>.
@@ -247,6 +319,19 @@ public interface IOpCodeFormatter : ICloneable
     }
 
     /// <summary>
+    /// Format <paramref name="type"/> into a string representation.
+    /// </summary>
+    /// <param name="type">The type to format.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    public string Format(TypeDefinition type, ByRefTypeMode refMode = ByRefTypeMode.Ref)
+    {
+        int formatLength = GetFormatLength(type, refMode);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..Format(type, span, refMode)];
+        return new string(span);
+    }
+
+    /// <summary>
     /// Format <paramref name="method"/> into a string representation.
     /// </summary>
     /// <param name="method">The method to format.</param>
@@ -285,6 +370,18 @@ public interface IOpCodeFormatter : ICloneable
     }
 
     /// <summary>
+    /// Format <paramref name="field"/> into a string representation.
+    /// </summary>
+    /// <param name="field">The field to format.</param>
+    public string Format(FieldDefinition field)
+    {
+        int formatLength = GetFormatLength(field);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..Format(field, span)];
+        return new string(span);
+    }
+
+    /// <summary>
     /// Format <paramref name="property"/> into a string representation.
     /// </summary>
     /// <param name="property">The property to format.</param>
@@ -295,6 +392,19 @@ public interface IOpCodeFormatter : ICloneable
         int formatLength = GetFormatLength(property, includeAccessors, includeDefinitionKeywords);
         Span<char> span = stackalloc char[formatLength];
         span = span[..Format(property, span, includeAccessors, includeDefinitionKeywords)];
+        return new string(span);
+    }
+
+    /// <summary>
+    /// Format <paramref name="property"/> into a string representation.
+    /// </summary>
+    /// <param name="property">The property to format.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    public string Format(PropertyDefinition property, bool includeAccessors = true)
+    {
+        int formatLength = GetFormatLength(property, includeAccessors);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..Format(property, span, includeAccessors)];
         return new string(span);
     }
 
@@ -310,6 +420,20 @@ public interface IOpCodeFormatter : ICloneable
         int formatLength = GetFormatLength(@event, includeAccessors, includeEventKeyword, includeDefinitionKeywords);
         Span<char> span = stackalloc char[formatLength];
         span = span[..Format(@event, span, includeAccessors, includeEventKeyword, includeDefinitionKeywords)];
+        return new string(span);
+    }
+
+    /// <summary>
+    /// Format <paramref name="event"/> into a string representation.
+    /// </summary>
+    /// <param name="event">The event to format.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
+    public string Format(EventDefinition @event, bool includeAccessors = true, bool includeEventKeyword = true)
+    {
+        int formatLength = GetFormatLength(@event, includeAccessors, includeEventKeyword);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..Format(@event, span, includeAccessors, includeEventKeyword)];
         return new string(span);
     }
 
@@ -353,6 +477,13 @@ public interface IOpCodeFormatter : ICloneable
     string Format(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref);
 
     /// <summary>
+    /// Format <paramref name="type"/> into a string representation.
+    /// </summary>
+    /// <param name="type">The type to format.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    string Format(TypeDefinition type, ByRefTypeMode refMode = ByRefTypeMode.Ref);
+
+    /// <summary>
     /// Format <paramref name="method"/> into a string representation.
     /// </summary>
     /// <param name="method">The method to format.</param>
@@ -373,12 +504,25 @@ public interface IOpCodeFormatter : ICloneable
     string Format(FieldInfo field, bool includeDefinitionKeywords = false);
 
     /// <summary>
+    /// Format <paramref name="field"/> into a string representation.
+    /// </summary>
+    /// <param name="field">The field to format.</param>
+    string Format(FieldDefinition field);
+
+    /// <summary>
     /// Format <paramref name="property"/> into a string representation.
     /// </summary>
     /// <param name="property">The property to format.</param>
     /// <param name="includeAccessors">Should the accessors be put at the end.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     string Format(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false);
+
+    /// <summary>
+    /// Format <paramref name="property"/> into a string representation.
+    /// </summary>
+    /// <param name="property">The property to format.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    string Format(PropertyDefinition property, bool includeAccessors = true);
 
     /// <summary>
     /// Format <paramref name="event"/> into a string representation.
@@ -388,6 +532,14 @@ public interface IOpCodeFormatter : ICloneable
     /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'readonly', 'public', 'virtual', 'abtract', 'private', etc be included.</param>
     string Format(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false);
+
+    /// <summary>
+    /// Format <paramref name="event"/> into a string representation.
+    /// </summary>
+    /// <param name="event">The event to format.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <param name="includeEventKeyword">Should the 'event' keyword be put at the beginning.</param>
+    string Format(EventDefinition @event, bool includeAccessors = true, bool includeEventKeyword = true);
 
     /// <summary>
     /// Format <paramref name="parameter"/> into a string representation.

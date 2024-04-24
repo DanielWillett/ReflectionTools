@@ -35,7 +35,7 @@ public class ILGeneratorEmitter(ILGenerator generator) : IOpCodeEmitter
     public virtual void BeginExceptFilterBlock() => _generator.BeginExceptFilterBlock();
 
     /// <inheritdoc />
-    public virtual void BeginExceptionBlock() => _generator.BeginExceptionBlock();
+    public virtual Label? BeginExceptionBlock() => _generator.BeginExceptionBlock();
 
     /// <inheritdoc />
     public virtual void BeginFaultBlock() => _generator.BeginFaultBlock();

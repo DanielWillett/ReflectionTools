@@ -23,7 +23,7 @@ public enum ByRefTypeMode
     /// <summary>
     /// Represents a return type passed with <see langword="ref readonly"/>.
     /// </summary>
-    RefReadonly,
+    RefReadOnly,
 
     /// <summary>
     /// Represents a parameter passed with <see langword="out"/>.
@@ -43,5 +43,5 @@ public enum ByRefTypeMode
     /// <summary>
     /// Represents a parameter passed with <see langword="scoped ref readonly"/>.
     /// </summary>
-    ScopedRefReadonly
+    ScopedRefReadOnly
 }

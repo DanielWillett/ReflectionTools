@@ -224,7 +224,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public virtual void BeginExceptionBlock()
+    public virtual Label? BeginExceptionBlock()
     {
         if (DebugLog || Breakpointing)
         {
@@ -233,7 +233,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         ++LogIndent;
-        Generator.BeginExceptionBlock();
+        return Generator.BeginExceptionBlock();
     }
 
     /// <inheritdoc />
