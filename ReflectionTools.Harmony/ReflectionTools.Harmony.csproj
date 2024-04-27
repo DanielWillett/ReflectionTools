@@ -12,7 +12,7 @@
     <PackageId>DanielWillett.ReflectionTools.Harmony</PackageId>
     <Title>Reflection Tools - Lib.Harmony Module</Title>
     <Version>3.0.0</Version>
-    <PackageVersion>$(Version)-rc1</PackageVersion>
+    <PackageVersion>$(Version)-prerelease1</PackageVersion>
     <PackageReleaseNotes></PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools.Harmony</Product>
@@ -39,14 +39,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!--<PackageReference Include="DanielWillett.ReflectionTools" Version="[3.0.0,)" NoWarn="NU1701" />-->
-    <ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />
+    <PackageReference Include="DanielWillett.ReflectionTools" Version="[3.0.0-prerelease2,)" NoWarn="NU1701" />
+    <!--<ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />-->
 
     <PackageReference Include="Lib.Harmony" Version="[2.3.3,)" NoWarn="NU1701" />
     <PackageReference Include="System.Reflection.Emit" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.1.0" Condition="'$(TargetFramework)' != 'net45'" />
   </ItemGroup>
 
   <ItemGroup>

@@ -48,6 +48,7 @@ public static class PatchUtility
     /// <summary>
     /// Returns instructions to throw the provided <typeparamref name="TException"/> with an optional <paramref name="message"/>.
     /// </summary>
+    /// <exception cref="MemberAccessException">Unable to find any useable constructors for that exception.</exception>
     [Pure]
     public static IEnumerable<CodeInstruction> Throw<TException>(string? message = null) where TException : Exception
     {
@@ -204,13 +205,18 @@ public static class PatchUtility
     /// <summary>
     /// Inserts instructions to execute <paramref name="checker"/> and return (or optionally branch to <paramref name="goto"/>) if it returns <see langword="false"/>.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is out of range.</exception>
+    /// <exception cref="ArgumentException"><paramref name="checker"/> is not static.</exception>
     /// <returns>Amount of instructions inserted.</returns>
     public static int ReturnIfFalse(IList<CodeInstruction> instructions, ILGenerator generator, ref int index, Func<bool> checker, Label? @goto = null)
     {
         if (index < 0)
-            throw new ArgumentException($"Unable to add ReturnIfFalse ({Accessor.ExceptionFormatter.Format(checker.Method)}), index is too small: {index}.", nameof(index));
+            throw new ArgumentOutOfRangeException($"Unable to add ReturnIfFalse ({Accessor.ExceptionFormatter.Format(checker.Method)}), index is too small: {index}.", nameof(index));
         if (index >= instructions.Count)
-            throw new ArgumentException($"Unable to add ReturnIfFalse ({Accessor.ExceptionFormatter.Format(checker.Method)}), index is too large: {index}.", nameof(index));
+            throw new ArgumentOutOfRangeException($"Unable to add ReturnIfFalse ({Accessor.ExceptionFormatter.Format(checker.Method)}), index is too large: {index}.", nameof(index));
+        if (!checker.Method.IsStatic)
+            throw new ArgumentException("Checker must be static.", nameof(checker));
+
         if (@goto.HasValue)
         {
             CodeInstruction instruction = new CodeInstruction(checker.Method.GetCallRuntime(), checker.Method);
@@ -240,9 +246,13 @@ public static class PatchUtility
     /// <summary>
     /// Inserts instructions to execute <paramref name="checker"/> and return (or optionally branch to <paramref name="goto"/>) if it returns <see langword="false"/>.
     /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="checker"/> is not static.</exception>
     /// <returns>Amount of instructions inserted.</returns>
     public static int ReturnIfFalse(TranspileContext instructions, Func<bool> checker, Label? @goto = null)
     {
+        if (!checker.Method.IsStatic)
+            throw new ArgumentException("Checker must be static.", nameof(checker));
+
         if (@goto.HasValue)
         {
             instructions.EmitAbove(checker.Method.GetCallRuntime(), checker.Method);
@@ -548,7 +558,7 @@ public static class PatchUtility
     }
 
     /// <summary>
-    /// Get the label of the next branch instructino.
+    /// Get the label of the next branch instruction.
     /// </summary>
     [Pure]
     public static Label? GetNextBranchTarget(IList<CodeInstruction> instructions, int index)
@@ -565,7 +575,7 @@ public static class PatchUtility
     }
 
     /// <summary>
-    /// Get the label of the next branch instructino.
+    /// Get the label of the next branch instruction.
     /// </summary>
     [Pure]
     public static Label? GetNextBranchTarget(TranspileContext instructions)
@@ -696,23 +706,6 @@ public static class PatchUtility
             7 => new CodeInstruction(OpCodes.Ldc_I4_7),
             8 => new CodeInstruction(OpCodes.Ldc_I4_8),
             _ => new CodeInstruction(OpCodes.Ldc_I4, number),
-        };
-    }
-
-    /// <summary>
-    /// Loads a parameter from an index.
-    /// </summary>
-    [Pure]
-    public static CodeInstruction GetParameter(int index)
-    {
-        return index switch
-        {
-            0 => new CodeInstruction(OpCodes.Ldarg_0),
-            1 => new CodeInstruction(OpCodes.Ldarg_1),
-            2 => new CodeInstruction(OpCodes.Ldarg_2),
-            3 => new CodeInstruction(OpCodes.Ldarg_3),
-            < ushort.MaxValue => new CodeInstruction(OpCodes.Ldarg_S, index),
-            _ => new CodeInstruction(OpCodes.Ldarg, index)
         };
     }
 

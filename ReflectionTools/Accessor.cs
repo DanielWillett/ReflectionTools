@@ -1572,6 +1572,28 @@ public static class Accessor
 #endif
     public static bool CouldBeAssignedTo<T>(this Type actualType)
         => _accessor.CouldBeAssignedTo<T>(actualType);
+
+    /// <summary>
+    /// Sort types by their priority, used for sort methods.
+    /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static int SortTypesByPriorityHandler(Type a, Type b)
+    {
+        return GetPriority(b).CompareTo(GetPriority(a));
+    }
+
+    /// <summary>
+    /// Sort members by their priority, used for sort methods.
+    /// </summary>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static int SortMembersByPriorityHandler(MemberInfo a, MemberInfo b)
+    {
+        return GetPriority(b).CompareTo(GetPriority(a));
+    }
 }
 
 /// <summary>

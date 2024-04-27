@@ -3467,21 +3467,8 @@ public class DefaultAccessor : IAccessor, IDisposable
     [Pure]
 #endif
     public virtual int GetPriority(Module module) => GetAttributeSafe(module, _priorityAttribute ??= typeof(PriorityAttribute), true) is PriorityAttribute attr ? attr.Priority : 0;
-
-    /// <inheritdoc />
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    public int SortTypesByPriorityHandler(Type a, Type b)
-    {
-        return GetPriority(b).CompareTo(GetPriority(a));
-    }
-
-    /// <inheritdoc />
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    public int SortMembersByPriorityHandler(MemberInfo a, MemberInfo b)
+    
+    private int SortTypesByPriorityHandler(Type a, Type b)
     {
         return GetPriority(b).CompareTo(GetPriority(a));
     }

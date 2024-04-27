@@ -255,6 +255,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// Log an error to <see cref="TranspileLogger"/>. 
     /// </summary>
     /// <param name="message">A generic human-readable message describing the event.</param>
+    /// <param name="ex">Error detailing what went wrong during the event.</param>
     public void LogError(Exception ex, string message)
     {
         ITranspileContextLogger logger = _transpileLogger;

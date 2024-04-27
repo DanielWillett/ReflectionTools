@@ -13,6 +13,7 @@
     <NoWarn>NU1701;CS8002</NoWarn>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <Version>1.0.0</Version>
+    <PackageVersion>$(Version)-prerelease1</PackageVersion>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
     <NoWarn>CS8618;CS0169;CS8600;CS8500;CS0067;CS8625;CA2014;CS8605</NoWarn>
@@ -30,8 +31,8 @@
 
     <ProjectReference Include="..\ReflectionTools\ReflectionTools.csproj" />
     <ProjectReference Include="..\ReflectionTools.Harmony\ReflectionTools.Harmony.csproj" Condition="'$(TargetFramework)' != 'net45'"/>
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.0" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.0" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
   </ItemGroup>
 
 </Project>

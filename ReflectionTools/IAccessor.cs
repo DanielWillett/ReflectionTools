@@ -1120,22 +1120,6 @@ public interface IAccessor
     int GetPriority(Module module);
 
     /// <summary>
-    /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
-    /// </summary>
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    int SortTypesByPriorityHandler(Type a, Type b);
-
-    /// <summary>
-    /// Created for <see cref="List{T}.Sort(Comparison{T})"/> to order by priority (highest to lowest).
-    /// </summary>
-#if NET40_OR_GREATER || !NETFRAMEWORK
-    [Pure]
-#endif
-    int SortMembersByPriorityHandler(MemberInfo a, MemberInfo b);
-
-    /// <summary>
     /// Safely gets the reflection method info of the passed method. Works best with static methods.<br/><br/>
     /// <code>
     /// MethodInfo? method = Accessor.GetMethod(Guid.Parse);

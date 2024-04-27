@@ -83,12 +83,12 @@ public class DefaultCodeInstructionFormatter : ICodeInstructionFormatter
             }
 
             sb.Append(str);
-
+            
         }
 
         return sb.ToString();
     }
-    public string FormatBlock(ExceptionBlock block)
+    private static string FormatBlock(ExceptionBlock block)
     {
         return block.blockType switch
         {

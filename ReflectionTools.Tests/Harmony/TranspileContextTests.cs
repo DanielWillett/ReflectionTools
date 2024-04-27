@@ -116,7 +116,6 @@ public class TranspileContextTests
 
         return ctx;
     }
-
     public void WriteInstructionsTarget()
     {
         if (1 == int.Parse("2"))
