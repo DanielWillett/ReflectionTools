@@ -52,6 +52,17 @@ string methodAsString = Accessor.Formatter.Format(method);
 
 See also `Accessor.ExceptionFormatter`, which is used for exceptions.
 
+## StopwatchExtensions
+Contains an extension method for getting the milliseconds elapsed in a decimal form (not easily doable through normal methods) named `GetElapsedMilliseconds`.
+```cs
+Stopwatch sw = Stopwatch.StartNew();
+// do stuff
+sw.Stop();
+
+Console.WriteLine($"Elapsed time: {sw.GetElapsedMilliseconds():F2} ms");
+```
+
+
 ## Accessor
 Expandable class filled with utilities for reflection.
 
