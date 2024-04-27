@@ -10,6 +10,7 @@ public class FieldDefinition : IMemberDefinition
 {
     private bool _isConstant;
     private bool _isReadOnly;
+    private bool _isStatic;
 
     /// <summary>
     /// Name of the field.
@@ -31,7 +32,7 @@ public class FieldDefinition : IMemberDefinition
     /// <summary>
     /// If the field is a <see langword="const"/> field.
     /// </summary>
-    /// <remarks>Defaults to <see langword="false"/>. Will always be <see langword="false"/> if <see cref="IsConstant"/> is <see langword="false"/>.</remarks>
+    /// <remarks>Defaults to <see langword="false"/>. Will always be <see langword="false"/> if <see cref="IsConstant"/> is <see langword="false"/> or <see cref="IsStatic"/> is <see langword="false"/>.</remarks>
     public bool IsConstant
     {
         get => _isConstant;
@@ -39,7 +40,10 @@ public class FieldDefinition : IMemberDefinition
         {
             _isConstant = value;
             if (value)
+            {
                 _isReadOnly = true;
+                _isStatic = true;
+            }
         }
     }
 
@@ -61,8 +65,18 @@ public class FieldDefinition : IMemberDefinition
     /// <summary>
     /// If the method requires an instance of <see cref="DeclaringType"/> to be accessed.
     /// </summary>
-    /// <remarks>Defaults to <see langword="false"/>.</remarks>
-    public bool IsStatic { get; set; }
+    /// <remarks>Defaults to <see langword="false"/>. Will always be <see langword="true"/> if <see cref="IsConstant"/> is <see langword="true"/>.</remarks>
+    public bool IsStatic
+    {
+        get => _isStatic;
+        set
+        {
+            if (!value)
+                _isConstant = false;
+            
+            _isStatic = value;
+        }
+    }
 
     /// <summary>
     /// Create a field definition, starting with a field name.
@@ -115,12 +129,11 @@ public class FieldDefinition : IMemberDefinition
     }
 
     /// <summary>
-    /// Set <see cref="IsConstant"/> and <see cref="IsReadOnly"/> to <see langword="true"/>.
+    /// Set <see cref="IsConstant"/>, <see cref="IsReadOnly"/>, and <see cref="IsStatic"/> to <see langword="true"/>.
     /// </summary>
     public FieldDefinition AsConstant()
     {
         IsConstant = true;
-        IsReadOnly = true;
         return this;
     }
 
@@ -162,6 +175,17 @@ public class FieldDefinition : IMemberDefinition
         IsStatic = isStatic;
         return this;
     }
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    /// <inheritdoc />
+    public int GetFormatLength(IOpCodeFormatter formatter) => formatter.GetFormatLength(this);
+
+    /// <inheritdoc />
+    public int Format(IOpCodeFormatter formatter, Span<char> output) => formatter.Format(this, output);
+#endif
+    /// <inheritdoc />
+    public string Format(IOpCodeFormatter formatter) => formatter.Format(this);
+
     IMemberDefinition IMemberDefinition.NestedIn<TDeclaringType>(bool isStatic) => DeclaredIn<TDeclaringType>(isStatic);
     IMemberDefinition IMemberDefinition.NestedIn(Type declaringType, bool isStatic) => DeclaredIn(declaringType, isStatic);
     IMemberDefinition IMemberDefinition.NestedIn(string declaringType, bool isStatic) => DeclaredIn(declaringType, isStatic);

@@ -1463,9 +1463,17 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         int len = 0;
 
         if (field.IsConstant)
-            len += 6;
+        {
+            len += 5;
+            if (field.FieldType != null || field.DeclaringType != null || !nameIsNull)
+                ++len;
+        }
         else if (field.IsStatic)
-            len += 7;
+        {
+            len += 6;
+            if (field.FieldType != null || field.DeclaringType != null || !nameIsNull)
+                ++len;
+        }
 
         if (field.FieldType != null)
         {
@@ -1495,11 +1503,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (field.IsConstant)
         {
-            WriteKeyword(LitConst, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitConst, ref index, output, spaceSuffix: field.FieldType != null || field.DeclaringType != null || !nameIsNull);
         }
         else if (field.IsStatic)
         {
-            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: field.FieldType != null || field.DeclaringType != null || !nameIsNull);
         }
 
         if (field.FieldType != null)
@@ -1716,7 +1724,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             len += 4; // this
 
         if (property.IsStatic)
-            len += 7;
+        {
+            len += 6;
+            if (isIndexer || includeAccessors || property.DeclaringType != null || property.PropertyType != null)
+                ++len;
+        }
 
         if (isIndexer)
         {
@@ -1752,7 +1764,10 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (includeAccessors)
         {
-            len += 4; // { }
+            if (property.DeclaringType != null || property.PropertyType != null)
+                ++len; // " "
+
+            len += 3; // "{ }"
 
             if (property.HasGetter)
                 len += 5;
@@ -1774,7 +1789,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (property.IsStatic)
         {
-            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: isIndexer || includeAccessors || property.DeclaringType != null || property.PropertyType != null);
         }
 
         if (property.PropertyType != null)
@@ -1848,10 +1863,15 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (includeAccessors)
         {
-            output[index] = ' ';
-            output[index + 1] = '{';
-            output[index + 2] = ' ';
-            index += 3;
+            if (property.DeclaringType != null || property.PropertyType != null)
+            {
+                output[index] = ' ';
+                ++index;
+            }
+
+            output[index] = '{';
+            output[index + 1] = ' ';
+            index += 2;
 
             if (property.HasGetter)
             {
@@ -2038,17 +2058,28 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
 
         if (includeEventKeyword)
-            len += 6;
+        {
+            len += 5;
+            if (includeAccessors || @event.DeclaringType != null || delegateType != null)
+                ++len;
+        }
 
         if (!nameIsNull)
             len += @event.Name!.Length;
 
         if (@event.IsStatic)
-            len += 7;
+        {
+            len += 6;
+            if (includeAccessors || includeEventKeyword || @event.DeclaringType != null || delegateType != null)
+                ++len;
+        }
 
         if (includeAccessors)
         {
-            len += 4; // { }
+            if (@event.DeclaringType != null || @event.HandlerType != null)
+                ++len; // " "
+
+            len += 3; // "{ }"
 
             if (@event.HasAdder)
                 len += 5;
@@ -2072,12 +2103,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (@event.IsStatic)
         {
-            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: includeAccessors || includeEventKeyword || @event.DeclaringType != null || delegateType != null);
         }
 
         if (includeEventKeyword)
         {
-            WriteKeyword(LitEvent, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitEvent, ref index, output, spaceSuffix: includeAccessors || @event.DeclaringType != null || delegateType != null);
         }
 
         if (delegateType != null)
@@ -2109,10 +2140,15 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (includeAccessors)
         {
-            output[index] = ' ';
-            output[index + 1] = '{';
-            output[index + 2] = ' ';
-            index += 3;
+            if (@event.DeclaringType != null || @event.HandlerType != null)
+            {
+                output[index] = ' ';
+                ++index;
+            }
+
+            output[index] = '{';
+            output[index + 1] = ' ';
+            index += 2;
 
             if (@event.HasAdder)
             {
@@ -2859,12 +2895,16 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
 
         if (!isIndexer)
-            length += isNameNull ? property.Name!.Length : 0;
+            length += !isNameNull ? property.Name!.Length : 0;
         else
             length += 4; // this
 
         if (isStatic)
-            length += 7;
+        {
+            length += 6;
+            if (includeAccessors || declaringType != null || returnType != null)
+                ++length;
+        }
 
         if (isIndexer)
         {
@@ -2900,7 +2940,10 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (includeAccessors)
         {
-            length += 4; // { }
+            if (isIndexer || declaringType != null || returnType != null)
+                ++length; // " "
+
+            length += 3; // "{ }"
 
             if (property.HasGetter)
                 length += 5;
@@ -2916,7 +2959,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         int index = 0;
         if (isStatic)
         {
-            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: includeAccessors || declaringType != null || returnType != null);
         }
 
         if (returnType != null)
@@ -2984,10 +3027,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (includeAccessors)
         {
-            output[index] = ' ';
-            output[index + 1] = '{';
-            output[index + 2] = ' ';
-            index += 3;
+            if (isIndexer || declaringType != null || returnType != null)
+            {
+                output[index] = ' ';
+                ++index;
+            }
+            output[index] = '{';
+            output[index + 1] = ' ';
+            index += 2;
 
             if (property.HasGetter)
             {
@@ -3180,17 +3227,28 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         }
 
         if (isStatic)
-            length += 7;
+        {
+            length += 6;
+            if (includeAccessors || includeEventKeyword || declaringType != null || delegateType != null)
+                ++length;
+        }
 
         if (includeEventKeyword)
+        {
             length += 6;
+            if (includeAccessors || declaringType != null || delegateType != null)
+                ++length;
+        }
 
         if (!nameIsNull)
             length += @event.Name!.Length;
 
         if (includeAccessors)
         {
-            length += 4; // { }
+            if (declaringType != null || delegateType != null)
+                ++length; // " "
+
+            length += 3; // "{ }"
 
             if (@event.HasAdder)
                 length += 5;
@@ -3208,12 +3266,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         int index = 0;
         if (isStatic)
         {
-            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: includeAccessors || includeEventKeyword || declaringType != null || delegateType != null);
         }
 
         if (includeEventKeyword)
         {
-            WriteKeyword(LitEvent, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitEvent, ref index, output, spaceSuffix: includeAccessors || declaringType != null || delegateType != null);
         }
 
         if (delegateType != null)
@@ -4602,15 +4660,22 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
     public virtual unsafe string Format(FieldDefinition field)
     {
         string? fieldName = field.Name;
+        bool nameIsNull = string.IsNullOrEmpty(fieldName);
         int len = 0;
 
         if (field.IsConstant)
-            len += 6;
+        {
+            len += 5;
+            if (field.FieldType != null || field.DeclaringType != null || !nameIsNull)
+                ++len;
+        }
         else if (field.IsStatic)
-            len += 7;
-
-        bool nameIsNull = string.IsNullOrEmpty(fieldName);
-
+        {
+            len += 6;
+            if (field.FieldType != null || field.DeclaringType != null || !nameIsNull)
+                ++len;
+        }
+        
         Type? fieldType = field.FieldType;
         Type? originalFieldType = fieldType;
         Type? declType = field.DeclaringType;
@@ -4656,11 +4721,11 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (field.IsConstant)
         {
-            WriteKeyword(LitConst, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitConst, ref index, output, spaceSuffix: field.FieldType != null || field.DeclaringType != null || !nameIsNull);
         }
         else if (field.IsStatic)
         {
-            WriteKeyword(LitStatic, ref index, output, spaceSuffix: true);
+            WriteKeyword(LitStatic, ref index, output, spaceSuffix: field.FieldType != null || field.DeclaringType != null || !nameIsNull);
         }
 
         if (fieldType != null)

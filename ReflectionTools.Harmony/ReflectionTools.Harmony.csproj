@@ -1,12 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net461;net5.0;netstandard2.0;netcoreapp3.0;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks>net461;net5.0;net6.0;netstandard2.0;netcoreapp3.0;netstandard2.1</TargetFrameworks>
 
     <Nullable>enable</Nullable>
     <LangVersion>preview</LangVersion>
 
-    <RootNamespace>DanielWillett.ReflectionTools.Harmony</RootNamespace>
+    <RootNamespace>DanielWillett.ReflectionTools</RootNamespace>
 
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools.Harmony</PackageId>
@@ -31,7 +31,7 @@
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
     <NoWarn>CS8002</NoWarn>
-    <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.Harmony.dll.snk</AssemblyOriginatorKeyFile>
+    <!--<AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.Harmony.dll.snk</AssemblyOriginatorKeyFile>-->
   </PropertyGroup>
 
   <ItemGroup>

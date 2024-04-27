@@ -4,7 +4,7 @@ public class TestSetup
 {
     public static event Action<string>? OnLog;
     [AssemblyInitialize]
-    public static void Setup(TestContext testContext)
+    public static void Initialize(TestContext testContext)
     {
         Accessor.LogILTraceMessages = true;
         Accessor.LogDebugMessages = true;
@@ -59,6 +59,13 @@ public class LogListener : IDisposable
         TestSetup.OnLog += OnLog;
     }
 
+    public void Reset(string? text = null)
+    {
+        if (text != null)
+            Text = text;
+        Result = false;
+        TestSetup.OnLog += OnLog;
+    }
     private void OnLog(string message)
     {
         if (message.IndexOf(Text, StringComparison.InvariantCultureIgnoreCase) != -1)

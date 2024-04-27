@@ -22,6 +22,7 @@ public static class Accessor
     /// <summary>
     /// Implementation of <see cref="IAccessor"/> currently in use by all static/extension methods.
     /// </summary>
+    /// <remarks>By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     public static IAccessor Active
     {
         get => _accessor;
@@ -99,18 +100,20 @@ public static class Accessor
     /// Logging IO for all methods in this library.
     /// <para>Assigning a value to this will dispose the previous value if needed.</para>
     /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.
+    /// By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     public static IReflectionToolsLogger? Logger
     {
         get => _accessor.Logger;
         set => _accessor.Logger = value;
     }
-    
+
     /// <summary>
     /// Logging IO for all methods in this library for standard output.
     /// <para>Assigning a value to this will dispose the previous value if needed.</para>
     /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.
+    /// By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     public static IOpCodeFormatter Formatter
     {
         get => _accessor.Formatter;
@@ -121,7 +124,8 @@ public static class Accessor
     /// Logging IO for all methods in this library for exceptions.
     /// <para>Assigning a value to this will dispose the previous value if needed.</para>
     /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.
+    /// By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     public static IOpCodeFormatter ExceptionFormatter
     {
         get => _accessor.ExceptionFormatter;

@@ -1,12 +1,11 @@
 ﻿using DanielWillett.ReflectionTools.Emit;
-using DanielWillett.ReflectionTools.Formatting;
 using HarmonyLib;
 using System;
 using System.Globalization;
 using System.Reflection.Emit;
 using System.Text;
 
-namespace DanielWillett.ReflectionTools.Harmony.Formatting;
+namespace DanielWillett.ReflectionTools.Formatting;
 
 /// <summary>
 /// Default plain-text implementation of <see cref="ICodeInstructionFormatter"/>.

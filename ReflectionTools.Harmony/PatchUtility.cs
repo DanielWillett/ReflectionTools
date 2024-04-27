@@ -1,4 +1,4 @@
-﻿using DanielWillett.ReflectionTools.Harmony.Formatting;
+﻿using DanielWillett.ReflectionTools.Formatting;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
 
-namespace DanielWillett.ReflectionTools.Harmony;
+namespace DanielWillett.ReflectionTools;
 
 /// <summary>
 /// Represents a predicate for code instructions.
@@ -94,6 +94,21 @@ public static class PatchUtility
     }
 
     /// <summary>
+    /// Returns <see langword="true"/> if the instruction at the caret and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
+    /// </summary>
+    /// <remarks>The caret will be incremented to the next instruction after the match.</remarks>
+    [Pure]
+    public static bool FollowPattern(TranspileContext instructions, params PatternMatch?[] matches)
+    {
+        if (MatchPattern(instructions, matches))
+        {
+            instructions.CaretIndex += matches.Length;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Returns <see langword="true"/> and removes the instructions at <paramref name="index"/> and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
     [Pure]
@@ -116,15 +131,68 @@ public static class PatchUtility
     }
 
     /// <summary>
+    /// Returns a block with info of the removed instructions and removes the instructions at the caret and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
+    /// </summary>
+    /// <remarks>The return block will be of size 0 if no matches were found.</remarks>
+    [Pure]
+    public static BlockInfo RemovePattern(TranspileContext instructions, params PatternMatch?[] matches)
+    {
+        if (MatchPattern(instructions, matches))
+        {
+            return instructions.Remove(matches.Length);
+        }
+
+        return new BlockInfo(Array.Empty<InstructionBlockInfo>());
+    }
+
+    /// <summary>
+    /// Creates a block with info of the removed instructions and removes the instructions at the caret and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
+    /// </summary>
+    /// <remarks>The outputted block will be of size 0 if no matches were found.</remarks>
+    [Pure]
+    public static bool TryRemovePattern(TranspileContext instructions, out BlockInfo block, params PatternMatch?[] matches)
+    {
+        if (MatchPattern(instructions, matches))
+        {
+            block = instructions.Remove(matches.Length);
+            return true;
+        }
+
+        block = new BlockInfo(Array.Empty<InstructionBlockInfo>());
+        return false;
+    }
+
+    /// <summary>
     /// Returns <see langword="true"/> if the instruction at <paramref name="index"/> and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
     [Pure]
     public static bool MatchPattern(IList<CodeInstruction> instructions, int index, params PatternMatch?[] matches)
     {
         int c = matches.Length;
-        if (c <= 0 || index >= instructions.Count - matches.Length)
+        if (c <= 0 || index >= instructions.Count - c)
             return false;
-        for (int i = index; i < index + matches.Length; ++i)
+        for (int i = index; i < index + c; ++i)
+        {
+            PatternMatch? pattern = matches[i - index];
+            if (pattern != null && !pattern.Invoke(instructions[i]))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> if the instruction at the caret and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
+    /// </summary>
+    [Pure]
+    public static bool MatchPattern(TranspileContext instructions, params PatternMatch?[] matches)
+    {
+        int c = matches.Length;
+
+        if (c <= 0 || instructions.CaretIndex + c > instructions.Count)
+            return false;
+
+        int index = instructions.CaretIndex;
+        for (int i = index; i < index + c; ++i)
         {
             PatternMatch? pattern = matches[i - index];
             if (pattern != null && !pattern.Invoke(instructions[i]))
@@ -170,6 +238,31 @@ public static class PatchUtility
     }
 
     /// <summary>
+    /// Inserts instructions to execute <paramref name="checker"/> and return (or optionally branch to <paramref name="goto"/>) if it returns <see langword="false"/>.
+    /// </summary>
+    /// <returns>Amount of instructions inserted.</returns>
+    public static int ReturnIfFalse(TranspileContext instructions, Func<bool> checker, Label? @goto = null)
+    {
+        if (@goto.HasValue)
+        {
+            instructions.EmitAbove(checker.Method.GetCallRuntime(), checker.Method);
+            instructions.Emit(OpCodes.Brfalse, @goto.Value);
+            return 2;
+        }
+
+        Label continueLbl = instructions.DefineLabel();
+
+        instructions.EmitAbove(checker.Method.GetCallRuntime(), checker.Method);
+        instructions.Emit(OpCodes.Brtrue, continueLbl);
+        instructions.Emit(OpCodes.Ret);
+
+        if (instructions.Count > instructions.CaretIndex)
+            instructions.Instruction.labels.Add(continueLbl);
+
+        return 3;
+    }
+
+    /// <summary>
     /// Increment <paramref name="index"/> until <paramref name="match"/> matches or the function ends.
     /// </summary>
     /// <returns>Amount of instructions skipped.</returns>
@@ -192,6 +285,28 @@ public static class PatchUtility
     }
 
     /// <summary>
+    /// Increment the caret until <paramref name="match"/> matches or the function ends.
+    /// </summary>
+    /// <returns>Amount of instructions skipped.</returns>
+    [Pure]
+    public static int ContinueUntil(TranspileContext instructions, PatternMatch match, bool includeMatch = true)
+    {
+        int amt = 0;
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
+        {
+            ++amt;
+            if (!match(instructions[i]))
+                continue;
+
+            instructions.CaretIndex = includeMatch ? i : i + 1;
+            if (includeMatch)
+                --amt;
+            break;
+        }
+        return amt;
+    }
+
+    /// <summary>
     /// Increment <paramref name="index"/> until <paramref name="match"/> fails or the function ends.
     /// </summary>
     /// <returns>Amount of instructions skipped.</returns>
@@ -206,6 +321,28 @@ public static class PatchUtility
                 continue;
 
             index = includeNext ? i : i - 1;
+            if (!includeNext)
+                --amt;
+            break;
+        }
+        return amt;
+    }
+
+    /// <summary>
+    /// Increment the caret until <paramref name="match"/> fails or the function ends.
+    /// </summary>
+    /// <returns>Amount of instructions skipped.</returns>
+    [Pure]
+    public static int ContinueWhile(TranspileContext instructions, PatternMatch match, bool includeNext = true)
+    {
+        int amt = 0;
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
+        {
+            ++amt;
+            if (match(instructions[i]))
+                continue;
+
+            instructions.CaretIndex = includeNext ? i : i - 1;
             if (!includeNext)
                 --amt;
             break;
@@ -247,6 +384,40 @@ public static class PatchUtility
     }
 
     /// <summary>
+    /// Add <paramref name="label"/> to the next instruction that matches <paramref name="match"/>.
+    /// </summary>
+    [Pure]
+    public static bool LabelNext(TranspileContext instructions, Label label, PatternMatch match, int shift = 0, bool labelRtnIfFailure = false)
+    {
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
+        {
+            if (!match(instructions[i]))
+                continue;
+
+            int newIndex = i + shift;
+            if (instructions.Count <= i)
+                continue;
+
+            instructions[newIndex].labels.Add(label);
+            return true;
+        }
+
+        if (!labelRtnIfFailure)
+            return false;
+
+        if (instructions[instructions.Count - 1].opcode == OpCodes.Ret)
+            instructions[instructions.Count - 1].labels.Add(label);
+        else
+        {
+            CodeInstruction instruction = new CodeInstruction(OpCodes.Ret);
+            instruction.labels.Add(label);
+            
+            instructions.Instructions.Add(instruction);
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Get a label to the next instruction that matches <paramref name="match"/>.
     /// </summary>
     [Pure]
@@ -262,6 +433,28 @@ public static class PatchUtility
                 continue;
 
             Label label = generator.DefineLabel();
+            instructions[newIndex].labels.Add(label);
+            return label;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Get a label to the next instruction that matches <paramref name="match"/>.
+    /// </summary>
+    [Pure]
+    public static Label? LabelNext(TranspileContext instructions, PatternMatch match, int shift = 0)
+    {
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
+        {
+            if (!match(instructions[i]))
+                continue;
+
+            int newIndex = i + shift;
+            if (instructions.Count <= i)
+                continue;
+
+            Label label = instructions.DefineLabel();
             instructions[newIndex].labels.Add(label);
             return label;
         }
@@ -312,6 +505,49 @@ public static class PatchUtility
     }
 
     /// <summary>
+    /// Get a label to the next instruction that matches <paramref name="match"/>, or the end of the function.
+    /// </summary>
+    [Pure]
+    public static Label LabelNextOrReturn(TranspileContext instructions, PatternMatch? match, int shift = 0, bool allowUseExisting = true)
+    {
+        CodeInstruction instruction;
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
+        {
+            if (match != null && !match(instructions[i]))
+                continue;
+
+            int newIndex = i + shift;
+            if (instructions.Count <= i)
+                continue;
+
+            instruction = instructions[newIndex];
+            if (allowUseExisting && instruction.labels.Count > 0)
+                return instruction.labels[instruction.labels.Count - 1];
+            Label label = instructions.DefineLabel();
+            instruction.labels.Add(label);
+            return label;
+        }
+
+        instruction = instructions[instructions.Count - 1];
+        if (instruction.opcode == OpCodes.Ret)
+        {
+            if (allowUseExisting && instruction.labels.Count > 0)
+                return instruction.labels[instruction.labels.Count - 1];
+            Label label = instructions.DefineLabel();
+            instruction.labels.Add(label);
+            return label;
+        }
+        else
+        {
+            Label label = instructions.DefineLabel();
+            instruction = new CodeInstruction(OpCodes.Ret);
+            instruction.labels.Add(label);
+            instructions.Instructions.Add(instruction);
+            return label;
+        }
+    }
+
+    /// <summary>
     /// Get the label of the next branch instructino.
     /// </summary>
     [Pure]
@@ -320,6 +556,21 @@ public static class PatchUtility
         if (index < 0)
             index = 0;
         for (int i = index; i < instructions.Count; ++i)
+        {
+            if (instructions[i].Branches(out Label? label) && label.HasValue)
+                return label;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Get the label of the next branch instructino.
+    /// </summary>
+    [Pure]
+    public static Label? GetNextBranchTarget(TranspileContext instructions)
+    {
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
         {
             if (instructions[i].Branches(out Label? label) && label.HasValue)
                 return label;
@@ -346,6 +597,40 @@ public static class PatchUtility
                     if (labels[j] == label)
                         return i;
                 }
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Find the index of the code instruction to which the label refers.
+    /// </summary>
+    [Pure]
+    public static int FindLabelDestinationIndex(TranspileContext instructions, Label label)
+    {
+        for (int i = instructions.CaretIndex; i < instructions.Count; ++i)
+        {
+            List<Label>? labels = instructions[i].labels;
+            if (labels == null)
+                continue;
+
+            for (int j = 0; j < labels.Count; ++j)
+            {
+                if (labels[j] == label)
+                    return i;
+            }
+        }
+        for (int i = 0; i < instructions.CaretIndex; ++i)
+        {
+            List<Label>? labels = instructions[i].labels;
+            if (labels == null)
+                continue;
+
+            for (int j = 0; j < labels.Count; ++j)
+            {
+                if (labels[j] == label)
+                    return i;
             }
         }
 

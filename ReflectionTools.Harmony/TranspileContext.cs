@@ -1,6 +1,4 @@
-﻿using DanielWillett.ReflectionTools.Emit;
-using HarmonyLib;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -8,6 +6,10 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Threading;
+using DanielWillett.ReflectionTools.Emit;
+using DanielWillett.ReflectionTools.Formatting;
+using HarmonyLib;
 #if NETFRAMEWORK
 using System.Diagnostics.SymbolStore;
 #endif
@@ -15,15 +17,19 @@ using System.Diagnostics.SymbolStore;
 using System.Diagnostics.CodeAnalysis;
 #endif
 
-namespace DanielWillett.ReflectionTools.Harmony;
+namespace DanielWillett.ReflectionTools;
 
 /// <summary>
 /// Used for logging in a transpiler, along with finding members.
 /// </summary>
 public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 {
+    private static ITranspileContextLogger _defaultTranspileLogger = new DefaultTranspileContextLogger();
+    private ITranspileContextLogger _transpileLogger = (ITranspileContextLogger)_defaultTranspileLogger.Clone();
+
     private readonly IAccessor _accessor;
-    private readonly List<CodeInstruction> _instructions;
+    private readonly IEnumerable<CodeInstruction>? _originalInstructions;
+    internal readonly List<CodeInstruction> Instructions;
     private readonly List<Label> _nextLabels = [];
     private readonly List<ExceptionBlock> _nextBlocks = [];
     private readonly ILGenerator _il;
@@ -31,6 +37,31 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     private int _caretIndex;
     private int _lastStackSizeIs0;
     private int _listVersion;
+
+    /// <summary>
+    /// The default log formatter to use for new <see cref="TranspileContext"/> objects.
+    /// </summary>
+    /// <remarks>By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
+    public static ITranspileContextLogger DefaultTranspileLogger
+    {
+        get => _defaultTranspileLogger;
+        set
+        {
+            ITranspileContextLogger old = Interlocked.Exchange(ref _defaultTranspileLogger, value);
+            if (!ReferenceEquals(old, value) && old is IDisposable disp)
+                disp.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Formatter to use for formatting transpile loggers.
+    /// </summary>
+    /// <remarks>You are responsible for cleaning up this object after use, as one object is expected to be used for multiple <see cref="TranspileContext"/> objects.</remarks>
+    public ITranspileContextLogger TranspileLogger
+    {
+        get => _transpileLogger;
+        set => _transpileLogger = value ?? (ITranspileContextLogger)_defaultTranspileLogger.Clone();
+    }
 
     /// <summary>
     /// Used for logging in a transpiler, along with finding members.
@@ -45,7 +76,8 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         _il = generator ?? throw new ArgumentNullException(nameof(generator));
         Method = method ?? throw new ArgumentNullException(nameof(method));
         _accessor = accessor ?? Accessor.Active;
-        _instructions = instructions == null ? new List<CodeInstruction>(0) : new List<CodeInstruction>(instructions);
+        Instructions = instructions == null ? new List<CodeInstruction>(0) : new List<CodeInstruction>(instructions);
+        _originalInstructions = instructions;
         _caretIndex = 0;
     }
 
@@ -64,7 +96,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <summary>
     /// Number of instructions in the list.
     /// </summary>
-    public int Count => _instructions.Count;
+    public int Count => Instructions.Count;
 
     /// <summary>
     /// The method that's being transpiled.
@@ -81,12 +113,153 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         get => _caretIndex;
         set
         {
-            if (_caretIndex > _instructions.Count || _caretIndex < 0)
+            if (value > Instructions.Count || value < 0)
                 throw new ArgumentOutOfRangeException(nameof(value), "Caret index must be >= 0 and <= instruction count.");
 
             AssertBlocksAndLabelsApplied();
             _caretIndex = value;
         }
+    }
+
+    /// <summary>
+    /// A reference to the instruction the caret is currently on.
+    /// </summary>
+    public CodeInstruction Instruction
+    {
+        get
+        {
+            if (_caretIndex > Instructions.Count || _caretIndex < 0)
+                throw new InvalidOperationException("Caret is not on an instruction.");
+
+            return Instructions[_caretIndex];
+        }
+    }
+    
+    /// <summary>
+    /// Move the caret to the next instruction in the instruction list.
+    /// </summary>
+    /// <returns><see langword="true"/> if the caret is on an instruction, otherwise false.</returns>
+    public bool MoveNext()
+    {
+        if (_caretIndex + 1 >= Instructions.Count)
+            return false;
+
+        ++_caretIndex;
+        return true;
+    }
+
+    /// <summary>
+    /// Get the code instruction at the given index.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"/>
+    public CodeInstruction this[int index] => Instructions[index];
+
+    /// <summary>
+    /// Remove <paramref name="count"/> instructions from the instruction list, returning their label and block information.
+    /// </summary>
+    public BlockInfo Remove(int count)
+    {
+        if (count == 0)
+            return new BlockInfo(Array.Empty<InstructionBlockInfo>());
+        
+        if (count < 0 || Instructions == null || _caretIndex + count > Instructions.Count)
+            throw new ArgumentOutOfRangeException(nameof(count));
+
+        InstructionBlockInfo[] instructions = new InstructionBlockInfo[count];
+        for (int i = _caretIndex; i < _caretIndex + count; ++i)
+        {
+            CodeInstruction codeInstruction = Instructions[i];
+            instructions[i - _caretIndex] = new InstructionBlockInfo(codeInstruction.opcode,
+                codeInstruction.operand,
+                codeInstruction.labels.Count == 0 ? Array.Empty<Label>() : codeInstruction.labels.ToArray(),
+                codeInstruction.blocks.Count == 0 ? Array.Empty<ExceptionBlock>() : codeInstruction.blocks.ToArray()
+            );
+        }
+
+        Instructions.RemoveRange(_caretIndex, count);
+
+        return new BlockInfo(instructions);
+    }
+
+    /// <summary>
+    /// Fail the transpiler because a member couldn't be found and log an error to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="missingMember">A definition of the original member that couldn't be found.</param>
+    /// <returns>The original method's instructions.</returns>
+    public IEnumerable<CodeInstruction> Fail(IMemberDefinition missingMember)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogFailure(this, missingMember, _accessor);
+        return _originalInstructions ?? Array.Empty<CodeInstruction>();
+    }
+
+    /// <summary>
+    /// Fail the transpiler with a generic message and log an error to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="message">A generic human-readable message describing what went wrong.</param>
+    /// <returns>The original method's instructions.</returns>
+    public IEnumerable<CodeInstruction> Fail(string message)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogFailure(this, message, _accessor);
+        return _originalInstructions ?? Array.Empty<CodeInstruction>();
+    }
+
+    /// <summary>
+    /// Log debug information to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="message">A generic human-readable message describing the event.</param>
+    public void LogDebug(string message)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogDebug(this, message, _accessor);
+    }
+
+    /// <summary>
+    /// Log information to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="message">A generic human-readable message describing the event.</param>
+    public void LogInfo(string message)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogInfo(this, message, _accessor);
+    }
+
+    /// <summary>
+    /// Log a warning to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="message">A generic human-readable message describing the event.</param>
+    public void LogWarning(string message)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogWarning(this, message, _accessor);
+    }
+
+    /// <summary>
+    /// Log an error to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="message">A generic human-readable message describing the event.</param>
+    public void LogError(string message)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogError(this, message, _accessor);
+    }
+
+    /// <summary>
+    /// Log an error to <see cref="TranspileLogger"/>. 
+    /// </summary>
+    /// <param name="message">A generic human-readable message describing the event.</param>
+    public void LogError(Exception ex, string message)
+    {
+        ITranspileContextLogger logger = _transpileLogger;
+        if (logger.Enabled)
+            logger.LogError(this, ex, message, _accessor);
     }
 
     /// <summary>
@@ -109,10 +282,10 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// </summary>
     public void ApplyBlocksAndLabels()
     {
-        if (_instructions.Count == 0)
+        if (Instructions.Count == 0)
             throw new InvalidOperationException("No instructions loaded.");
 
-        CodeInstruction instruction = _instructions[CaretIndex];
+        CodeInstruction instruction = Instructions[_caretIndex];
         foreach (Label lbl in _nextLabels)
             instruction.labels.Add(lbl);
 
@@ -136,7 +309,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
     [DoesNotReturn]
 #endif
-    public void BeginExceptFilterBlock()
+    void IOpCodeEmitter.BeginExceptFilterBlock()
     {
         throw new NotSupportedException("Harmony does not support filter blocks.");
     }
@@ -167,7 +340,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
     [DoesNotReturn]
 #endif
-    public void BeginScope()
+    void IOpCodeEmitter.BeginScope()
     {
         throw new NotSupportedException("Harmony does not support scopes.");
     }
@@ -183,119 +356,381 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <summary>Puts the specified instruction onto the stream of instructions.</summary>
     /// <param name="instruction">The Microsoft Intermediate Language (MSIL) instruction to be put onto the stream, with an optional operand and label list.</param>
-    public void Emit(CodeInstruction instruction)
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(CodeInstruction instruction)
     {
-        _instructions.Insert(CaretIndex, instruction);
+        Instructions.Insert(_caretIndex, instruction);
         ApplyBlocksAndLabels();
-        ++CaretIndex;
+        ++_caretIndex;
+        return instruction;
     }
 
-    /// <inheritdoc />
-    public void Emit(OpCode opcode)
+    void IOpCodeEmitter.Emit(OpCode opcode)
     {
         Emit(new CodeInstruction(opcode));
     }
 
-    /// <inheritdoc />
-    public void Emit(OpCode opcode, byte arg)
+    void IOpCodeEmitter.Emit(OpCode opcode, byte arg)
+    {
+        Emit(new CodeInstruction(opcode, arg));
+    }
+
+    void IOpCodeEmitter.Emit(OpCode opcode, double arg)
+    {
+        Emit(new CodeInstruction(opcode, arg));
+    }
+
+    void IOpCodeEmitter.Emit(OpCode opcode, float arg)
+    {
+        Emit(new CodeInstruction(opcode, arg));
+    }
+
+    void IOpCodeEmitter.Emit(OpCode opcode, int arg)
+    {
+        Emit(new CodeInstruction(opcode, arg));
+    }
+
+    void IOpCodeEmitter.Emit(OpCode opcode, long arg)
+    {
+        Emit(new CodeInstruction(opcode, arg));
+    }
+
+    void IOpCodeEmitter.Emit(OpCode opcode, sbyte arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, double arg)
+    void IOpCodeEmitter.Emit(OpCode opcode, short arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, float arg)
-    {
-        Emit(new CodeInstruction(opcode, arg));
-    }
-
-    /// <inheritdoc />
-    public void Emit(OpCode opcode, int arg)
-    {
-        Emit(new CodeInstruction(opcode, arg));
-    }
-
-    /// <inheritdoc />
-    public void Emit(OpCode opcode, long arg)
-    {
-        Emit(new CodeInstruction(opcode, arg));
-    }
-
-    /// <inheritdoc />
-    public void Emit(OpCode opcode, sbyte arg)
-    {
-        Emit(new CodeInstruction(opcode, arg));
-    }
-
-    /// <inheritdoc />
-    public void Emit(OpCode opcode, short arg)
-    {
-        Emit(new CodeInstruction(opcode, arg));
-    }
-
-    /// <inheritdoc />
-    public void Emit(OpCode opcode, string str)
+    void IOpCodeEmitter.Emit(OpCode opcode, string str)
     {
         Emit(new CodeInstruction(opcode, str));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, ConstructorInfo con)
+    void IOpCodeEmitter.Emit(OpCode opcode, ConstructorInfo con)
     {
         Emit(new CodeInstruction(opcode, con));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, Label label)
+    void IOpCodeEmitter.Emit(OpCode opcode, Label label)
     {
         Emit(new CodeInstruction(opcode, label));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, Label[] labels)
+    void IOpCodeEmitter.Emit(OpCode opcode, Label[] labels)
     {
         Emit(new CodeInstruction(opcode, labels));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, LocalBuilder local)
+    void IOpCodeEmitter.Emit(OpCode opcode, LocalBuilder local)
     {
         Emit(new CodeInstruction(opcode, local));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, SignatureHelper signature)
+    void IOpCodeEmitter.Emit(OpCode opcode, SignatureHelper signature)
     {
         Emit(new CodeInstruction(opcode, signature));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, FieldInfo field)
+    void IOpCodeEmitter.Emit(OpCode opcode, FieldInfo field)
     {
         Emit(new CodeInstruction(opcode, field));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, MethodInfo meth)
+    void IOpCodeEmitter.Emit(OpCode opcode, MethodInfo meth)
     {
         Emit(new CodeInstruction(opcode, meth));
     }
 
     /// <inheritdoc />
-    public void Emit(OpCode opcode, Type cls)
+    void IOpCodeEmitter.Emit(OpCode opcode, Type cls)
     {
         Emit(new CodeInstruction(opcode, cls));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode)
+    {
+        return Emit(new CodeInstruction(opcode));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,byte)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, byte arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,double)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, double arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,float)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, float arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,int)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, int arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,long)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, long arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,sbyte)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, sbyte arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,short)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, short arg)
+    {
+        return Emit(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,string)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, string str)
+    {
+        return Emit(new CodeInstruction(opcode, str));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,ConstructorInfo)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, ConstructorInfo con)
+    {
+        return Emit(new CodeInstruction(opcode, con));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, Label label)
+    {
+        return Emit(new CodeInstruction(opcode, label));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label[])"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, Label[] labels)
+    {
+        return Emit(new CodeInstruction(opcode, labels));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,LocalBuilder)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, LocalBuilder local)
+    {
+        return Emit(new CodeInstruction(opcode, local));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,SignatureHelper)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, SignatureHelper signature)
+    {
+        return Emit(new CodeInstruction(opcode, signature));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,FieldInfo)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, FieldInfo field)
+    {
+        return Emit(new CodeInstruction(opcode, field));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,MethodInfo)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, MethodInfo meth)
+    {
+        return Emit(new CodeInstruction(opcode, meth));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Type)"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction Emit(OpCode opcode, Type cls)
+    {
+        return Emit(new CodeInstruction(opcode, cls));
+    }
+
+    /// <inheritdoc cref="Emit(HarmonyLib.CodeInstruction)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(CodeInstruction instruction)
+    {
+        CodeInstruction current = Instructions[_caretIndex];
+        Instructions.Insert(_caretIndex, instruction);
+        ApplyBlocksAndLabels();
+        ++_caretIndex;
+        return instruction.WithStartBlocksFrom(current);
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode)
+    {
+        return EmitAbove(new CodeInstruction(opcode));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,byte)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, byte arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,double)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, double arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,float)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, float arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,int)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, int arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,long)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, long arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,sbyte)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, sbyte arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,short)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, short arg)
+    {
+        return EmitAbove(new CodeInstruction(opcode, arg));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,string)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, string str)
+    {
+        return EmitAbove(new CodeInstruction(opcode, str));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,ConstructorInfo)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, ConstructorInfo con)
+    {
+        return EmitAbove(new CodeInstruction(opcode, con));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, Label label)
+    {
+        return EmitAbove(new CodeInstruction(opcode, label));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label[])"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, Label[] labels)
+    {
+        return EmitAbove(new CodeInstruction(opcode, labels));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,LocalBuilder)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, LocalBuilder local)
+    {
+        return EmitAbove(new CodeInstruction(opcode, local));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,SignatureHelper)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, SignatureHelper signature)
+    {
+        return EmitAbove(new CodeInstruction(opcode, signature));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,FieldInfo)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, FieldInfo field)
+    {
+        return EmitAbove(new CodeInstruction(opcode, field));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,MethodInfo)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, MethodInfo meth)
+    {
+        return EmitAbove(new CodeInstruction(opcode, meth));
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Type)"/>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitAbove(OpCode opcode, Type cls)
+    {
+        return EmitAbove(new CodeInstruction(opcode, cls));
     }
 
     /// <inheritdoc />
     /// <remarks>Using <paramref name="optionalParameterTypes"/> is not supported in <see cref="TranspileContext"/>.</remarks>
     /// <exception cref="NotSupportedException">Optional parameters are not supported.</exception>
-    public void EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
+    void IOpCodeEmitter.EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
     {
         if (optionalParameterTypes is { Length: > 0 })
             throw new NotSupportedException("Optional parameters are not supported.");
@@ -303,16 +738,14 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         Emit(new CodeInstruction(opcode, methodInfo));
     }
 
-    /// <summary>
-    /// Not supported in <see cref="TranspileContext"/>.
-    /// </summary>
-    /// <exception cref="NotSupportedException">Calli is not supported.</exception>
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
-    [DoesNotReturn]
-#endif
-    public void EmitCalli(OpCode opcode, CallingConventions callingConvention, Type returnType, Type[] parameterTypes, Type[]? optionalParameterTypes)
+    /// <inheritdoc cref="IOpCodeEmitter.EmitCall(OpCode,MethodInfo,Type[])"/>
+    /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    public CodeInstruction EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
     {
-        throw new NotSupportedException("Calli is not supported.");
+        if (optionalParameterTypes is { Length: > 0 })
+            throw new NotSupportedException("Optional parameters are not supported.");
+
+        return Emit(new CodeInstruction(opcode, methodInfo));
     }
 
     /// <summary>
@@ -322,16 +755,40 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
     [DoesNotReturn]
 #endif
-    public void EmitCalli(OpCode opcode, CallingConvention unmanagedCallConv, Type returnType, Type[] parameterTypes)
+    void IOpCodeEmitter.EmitCalli(OpCode opcode, CallingConventions callingConvention, Type returnType, Type[] parameterTypes, Type[]? optionalParameterTypes)
     {
         throw new NotSupportedException("Calli is not supported.");
     }
+
+#if NETSTANDARD2_1_OR_GREATER || !NETSTANDARD
+    /// <summary>
+    /// Not supported in <see cref="TranspileContext"/>.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Calli is not supported.</exception>
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+    [DoesNotReturn]
+#endif
+    void IOpCodeEmitter.EmitCalli(OpCode opcode, CallingConvention unmanagedCallConv, Type returnType, Type[] parameterTypes)
+    {
+        throw new NotSupportedException("Calli is not supported.");
+    }
+#endif
 
     /// <inheritdoc />
     public void EmitWriteLine(string value)
     {
         MethodInfo method = new Action<string>(Console.WriteLine).Method;
         Emit(OpCodes.Ldstr, value);
+        Emit(OpCodes.Call, method);
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.EmitWriteLine(string)" />
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    public void EmitWriteLineAbove(string value)
+    {
+        MethodInfo method = new Action<string>(Console.WriteLine).Method;
+        CodeInstruction st = Instructions[_caretIndex];
+        Emit(OpCodes.Ldstr, value).WithStartBlocksFrom(st);
         Emit(OpCodes.Call, method);
     }
 
@@ -352,7 +809,21 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
         if (box)
             Emit(OpCodes.Box, localBuilder.LocalType!);
-        
+
+        Emit(OpCodes.Call, method);
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.EmitWriteLine(LocalBuilder)" />
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    public void EmitWriteLineAbove(LocalBuilder localBuilder)
+    {
+        MethodInfo method = GetConsoleWriteLineMethod(localBuilder.LocalType, out bool box);
+        CodeInstruction st = Instructions[_caretIndex];
+        Emit(OpCodes.Ldloc, localBuilder).WithStartBlocksFrom(st);
+
+        if (box)
+            Emit(OpCodes.Box, localBuilder.LocalType!);
+
         Emit(OpCodes.Call, method);
     }
 
@@ -368,6 +839,29 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         else
         {
             Emit(OpCodes.Ldarg_0);
+            Emit(OpCodes.Ldfld, fld);
+        }
+
+        if (box)
+            Emit(OpCodes.Box, fld.FieldType);
+
+        Emit(OpCodes.Call, method);
+    }
+
+    /// <inheritdoc cref="IOpCodeEmitter.EmitWriteLine(FieldInfo)" />
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <exception cref="ArgumentException">Field must be static, or the same instance as the current method.</exception>
+    public void EmitWriteLineAbove(FieldInfo fld)
+    {
+        MethodInfo method = GetConsoleWriteLineMethod(fld.FieldType, out bool box);
+        CodeInstruction st = Instructions[_caretIndex];
+        if (fld.IsStatic)
+            Emit(OpCodes.Ldsfld, fld).WithStartBlocksFrom(st);
+        else if (fld.DeclaringType == null || fld.DeclaringType != Method.DeclaringType || Method.IsStatic)
+            throw new ArgumentException("Field must be static, or the same instance as the current method.", nameof(fld));
+        else
+        {
+            Emit(OpCodes.Ldarg_0).WithStartBlocksFrom(st);
             Emit(OpCodes.Ldfld, fld);
         }
 
@@ -429,6 +923,25 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         Emit(OpCodes.Throw);
     }
 
+    /// <inheritdoc cref="IOpCodeEmitter.ThrowException(Type)" />
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    public void ThrowExceptionAbove(Type excType)
+    {
+        if (excType == null)
+            throw new ArgumentNullException(nameof(excType));
+
+        ConstructorInfo? con = excType.IsSubclassOf(typeof(Exception)) || !(excType != typeof(Exception))
+                                   ? excType.GetConstructor(Type.EmptyTypes)
+                                   : throw new ArgumentException("Not a valid exception type.");
+
+        if (con == null)
+            throw new ArgumentException("Exception does not have a parameterless constructor.");
+
+        CodeInstruction st = Instructions[_caretIndex];
+        Emit(OpCodes.Newobj, con).WithStartBlocksFrom(st);
+        Emit(OpCodes.Throw);
+    }
+
     /// <summary>Emits an instruction to throw an exception.</summary>
     /// <param name="excType">The class of the type of exception to throw.</param>
     /// <param name="message">The message add to the exception if there's a constructor for a message present.</param>
@@ -460,6 +973,38 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         Emit(OpCodes.Throw);
     }
 
+    /// <summary>Emits an instruction to throw an exception.</summary>
+    /// <param name="excType">The class of the type of exception to throw.</param>
+    /// <param name="message">The message add to the exception if there's a constructor for a message present.</param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="excType" /> is not the <see cref="Exception" /> class or a derived class of <see cref="Exception" />.
+    /// -or-
+    /// The type does not have a default constructor or a constructor with a string argument.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="excType" /> is <see langword="null" />.</exception>
+    public void ThrowExceptionAbove(Type excType, string message)
+    {
+        if (excType == null)
+            throw new ArgumentNullException(nameof(excType));
+        if (message == null)
+            throw new ArgumentNullException(nameof(message));
+
+        _msgTypeArr ??= [ typeof(string) ];
+        ConstructorInfo? con = excType.IsSubclassOf(typeof(Exception)) || !(excType != typeof(Exception))
+                                   ? excType.GetConstructor(_msgTypeArr)
+                                   : throw new ArgumentException("Not a valid exception type.");
+
+        con ??= excType.GetConstructor(Type.EmptyTypes);
+
+        if (con == null)
+            throw new ArgumentException("Exception does not have a constructor with one string argument or a parameterless constructor.");
+
+        CodeInstruction st = Instructions[_caretIndex];
+        Emit(OpCodes.Ldstr, message).WithStartBlocksFrom(st);
+        Emit(OpCodes.Newobj, con);
+        Emit(OpCodes.Throw);
+    }
+
     /// <summary>
     /// Not supported in <see cref="TranspileContext"/>.
     /// </summary>
@@ -467,10 +1012,18 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
     [DoesNotReturn]
 #endif
-    public void UsingNamespace(string usingNamespace)
+    void IOpCodeEmitter.UsingNamespace(string usingNamespace)
     {
         throw new NotSupportedException("UsingNamespace is not supported.");
     }
+
+    /// <summary>
+    /// Get the stack size change of this <see cref="OpCode"/> with the given operand and method.
+    /// </summary>
+    /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
+    /// <remarks>This does not take into account catch blocks, so if one is present one must be added to the stack change.</remarks>
+    public int GetStackChange(OpCode code, object? operand)
+        => GetStackChange(code, operand, Method);
 
     /// <summary>
     /// Get the stack size change of this <see cref="OpCode"/> with the given operand and method.
@@ -562,7 +1115,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// Tries to calculate the stack size before <see cref="CaretIndex"/>.
     /// </summary>
     /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
-    public bool TryGetStackSize(out int stackSize) => TryGetStackSizeAtIndex(CaretIndex, out stackSize);
+    public bool TryGetStackSize(out int stackSize) => TryGetStackSizeAtIndex(_caretIndex, out stackSize);
 
     /// <summary>
     /// Tries to calculate the stack size before the given instruction index.
@@ -578,17 +1131,17 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
         int stackSizeIntl = 0;
         int lastStack = _lastStackSizeIs0;
-        if (_lastStackSizeIs0 >= startIndex || !Accessor.TryGetListVersion(_instructions, out int version) || version != _listVersion)
+        if (_lastStackSizeIs0 >= startIndex || !Accessor.TryGetListVersion(Instructions, out int version) || version != _listVersion)
             lastStack = 0;
 
         for (int i = lastStack; i < startIndex; ++i)
         {
-            CodeInstruction current = _instructions[i];
+            CodeInstruction current = Instructions[i];
 
-            if (i > 1 && _instructions[i - 1].opcode == OpCodes.Ret && current.labels.Count > 0)
+            if (i > 1 && Instructions[i - 1].opcode == OpCodes.Ret && current.labels.Count > 0)
             {
                 Label lbl = current.labels[0];
-                int index = _instructions.FindLastIndex(i - 2, x => x.operand is Label lbl2 && lbl2 == lbl);
+                int index = Instructions.FindLastIndex(i - 2, x => x.operand is Label lbl2 && lbl2 == lbl);
                 if (index != -1 && TryGetStackSizeAtIndex(index + 1, out int stackSize2))
                 {
                     stackSizeIntl = stackSize2;
@@ -597,7 +1150,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
             if ((current.opcode == OpCodes.Br || current.opcode == OpCodes.Br_S) && stackSizeIntl != 0 && current.operand is Label lbl3)
             {
-                int index = _instructions.FindIndex(i, x => x.labels.Contains(lbl3));
+                int index = Instructions.FindIndex(i, x => x.labels.Contains(lbl3));
                 if (index != -1)
                 {
                     i = index - 1;
@@ -618,7 +1171,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
             }
         }
 
-        Accessor.TryGetListVersion(_instructions, out _listVersion);
+        Accessor.TryGetListVersion(Instructions, out _listVersion);
         stackSize = 0;
         return false;
     }
@@ -631,7 +1184,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <param name="operand">Operand to match, or <see langword="null"/> for a wildcard.</param>
     /// <exception cref="InvalidProgramException">At any point your stack size drops below zero.</exception>
     /// <exception cref="NotSupportedException"><c>calli</c> _instructions are not supported.</exception>
-    public int GetLastUnconsumedIndex(OpCode code, object? operand = null) => GetLastUnconsumedIndex(CaretIndex, code, operand);
+    public int GetLastUnconsumedIndex(OpCode code, object? operand = null) => GetLastUnconsumedIndex(_caretIndex, code, operand);
 
     /// <summary>
     /// Returns the index of the last instruction before <paramref name="startIndex"/> which starts with a stack size of zero.
@@ -646,16 +1199,16 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     {
         int stackSize = 0;
         int lastStack = _lastStackSizeIs0;
-        if (_lastStackSizeIs0 >= startIndex || !Accessor.TryGetListVersion(_instructions, out int version) || version != _listVersion)
+        if (_lastStackSizeIs0 >= startIndex || !Accessor.TryGetListVersion(Instructions, out int version) || version != _listVersion)
             lastStack = 0;
 
         int last = -1;
-        for (int i = lastStack; i < _instructions.Count; ++i)
+        for (int i = lastStack; i < Instructions.Count; ++i)
         {
-            CodeInstruction current = _instructions[i];
+            CodeInstruction current = Instructions[i];
             if ((current.opcode == OpCodes.Br || current.opcode == OpCodes.Br_S) && stackSize != 0 && current.operand is Label lbl)
             {
-                int index = _instructions.FindIndex(i, x => x.labels.Contains(lbl));
+                int index = Instructions.FindIndex(i, x => x.labels.Contains(lbl));
                 if (index != -1)
                 {
                     i = index - 1;
@@ -671,7 +1224,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
                     if (i >= startIndex)
                     {
                         _lastStackSizeIs0 = lastStack;
-                        Accessor.TryGetListVersion(_instructions, out _listVersion);
+                        Accessor.TryGetListVersion(Instructions, out _listVersion);
                         return last;
                     }
                     last = i;
@@ -687,15 +1240,15 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
                     IReflectionToolsLogger? logger = _accessor.Logger;
                     logger?.LogError(nameof(TranspileContext), null, "Stack size less than 0 around the following lines of IL: ");
 
-                    for (int j = Math.Max(0, i - 2); j < Math.Min(_instructions.Count - 1, i + 2); ++j)
-                        logger?.LogError(nameof(TranspileContext), null, $"#{j:F4} {_instructions[j]}.");
+                    for (int j = Math.Max(0, i - 2); j < Math.Min(Instructions.Count - 1, i + 2); ++j)
+                        logger?.LogError(nameof(TranspileContext), null, $"#{j:F4} {Instructions[j]}.");
                 }
 
                 throw new InvalidProgramException($"Stack size should never be less than zero. There is an issue with your IL code around index {i}.");
             }
         }
 
-        Accessor.TryGetListVersion(_instructions, out _listVersion);
+        Accessor.TryGetListVersion(Instructions, out _listVersion);
         return last;
     }
 
@@ -706,7 +1259,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <param name="codeFilter">Predicate for <see cref="CodeInstruction"/> to match, or <see langword="null"/> for a wildcard.</param>
     /// <exception cref="InvalidProgramException">At any point your stack size drops below zero.</exception>
     /// <exception cref="NotSupportedException"><c>calli</c> instructions are not supported.</exception>
-    public int GetLastUnconsumedIndex(PatternMatch? codeFilter) => GetLastUnconsumedIndex(CaretIndex, codeFilter);
+    public int GetLastUnconsumedIndex(PatternMatch? codeFilter) => GetLastUnconsumedIndex(_caretIndex, codeFilter);
 
     /// <summary>
     /// Returns the index of the last instruction before <paramref name="startIndex"/> which starts with a stack size of zero.
@@ -720,16 +1273,16 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     {
         int stackSize = 0;
         int lastStack = _lastStackSizeIs0;
-        if (_lastStackSizeIs0 >= startIndex || !Accessor.TryGetListVersion(_instructions, out int version) || version != _listVersion)
+        if (_lastStackSizeIs0 >= startIndex || !Accessor.TryGetListVersion(Instructions, out int version) || version != _listVersion)
             lastStack = 0;
 
         int last = -1;
-        for (int i = lastStack; i < _instructions.Count; ++i)
+        for (int i = lastStack; i < Instructions.Count; ++i)
         {
-            CodeInstruction current = _instructions[i];
+            CodeInstruction current = Instructions[i];
             if ((current.opcode == OpCodes.Br || current.opcode == OpCodes.Br_S) && stackSize != 0 && current.operand is Label lbl)
             {
-                int index = _instructions.FindIndex(i, x => x.labels.Contains(lbl));
+                int index = Instructions.FindIndex(i, x => x.labels.Contains(lbl));
                 if (index != -1)
                 {
                     i = index - 1;
@@ -746,7 +1299,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
                     if (i >= startIndex)
                     {
                         _lastStackSizeIs0 = lastStack;
-                        Accessor.TryGetListVersion(_instructions, out _listVersion);
+                        Accessor.TryGetListVersion(Instructions, out _listVersion);
                         return last;
                     }
                     last = i;
@@ -762,15 +1315,15 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
                     IReflectionToolsLogger? logger = _accessor.Logger;
                     logger?.LogError(nameof(TranspileContext), null, "Stack size less than 0 around the following lines of IL: ");
 
-                    for (int j = Math.Max(0, i - 2); j < Math.Min(_instructions.Count - 1, i + 2); ++j)
-                        logger?.LogError(nameof(TranspileContext), null, $"#{j:F4} {_instructions[j]}.");
+                    for (int j = Math.Max(0, i - 2); j < Math.Min(Instructions.Count - 1, i + 2); ++j)
+                        logger?.LogError(nameof(TranspileContext), null, $"#{j:F4} {Instructions[j]}.");
                 }
 
                 throw new InvalidProgramException($"Stack size should never be less than zero. There is an issue with your IL code around index {i}.");
             }
         }
 
-        Accessor.TryGetListVersion(_instructions, out _listVersion);
+        Accessor.TryGetListVersion(Instructions, out _listVersion);
         return last;
     }
 
@@ -782,10 +1335,10 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc/>
-    public IEnumerator<CodeInstruction> GetEnumerator() => _instructions.GetEnumerator();
+    public IEnumerator<CodeInstruction> GetEnumerator() => Instructions.GetEnumerator();
 
     /// <inheritdoc/>
-    IEnumerator IEnumerable.GetEnumerator() => _instructions.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => Instructions.GetEnumerator();
 
 #if NETFRAMEWORK
     /// <inheritdoc/>

@@ -50,21 +50,24 @@ public interface IAccessor
     /// Logging IO for all methods in library.
     /// <para>Assigning a value to will dispose the previous value if needed.</para>
     /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.
+    /// By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     IReflectionToolsLogger? Logger { get; set; }
 
     /// <summary>
     /// Logging IO for all methods in library for standard output.
     /// <para>Assigning a value to will dispose the previous value if needed.</para>
     /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.
+    /// By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     IOpCodeFormatter Formatter { get; set; }
 
     /// <summary>
     /// Logging IO for all methods in library for exceptions.
     /// <para>Assigning a value to will dispose the previous value if needed.</para>
     /// </summary>
-    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.</remarks>
+    /// <remarks>Default value is an instance of <see cref="ConsoleReflectionToolsLogger"/>, which outputs to <see cref="Console"/>.
+    /// By assigning a value to this property, you transfer ownership of the object to this class, meaning it shouldn't be used or disposed outside this class at all.</remarks>
     IOpCodeFormatter ExceptionFormatter { get; set; }
 
     /// <summary>

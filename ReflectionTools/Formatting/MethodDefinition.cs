@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
-using System.Collections.ObjectModel;
 
 namespace DanielWillett.ReflectionTools.Formatting;
 
@@ -143,7 +143,7 @@ public class MethodDefinition : IMemberDefinition
         set
         {
             if (value && this is DelegateMethodDefinition)
-                throw new InvalidOperationException("Can not create a static method with a DelegateMethodDefinition.");
+                throw new InvalidOperationException("Can not create a static extension method with a DelegateMethodDefinition.");
 
             if (value)
                 _isStatic = true;
@@ -346,18 +346,18 @@ public class MethodDefinition : IMemberDefinition
                     if (found || type != returnType)
                         continue;
 
-                    GenericReferencingReturnTypeBuilder builder = definition.ReturningUsingGeneric(definition.GenDefsIntl!.Count - 1, ByRefTypeMode.Ignore);
+                    GenericReferencingReturnTypeBuilder builder = new GenericReferencingReturnTypeBuilder(definition, definition.GenDefsIntl!.Count - 1, ByRefTypeMode.Ignore);
 
                     if (returnType != returnableMethod.ReturnType)
                     {
                         for (Type? elementType = type; elementType != null; elementType = type.GetElementType())
                         {
                             if (elementType.IsArray)
-                                builder.Array(elementType.GetArrayRank());
+                                builder.AddArray(elementType.GetArrayRank());
                             else if (elementType.IsPointer)
-                                builder.Pointer();
+                                builder.AddPointer();
                             else if (elementType.IsByRef)
-                                builder.ByRefType();
+                                builder.MakeByRef();
                         }
                     }
 
@@ -403,7 +403,7 @@ public class MethodDefinition : IMemberDefinition
                 int index = Array.IndexOf(genericArguments!, parameter.ParameterType);
                 if (index != -1)
                 {
-                    definition.WithParameterUsingGeneric(index, parameter.Name, isParams, mode).CompleteGenericParameter();
+                    definition.WithParameterUsingGeneric(index, parameter.Name, isParams, mode);
                     continue;
                 }
             }
@@ -455,18 +455,18 @@ public class MethodDefinition : IMemberDefinition
                     if (found || type != returnType)
                         continue;
                     
-                    GenericReferencingReturnTypeBuilder builder = definition.ReturningUsingGeneric(definition.GenDefsIntl!.Count - 1, ByRefTypeMode.Ignore);
+                    GenericReferencingReturnTypeBuilder builder = new GenericReferencingReturnTypeBuilder(definition, definition.GenDefsIntl!.Count - 1, ByRefTypeMode.Ignore);
                     
                     if (returnType != invokeMethod.ReturnType)
                     {
                         for (Type? elementType = type; elementType != null; elementType = type.GetElementType())
                         {
                             if (elementType.IsArray)
-                                builder.Array(elementType.GetArrayRank());
+                                builder.AddArray(elementType.GetArrayRank());
                             else if (elementType.IsPointer)
-                                builder.Pointer();
+                                builder.AddPointer();
                             else if (elementType.IsByRef)
-                                builder.ByRefType();
+                                builder.MakeByRef();
                         }
                     }
 
@@ -511,7 +511,7 @@ public class MethodDefinition : IMemberDefinition
                 int index = Array.IndexOf(genericArguments!, parameter.ParameterType);
                 if (index != -1)
                 {
-                    definition.WithParameterUsingGeneric(index, parameter.Name, isParams, mode).CompleteGenericParameter();
+                    definition.WithParameterUsingGeneric(index, parameter.Name, isParams, mode);
                     continue;
                 }
             }
@@ -585,23 +585,49 @@ public class MethodDefinition : IMemberDefinition
     }
 
     /// <summary>
-    /// Start a <see cref="GenericReferencingReturnTypeBuilder"/> with the given generic parameter definition to create a return type with the base element type pulled from the generic type definitions.
+    /// Create a return type which uses a generic parameter in <see cref="GenericDefinitions"/> as it's base element type.
     /// </summary>
     /// <param name="genericParameterIndex">The zero-based index of the generic parameter definition in <see cref="GenericDefinitions"/>.</param>
     /// <param name="byRefMode">The by-ref keyword of the return type.</param>
-    public GenericReferencingReturnTypeBuilder ReturningUsingGeneric(int genericParameterIndex, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore)
+    /// <param name="elements">Optional action used to configure the return value, allowing you to make it an array, pointer, etc.</param>
+    public MethodDefinition ReturningUsingGeneric(int genericParameterIndex, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore, Action<IGenericReferencingReturnTypeBuilder>? elements = null)
     {
-        return new GenericReferencingReturnTypeBuilder(this, genericParameterIndex, byRefMode);
+        if (elements == null)
+        {
+            ReturnTypeGenericIndex = genericParameterIndex;
+            ReturnRefTypeMode = byRefMode;
+            ReturnType = null;
+
+            if (byRefMode != ByRefTypeMode.Ignore)
+            {
+                ReturnTypeGenericTypeElementTypes = [ -(int)ByRefTypeMode.Ref - 1 ];
+                ReturnTypeGenericTypeElementTypesLength = 1;
+            }
+            else
+            {
+                ReturnTypeGenericTypeElementTypes = null;
+                ReturnTypeGenericTypeElementTypesLength = 0;
+            }
+
+            return this;
+        }
+
+        GenericReferencingReturnTypeBuilder builder = new GenericReferencingReturnTypeBuilder(this, genericParameterIndex, byRefMode);
+        elements(builder);
+        if (!builder.Completed)
+            builder.CompleteReturnType();
+        return this;
     }
 
     /// <summary>
-    /// Start a <see cref="GenericReferencingReturnTypeBuilder"/> with the given generic parameter definition to create a return type with the base element type pulled from the generic type definitions.
+    /// Create a return type which uses a generic parameter in <see cref="GenericDefinitions"/> as it's base element type.
     /// </summary>
     /// <param name="genericParameterTypeName">Definition name of a type already declared.</param>
     /// <param name="byRefMode">The by-ref keyword of the return type.</param>
+    /// <param name="elements">Optional action used to configure the return value, allowing you to make it an array, pointer, etc.</param>
     /// <exception cref="ArgumentException">Unknown generic definition type name: <paramref name="genericParameterTypeName"/>.</exception>
     /// <exception cref="ArgumentNullException" />
-    public GenericReferencingReturnTypeBuilder ReturningUsingGeneric(string genericParameterTypeName, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore)
+    public MethodDefinition ReturningUsingGeneric(string genericParameterTypeName, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore, Action<IGenericReferencingReturnTypeBuilder>? elements = null)
     {
         if (genericParameterTypeName == null)
             throw new ArgumentNullException(nameof(genericParameterTypeName));
@@ -613,7 +639,7 @@ public class MethodDefinition : IMemberDefinition
         if (index < 0)
             throw new ArgumentException($"Generic parameter not found: '{genericParameterTypeName}'.", nameof(genericParameterTypeName));
 
-        return ReturningUsingGeneric(index, byRefMode);
+        return ReturningUsingGeneric(index, byRefMode, elements);
     }
 
     /// <summary>
@@ -667,7 +693,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(in MethodParameterDefinition parameter)
     {
         if (ParametersIntl == null)
@@ -683,7 +709,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(Type type, string? name)
     {
         return WithParameter(new MethodParameterDefinition(type, name));
@@ -692,7 +718,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(Type type, string? name, bool isParams)
     {
         return WithParameter(new MethodParameterDefinition(type, name, isParams));
@@ -701,7 +727,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(Type type, string? name, ByRefTypeMode byRefMode)
     {
         return WithParameter(new MethodParameterDefinition(type, name, byRefMode));
@@ -710,7 +736,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(Type type, string? name, ByRefTypeMode byRefMode, bool isParams)
     {
         return WithParameter(new MethodParameterDefinition(type, name, byRefMode, isParams));
@@ -719,7 +745,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter<TParamType>(string? name)
     {
         return WithParameter(new MethodParameterDefinition(typeof(TParamType), name));
@@ -728,7 +754,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter<TParamType>(string? name, bool isParams)
     {
         return WithParameter(new MethodParameterDefinition(typeof(TParamType), name, isParams));
@@ -737,7 +763,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter<TParamType>(string? name, ByRefTypeMode byRefMode)
     {
         return WithParameter(new MethodParameterDefinition(typeof(TParamType), name, byRefMode));
@@ -746,7 +772,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter<TParamType>(string? name, ByRefTypeMode byRefMode, bool isParams)
     {
         return WithParameter(new MethodParameterDefinition(typeof(TParamType), name, byRefMode, isParams));
@@ -755,7 +781,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(string type, string? name)
     {
         return WithParameter(new MethodParameterDefinition(Type.GetType(type), name));
@@ -764,7 +790,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(string type, string? name, bool isParams)
     {
         return WithParameter(new MethodParameterDefinition(Type.GetType(type), name, isParams));
@@ -773,7 +799,7 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(string type, string? name, ByRefTypeMode byRefMode)
     {
         return WithParameter(new MethodParameterDefinition(Type.GetType(type), name, byRefMode));
@@ -782,34 +808,50 @@ public class MethodDefinition : IMemberDefinition
     /// <summary>
     /// Add a parameter to the parameter list.
     /// </summary>
-    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode)"/> to reference a generic type parameter definition.</remarks>
+    /// <remarks>See <see cref="WithParameterUsingGeneric(int,string?,bool,ByRefTypeMode,Action{IGenericReferencingParameterBuilder}?)"/> to reference a generic type parameter definition.</remarks>
     public MethodDefinition WithParameter(string type, string? name, ByRefTypeMode byRefMode, bool isParams)
     {
         return WithParameter(new MethodParameterDefinition(Type.GetType(type), name, byRefMode, isParams));
     }
 
     /// <summary>
-    /// Start a <see cref="GenericReferencingParameterBuilder"/> with the given generic parameter definition to create a parameter with the base element type pulled from the generic type definitions.
+    /// Create a return type which uses a generic parameter in <see cref="GenericDefinitions"/> as it's base element type.
     /// </summary>
     /// <param name="genericParameterIndex">The zero-based index of the generic parameter definition in <see cref="GenericDefinitions"/>.</param>
     /// <param name="parameterName">The name of the new parameter.</param>
     /// <param name="isParams">If the new parameter is a params (remainder) parameter.</param>
     /// <param name="byRefMode">The by-ref keyword of the parameter.</param>
-    public GenericReferencingParameterBuilder WithParameterUsingGeneric(int genericParameterIndex, string? parameterName, bool isParams = false, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore)
+    /// <param name="elements">Action used to configure the return value, allowing you to make it an array, pointer, etc.</param>
+    public MethodDefinition WithParameterUsingGeneric(int genericParameterIndex, string? parameterName, bool isParams = false, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore, Action<IGenericReferencingParameterBuilder>? elements = null)
     {
-        return new GenericReferencingParameterBuilder(this, genericParameterIndex, parameterName, isParams, byRefMode);
+        if (elements == null)
+        {
+            MethodParameterDefinition d = default;
+            d.GenericTypeIndex = genericParameterIndex;
+            d.IsParams = isParams;
+            d.ByRefMode = byRefMode;
+            d.Name = parameterName;
+            return WithParameter(in d);
+        }
+
+        GenericReferencingParameterBuilder builder = new GenericReferencingParameterBuilder(this, genericParameterIndex, parameterName, isParams, byRefMode);
+        elements(builder);
+        if (!builder.Completed)
+            builder.CompleteGenericParameter();
+        return this;
     }
 
     /// <summary>
-    /// Start a <see cref="GenericReferencingParameterBuilder"/> with the given generic parameter definition to create a parameter with the base element type pulled from the generic type definitions.
+    /// Start a <see cref="IGenericReferencingParameterBuilder"/> with the given generic parameter definition to create a parameter with the base element type pulled from the generic type definitions.
     /// </summary>
     /// <param name="genericParameterTypeName">Definition name of a type already declared.</param>
     /// <param name="parameterName">The name of the new parameter.</param>
     /// <param name="isParams">If the new parameter is a params (remainder) parameter.</param>
     /// <param name="byRefMode">The by-ref keyword of the parameter.</param>
+    /// <param name="elements">Action used to configure the return value, allowing you to make it an array, pointer, etc.</param>
     /// <exception cref="ArgumentException">Unknown generic definition type name: <paramref name="genericParameterTypeName"/>.</exception>
     /// <exception cref="ArgumentNullException" />
-    public GenericReferencingParameterBuilder WithParameterUsingGeneric(string genericParameterTypeName, string? parameterName, bool isParams = false, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore)
+    public MethodDefinition WithParameterUsingGeneric(string genericParameterTypeName, string? parameterName, bool isParams = false, ByRefTypeMode byRefMode = ByRefTypeMode.Ignore, Action<IGenericReferencingParameterBuilder>? elements = null)
     {
         if (genericParameterTypeName == null)
             throw new ArgumentNullException(nameof(genericParameterTypeName));
@@ -821,7 +863,7 @@ public class MethodDefinition : IMemberDefinition
         if (index < 0)
             throw new ArgumentException($"Generic parameter not found: '{genericParameterTypeName}'.", nameof(genericParameterTypeName));
 
-        return WithParameterUsingGeneric(index, parameterName, isParams, byRefMode);
+        return WithParameterUsingGeneric(index, parameterName, isParams, byRefMode, elements);
     }
 
     /// <summary>
@@ -881,6 +923,16 @@ public class MethodDefinition : IMemberDefinition
     /// <inheritdoc />
     /// <exception cref="InvalidOperationException">Can not create a static extension method with a DelegateMethodDefinition.</exception>
     IMemberDefinition IMemberDefinition.NestedIn(string declaringType, bool isStatic) => DeclaredIn(declaringType, isStatic);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    /// <inheritdoc />
+    public int GetFormatLength(IOpCodeFormatter formatter) => formatter.GetFormatLength(this);
+
+    /// <inheritdoc />
+    public int Format(IOpCodeFormatter formatter, Span<char> output) => formatter.Format(this, output);
+#endif
+    /// <inheritdoc />
+    public string Format(IOpCodeFormatter formatter) => formatter.Format(this);
 
     /// <inheritdoc />
     public override string ToString()
@@ -1084,37 +1136,134 @@ public struct MethodParameterDefinition
 }
 
 /// <summary>
-/// Builds a <see cref="MethodParameterDefinition"/> that references a generic parameter definition in a <see cref="MethodDefinition"/>.
+/// Abstraction used for an object that creates a relationship which references a generic parameter of the method it's defined in.
 /// </summary>
-public class GenericReferencingParameterBuilder
+public interface IGenericReferencingBuilder
 {
-    private readonly List<int> _levels = new List<int>(0);
-    private readonly MethodDefinition _method;
-
     /// <summary>
     /// Index in <see cref="MethodDefinition.GenericDefinitions"/> that this parameter references.
     /// </summary>
-    public int GenericParameterIndex { get; set; }
-
-    /// <summary>
-    /// Name of the parameter.
-    /// </summary>
-    public string? Name { get; set; }
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    int GenericParameterIndex { get; }
 
     /// <summary>
     /// What keyword to use for the by-ref passing mode, if any.
     /// </summary>
-    public ByRefTypeMode ByRefMode { get; set; }
-
-    /// <summary>
-    /// Is this parameter a <see langword="params"/> (remainder) array?
-    /// </summary>
-    public bool IsParams { get; set; }
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    ByRefTypeMode ByRefMode { get; }
 
     /// <summary>
     /// Current number of types that are wrapped around the original element type.
     /// </summary>
-    public int Depth => _levels.Count;
+    int Depth { get; }
+
+    /// <summary>
+    /// Add an array with the specified rank (dimension).
+    /// </summary>
+    /// <remarks>Keep in mind arrays of arrays are usually defined backwards so groups of sequential arrays should be defined as you would write it in C# (backwards).</remarks>
+    /// <param name="rank">Number of dimensions the array has.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Rank must be 1 or higher.</exception>
+    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    IGenericReferencingBuilder AddArray(int rank = 1);
+
+    /// <summary>
+    /// Add a pointer.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    IGenericReferencingBuilder AddPointer();
+
+    /// <summary>
+    /// Add a by-ref type wrapper. Must be done last.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    IGenericReferencingBuilder MakeByRef();
+}
+
+/// <summary>
+/// Abstraction used for an object that creates a parameter which references a generic parameter of the method it's defined in.
+/// </summary>
+public interface IGenericReferencingParameterBuilder : IGenericReferencingBuilder
+{
+    /// <summary>
+    /// Name of the parameter.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    string? Name { get; }
+
+    /// <summary>
+    /// Is this parameter a <see langword="params"/> (remainder) array?
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    bool IsParams { get; }
+}
+
+/// <summary>
+/// Abstraction used for an object that creates a return type which references a generic parameter of the method it's defined in.
+/// </summary>
+public interface IGenericReferencingReturnTypeBuilder : IGenericReferencingBuilder;
+
+/// <summary>
+/// Builds a <see cref="MethodParameterDefinition"/> that references a generic parameter definition in a <see cref="MethodDefinition"/>.
+/// </summary>
+internal class GenericReferencingParameterBuilder : IGenericReferencingParameterBuilder
+{
+    private List<int>? _levels;
+    internal bool Completed;
+    private readonly MethodDefinition _method;
+    private int _genericParameterIndex;
+    private string? _name;
+    private ByRefTypeMode _byRefMode;
+    private bool _isParams;
+
+    /// <inheritdoc />
+    public int GenericParameterIndex
+    {
+        get => _genericParameterIndex;
+        set
+        {
+            ThrowIfCompleted();
+            _genericParameterIndex = value;
+        }
+    }
+
+    /// <inheritdoc />
+    public string? Name
+    {
+        get => _name;
+        set
+        {
+            Completed = false;
+            _name = value;
+        }
+    }
+
+    /// <inheritdoc />
+    public ByRefTypeMode ByRefMode
+    {
+        get => _byRefMode;
+        set
+        {
+            ThrowIfCompleted();
+            _byRefMode = value;
+        }
+    }
+
+    /// <inheritdoc />
+    public bool IsParams
+    {
+        get => _isParams;
+        set
+        {
+            ThrowIfCompleted();
+            _isParams = value;
+        }
+    }
+
+    /// <inheritdoc />
+    public int Depth => _levels?.Count ?? 0;
 
     /// <summary>
     /// Start a <see cref="GenericReferencingParameterBuilder"/> with the given generic parameter definition.
@@ -1128,14 +1277,14 @@ public class GenericReferencingParameterBuilder
         ByRefMode = byRefMode;
     }
 
-    /// <summary>
-    /// Add an array with the specified rank (dimension).
-    /// </summary>
-    /// <remarks>Keep in mind arrays of arrays are usually defined backwards so groups of sequential arrays should be defined as you would write it in C# (backwards).</remarks>
-    /// <param name="rank">Number of dimensions the array has.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Rank must be 1 or higher.</exception>
-    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
-    public GenericReferencingParameterBuilder Array(int rank = 1)
+    private void ThrowIfCompleted()
+    {
+        if (Completed)
+            throw new ObjectDisposedException(nameof(GenericReferencingParameterBuilder), "This GenericReferencingParameterBuilder has already been completed.");
+    }
+
+    /// <inheritdoc />
+    public IGenericReferencingBuilder AddArray(int rank = 1)
     {
         if (rank < 1)
             throw new ArgumentOutOfRangeException(nameof(rank));
@@ -1144,21 +1293,15 @@ public class GenericReferencingParameterBuilder
         return this;
     }
 
-    /// <summary>
-    /// Add a pointer.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
-    public GenericReferencingParameterBuilder Pointer()
+    /// <inheritdoc />
+    public IGenericReferencingBuilder AddPointer()
     {
         PushElement(-1);
         return this;
     }
 
-    /// <summary>
-    /// Add a by-ref type wrapper. Must be done last.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
-    public GenericReferencingParameterBuilder ByRefType()
+    /// <inheritdoc />
+    public IGenericReferencingBuilder MakeByRef()
     {
         PushElement(-(int)ByRefTypeMode.Ref - 1);
         return this;
@@ -1166,28 +1309,36 @@ public class GenericReferencingParameterBuilder
 
     private void PushElement(int dim)
     {
+        ThrowIfCompleted();
+
+        _levels ??= new List<int>(1);
+
         if (_levels.Count > 0 && _levels[_levels.Count - 1] == -((int)ByRefTypeMode.Ref - 1))
             throw new FormatException("There can only be one by-ref type and it must be the most outer (last) element wrapper.");
 
+        Completed = false;
         _levels.Add(dim);
     }
 
-    /// <summary>
-    /// Create a <see cref="MethodParameterDefinition"/> from the given information and add it to the method.
-    /// </summary>
-    public MethodDefinition CompleteGenericParameter()
+    /// <exception cref="ObjectDisposedException">Tried to complete this parameter after it's already been completed.</exception>
+    internal void CompleteGenericParameter()
     {
-        for (int i = 0; i < _levels.Count / 2; ++i)
+        ThrowIfCompleted();
+
+        if (ByRefMode != ByRefTypeMode.Ignore && (_levels == null || _levels.Count == 0 || _levels[_levels.Count - 1] != -(int)ByRefTypeMode.Ref - 1))
         {
-            int tmp = _levels[i];
-            int index = _levels.Count - i - 1;
-            _levels[i] = _levels[index];
-            _levels[index] = tmp;
+            (_levels ??= new List<int>(1)).Add(-(int)ByRefTypeMode.Ref - 1);
         }
 
-        if (ByRefMode != ByRefTypeMode.Ignore && (Depth == 0 || _levels[0] != -(int)ByRefTypeMode.Ref - 1))
+        if (_levels != null)
         {
-            throw new FormatException("If a by-ref mode is passed, the most outer level must be ByRefType().");
+            for (int i = 0; i < _levels.Count / 2; ++i)
+            {
+                int tmp = _levels[i];
+                int index = _levels.Count - i - 1;
+                _levels[i] = _levels[index];
+                _levels[index] = tmp;
+            }
         }
 
         MethodParameterDefinition d = default;
@@ -1196,37 +1347,61 @@ public class GenericReferencingParameterBuilder
         d.ByRefMode = ByRefMode;
         d.Name = Name;
 
-        int[] arr = _levels.GetUnderlyingArrayOrCopy();
-        d.GenericTypeElementTypes = arr;
-        d.GenericTypeElementTypesLength = _levels.Count;
+        if (_levels != null)
+        {
+            int[] arr = _levels.GetUnderlyingArrayOrCopy();
+            d.GenericTypeElementTypes = arr;
+            d.GenericTypeElementTypesLength = _levels.Count;
+        }
 
+        Completed = true;
         _method.WithParameter(in d);
-        return _method;
     }
 }
 
 /// <summary>
 /// Builds a return type that references a generic parameter definition in a <see cref="MethodDefinition"/>.
 /// </summary>
-public class GenericReferencingReturnTypeBuilder
+internal class GenericReferencingReturnTypeBuilder : IGenericReferencingReturnTypeBuilder
 {
-    private readonly List<int> _levels = new List<int>(0);
+    private List<int>? _levels;
+    internal bool Completed;
     private readonly MethodDefinition _method;
+    private int _genericParameterIndex;
+    private ByRefTypeMode _byRefMode;
 
     /// <summary>
     /// Index in <see cref="MethodDefinition.GenericDefinitions"/> that this parameter references.
     /// </summary>
-    public int GenericParameterIndex { get; set; }
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    public int GenericParameterIndex
+    {
+        get => _genericParameterIndex;
+        set
+        {
+            ThrowIfCompleted();
+            _genericParameterIndex = value;
+        }
+    }
 
     /// <summary>
     /// What keyword to use for the by-ref return mode, if any.
     /// </summary>
-    public ByRefTypeMode ByRefMode { get; set; }
+    /// <exception cref="ObjectDisposedException">Tried to change this object after it's been completed.</exception>
+    public ByRefTypeMode ByRefMode
+    {
+        get => _byRefMode;
+        set
+        {
+            ThrowIfCompleted();
+            _byRefMode = value;
+        }
+    }
 
     /// <summary>
     /// Current number of types that are wrapped around the original element type.
     /// </summary>
-    public int Depth => _levels.Count;
+    public int Depth => _levels?.Count ?? 0;
 
     /// <summary>
     /// Start a <see cref="GenericReferencingReturnTypeBuilder"/> with the given generic parameter definition.
@@ -1237,15 +1412,14 @@ public class GenericReferencingReturnTypeBuilder
         GenericParameterIndex = genericParameterIndex;
         ByRefMode = byRefMode;
     }
+    private void ThrowIfCompleted()
+    {
+        if (Completed)
+            throw new ObjectDisposedException(nameof(GenericReferencingParameterBuilder), "This GenericReferencingParameterBuilder has already been completed.");
+    }
 
-    /// <summary>
-    /// Add an array with the specified rank (dimension).
-    /// </summary>
-    /// <remarks>Keep in mind arrays of arrays are usually defined backwards so groups of sequential arrays should be defined as you would write it in C# (backwards).</remarks>
-    /// <param name="rank">Number of dimensions the array has.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Rank must be 1 or higher.</exception>
-    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
-    public GenericReferencingReturnTypeBuilder Array(int rank = 1)
+    /// <inheritdoc />
+    public IGenericReferencingBuilder AddArray(int rank = 1)
     {
         if (rank < 1)
             throw new ArgumentOutOfRangeException(nameof(rank));
@@ -1254,21 +1428,15 @@ public class GenericReferencingReturnTypeBuilder
         return this;
     }
 
-    /// <summary>
-    /// Add a pointer.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
-    public GenericReferencingReturnTypeBuilder Pointer()
+    /// <inheritdoc />
+    public IGenericReferencingBuilder AddPointer()
     {
         PushElement(-1);
         return this;
     }
 
-    /// <summary>
-    /// Add a by-ref type wrapper. Must be done last.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">There can only be one by-ref type and it must be the most outer (last) element wrapper.</exception>
-    public GenericReferencingReturnTypeBuilder ByRefType()
+    /// <inheritdoc />
+    public IGenericReferencingBuilder MakeByRef()
     {
         PushElement(-(int)ByRefTypeMode.Ref - 1);
         return this;
@@ -1276,38 +1444,53 @@ public class GenericReferencingReturnTypeBuilder
 
     private void PushElement(int dim)
     {
+        ThrowIfCompleted();
+
+        _levels ??= new List<int>(1);
+
         if (_levels.Count > 0 && _levels[_levels.Count - 1] == -((int)ByRefTypeMode.Ref - 1))
             throw new FormatException("There can only be one by-ref type and it must be the most outer (last) element wrapper.");
 
         _levels.Add(dim);
     }
 
-    /// <summary>
-    /// Set the return type and return the original method definition.
-    /// </summary>
-    public MethodDefinition CompleteReturnType()
+    /// <exception cref="ObjectDisposedException">Tried to complete this parameter after it's already been completed.</exception>
+    public void CompleteReturnType()
     {
-        for (int i = 0; i < _levels.Count / 2; ++i)
+        ThrowIfCompleted();
+
+        if (ByRefMode != ByRefTypeMode.Ignore && (_levels == null || _levels.Count == 0 || _levels[_levels.Count - 1] != -(int)ByRefTypeMode.Ref - 1))
         {
-            int tmp = _levels[i];
-            int index = _levels.Count - i - 1;
-            _levels[i] = _levels[index];
-            _levels[index] = tmp;
+            (_levels ??= new List<int>(1)).Add(-(int)ByRefTypeMode.Ref - 1);
         }
 
-        if (ByRefMode != ByRefTypeMode.Ignore && (Depth == 0 || _levels[0] != -(int)ByRefTypeMode.Ref - 1))
+        if (_levels != null)
         {
-            throw new FormatException("If a by-ref mode is passed, the most outer level must be ByRefType().");
+            for (int i = 0; i < _levels.Count / 2; ++i)
+            {
+                int tmp = _levels[i];
+                int index = _levels.Count - i - 1;
+                _levels[i] = _levels[index];
+                _levels[index] = tmp;
+            }
         }
+
 
         _method.ReturnTypeGenericIndex = GenericParameterIndex;
         _method.ReturnRefTypeMode = ByRefMode;
         _method.ReturnType = null;
+        if (_levels != null)
+        {
+            int[] arr = _levels.GetUnderlyingArrayOrCopy();
+            _method.ReturnTypeGenericTypeElementTypes = arr;
+            _method.ReturnTypeGenericTypeElementTypesLength = _levels.Count;
+        }
+        else
+        {
+            _method.ReturnTypeGenericTypeElementTypes = null;
+            _method.ReturnTypeGenericTypeElementTypesLength = 0;
+        }
 
-        int[] arr = _levels.GetUnderlyingArrayOrCopy();
-        _method.ReturnTypeGenericTypeElementTypes = arr;
-        _method.ReturnTypeGenericTypeElementTypesLength = _levels.Count;
-
-        return _method;
+        Completed = true;
     }
 }

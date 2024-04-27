@@ -155,8 +155,8 @@ public class ConsoleReflectionToolsLogger : IReflectionToolsLogger
     /// <summary>
     /// Should stack traces be logged for errors. Stack traces are always logged for exceptions.
     /// </summary>
-    /// <remarks>Default value: <see langword="true"/>.</remarks>
-    public bool LogErrorStackTrace { get; set; } = true;
+    /// <remarks>Default value: <see langword="false"/>.</remarks>
+    public bool LogErrorStackTrace { get; set; } = false;
 
     /// <summary>
     /// Should stack traces be logged for warnings.

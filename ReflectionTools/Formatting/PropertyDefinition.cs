@@ -288,6 +288,43 @@ public class PropertyDefinition : IMemberDefinition
         return WithParameter(new MethodParameterDefinition(Type.GetType(type), name, byRefMode, isParams));
     }
 
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+    /// <inheritdoc />
+    public int GetFormatLength(IOpCodeFormatter formatter) => formatter.GetFormatLength(this);
+
+    /// <inheritdoc />
+    public int Format(IOpCodeFormatter formatter, Span<char> output) => formatter.Format(this, output);
+
+    /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format(IOpCodeFormatter,Span{char},bool)"/>.
+    /// </summary>
+    /// <param name="formatter">Instance of <see cref="IOpCodeFormatter"/> to use for the formatting.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <returns>The length in characters of this as a string.</returns>
+    public int GetFormatLength(IOpCodeFormatter formatter, bool includeAccessors) => formatter.GetFormatLength(this, includeAccessors);
+
+    /// <summary>
+    /// Format this into a string representation. Use <see cref="GetFormatLength(IOpCodeFormatter,bool)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <param name="formatter">Instance of <see cref="IOpCodeFormatter"/> to use for the formatting.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    /// <returns>The length in characters of this as a string that were written to <paramref name="output"/>.</returns>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    public int Format(IOpCodeFormatter formatter, Span<char> output, bool includeAccessors) => formatter.Format(this, output, includeAccessors);
+#endif
+
+    /// <inheritdoc />
+    public string Format(IOpCodeFormatter formatter) => formatter.Format(this);
+
+    /// <summary>
+    /// Format this into a string representation.
+    /// </summary>
+    /// <param name="formatter">Instance of <see cref="IOpCodeFormatter"/> to use for the formatting.</param>
+    /// <param name="includeAccessors">Should the accessors be put at the end.</param>
+    public string Format(IOpCodeFormatter formatter, bool includeAccessors) => formatter.Format(this, includeAccessors);
+
+
     IMemberDefinition IMemberDefinition.NestedIn<TDeclaringType>(bool isStatic) => DeclaredIn<TDeclaringType>(isStatic);
     IMemberDefinition IMemberDefinition.NestedIn(Type declaringType, bool isStatic) => DeclaredIn(declaringType, isStatic);
     IMemberDefinition IMemberDefinition.NestedIn(string declaringType, bool isStatic) => DeclaredIn(declaringType, isStatic);

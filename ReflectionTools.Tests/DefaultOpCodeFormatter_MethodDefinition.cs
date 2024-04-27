@@ -108,8 +108,7 @@ public class DefaultOpCodeFormatter_MethodDefinition
             .ReturningVoid()
             .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
             .WithGenericParameterDefinition("TParam1")
-            .WithParameterUsingGeneric("TParam1", "param1")
-                .CompleteGenericParameter();
+            .WithParameterUsingGeneric("TParam1", "param1");
 
         Assert.IsNotNull(method);
 
@@ -203,6 +202,40 @@ public class DefaultOpCodeFormatter_MethodDefinition
 #endif
     }
     [TestMethod]
+    public void WriteGenericMethodReturnParam()
+    {
+        MethodDefinition method = new MethodDefinition("TestGenericRtnMethod")
+            .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
+            .WithGenericParameterDefinition("TParam1")
+            .WithParameter<int>("num1")
+            .ReturningUsingGeneric("TParam1", elements: static builder =>
+            {
+                builder.AddArray(2);
+            });
+
+        Assert.IsNotNull(method);
+
+        const string expectedResult = "TParam1[,] DefaultOpCodeFormatter_MethodDefinition.TestGenericRtnMethod<TParam1>(int num1)";
+
+        IOpCodeFormatter formatter = new DefaultOpCodeFormatter();
+
+        string format = formatter.Format(method);
+        Console.WriteLine(format);
+
+        Assert.AreEqual(expectedResult, format);
+
+#if !NETFRAMEWORK && (!NETSTANDARD || NETSTANDARD2_1_OR_GREATER)
+        int formatLength = formatter.GetFormatLength(method);
+        Span<char> span = stackalloc char[formatLength];
+        span = span[..formatter.Format(method, span)];
+        string separateFormat = new string(span);
+
+        Console.WriteLine(separateFormat);
+        Assert.AreEqual(expectedResult, separateFormat);
+        Assert.AreEqual(formatLength, separateFormat.Length);
+#endif
+    }
+    [TestMethod]
     public void WriteGenericMethod2Param()
     {
         MethodDefinition method = new MethodDefinition("TestGenericMethod2")
@@ -210,23 +243,31 @@ public class DefaultOpCodeFormatter_MethodDefinition
             .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: false)
             .WithGenericParameterDefinition("TParam1")
             .WithGenericParameterDefinition("TParam2")
-            .WithParameterUsingGeneric("TParam1", "param1", byRefMode: ByRefTypeMode.ScopedIn)
-                .Array()
-                .ByRefType()
-                .CompleteGenericParameter()
-            .WithParameterUsingGeneric(1, "param2", byRefMode: ByRefTypeMode.Ref)
-                .Pointer()
-                .Pointer()
-                .Array()
-                .Array(4)
-                .Array(2)
-                .Pointer()
-                .ByRefType()
-                .CompleteGenericParameter()
+            .WithParameterUsingGeneric("TParam1", "param1", byRefMode: ByRefTypeMode.ScopedIn,
+                elements: static builder =>
+                {
+                    builder.AddArray();
+                }
+            )
+            .WithParameterUsingGeneric(1, "param2", byRefMode: ByRefTypeMode.Ref,
+                elements: static builder =>
+                {
+                    builder.AddPointer()
+                           .AddPointer()
+                           .AddArray()
+                           .AddArray(4)
+                           .AddArray(2)
+                           .AddPointer()
+                           .MakeByRef();
+                }
+            )
             .WithParameter<int>("num3")
-            .WithParameterUsingGeneric(0, "paramsParam", isParams: true)
-                .Array()
-                .CompleteGenericParameter();
+            .WithParameterUsingGeneric(0, "paramsParam", isParams: true,
+                elements: static builder =>
+                {
+                    builder.AddArray();
+                }
+            );
 
         Assert.IsNotNull(method);
 
@@ -395,13 +436,15 @@ public class DefaultOpCodeFormatter_MethodDefinition
     {
         MethodDefinition method = new MethodDefinition("TestMethod7")
             .WithGenericParameterDefinition("TParam1")
-            .ReturningUsingGeneric(0, ByRefTypeMode.RefReadOnly)
-                .Array(2)
-                .Array()
-                .Array(4)
-                .Pointer()
-                .ByRefType()
-                .CompleteReturnType()
+            .ReturningUsingGeneric(0, ByRefTypeMode.RefReadOnly,
+                elements: static builder =>
+                {
+                    builder.AddArray(2)
+                           .AddArray()
+                           .AddArray(4)
+                           .AddPointer();
+                }
+            )
             .DeclaredIn<DefaultOpCodeFormatter_MethodDefinition>(isStatic: true)
             .WithNoParameters();
 
