@@ -155,7 +155,7 @@ internal static class InternalUtil
             return;
 
         elemTypes = new List<int>(1);
-        for (Type? elementType = type; elementType != null; elementType = elementType.GetElementType())
+        for (Type? elementType = type; elementType != null; elementType = DefaultAccessor.TryGetElementType(elementType))
         {
             type = elementType;
             if (type.IsPointer)

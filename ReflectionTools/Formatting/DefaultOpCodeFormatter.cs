@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using DanielWillett.ReflectionTools.Emit;
+using NotSupportedException = System.NotSupportedException;
 #if NETFRAMEWORK || (NETSTANDARD && !NETSTANDARD2_1_OR_GREATER)
 using System.Text;
 #endif
@@ -2548,7 +2549,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 Type type = types[i];
                 if (type.IsArray)
                 {
-                    type = type.GetElementType()!;
+                    type = DefaultAccessor.TryGetElementType(type)!;
                     length += 2;
                 }
                 int s = GetTypeKeywordLength(type);
@@ -3013,7 +3014,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 {
                     if (paramMetaInfo.ElementTypesLength > 0)
                     {
-                        for (Type? elemType = parameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                        for (Type? elemType = DefaultAccessor.TryGetElementType(parameterType); elemType != null; elemType = DefaultAccessor.TryGetElementType(elemType))
                             parameterType = elemType;
                         elementKeyword = GetTypeKeyword(parameterType);
                     }
@@ -3848,7 +3849,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         string? parameterElementKeyword = null;
         if (paramMetaInfo.ElementTypesLength > 0)
         {
-            for (Type? elemType = type.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+            for (Type? elemType = DefaultAccessor.TryGetElementType(type); elemType != null; elemType = DefaultAccessor.TryGetElementType(elemType))
                 type = elemType;
             parameterElementKeyword = GetTypeKeyword(type);
         }
@@ -4236,7 +4237,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     string? elementKeyword = null;
                     if (genParamMetaInfo.ElementTypesLength > 0)
                     {
-                        for (Type? elemType = genParameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                        for (Type? elemType = DefaultAccessor.TryGetElementType(genParameterType); elemType != null; elemType = DefaultAccessor.TryGetElementType(elemType))
                             genParameterType = elemType;
                         elementKeyword = GetTypeKeyword(genParameterType);
                     }
@@ -4508,7 +4509,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                     string? elementKeyword = null;
                     if (genParamMetaInfo.ElementTypesLength > 0)
                     {
-                        for (Type? elemType = genParameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                        for (Type? elemType = DefaultAccessor.TryGetElementType(genParameterType); elemType != null; elemType = DefaultAccessor.TryGetElementType(elemType))
                             genParameterType = elemType;
                         elementKeyword = GetTypeKeyword(genParameterType);
                     }
@@ -4542,7 +4543,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 {
                     if (paramMetaInfo.ElementTypesLength > 0)
                     {
-                        for (Type? elemType = parameterType.GetElementType(); elemType != null; elemType = elemType.GetElementType())
+                        for (Type? elemType = DefaultAccessor.TryGetElementType(parameterType); elemType != null; elemType = DefaultAccessor.TryGetElementType(elemType))
                             parameterType = elemType;
                         elementKeyword = GetTypeKeyword(parameterType);
                     }
@@ -4950,12 +4951,12 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         /// </summary>
         public unsafe void SetupDimensionsAndOrdering(Type originalType)
         {
-            Type? elementType = originalType.GetElementType();
+            Type? elementType = DefaultAccessor.TryGetElementType(originalType);
             if (elementType == null)
                 return;
 
             int index = -1;
-            for (Type? nextElementType = originalType; nextElementType != null; nextElementType = nextElementType.GetElementType())
+            for (Type? nextElementType = originalType; nextElementType != null; nextElementType = DefaultAccessor.TryGetElementType(nextElementType))
             {
                 if (nextElementType is { IsByRef: false, IsPointer: false, IsArray: false })
                     break;
@@ -5098,14 +5099,14 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
             if (elementKeyword != null)
                 return;
 
-            Type? elementType = type.GetElementType();
+            Type? elementType = DefaultAccessor.TryGetElementType(type);
             if (elementType == null)
             {
                 elementKeyword = null;
                 return;
             }
 
-            for (Type? nextElementType = type; nextElementType != null; nextElementType = nextElementType.GetElementType())
+            for (Type? nextElementType = type; nextElementType != null; nextElementType = DefaultAccessor.TryGetElementType(nextElementType))
             {
                 elementType = nextElementType;
                 if (nextElementType is { IsByRef: false, IsPointer: false, IsArray: false })

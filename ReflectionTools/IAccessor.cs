@@ -1443,6 +1443,18 @@ public interface IAccessor
     IOpCodeEmitter AsEmitter(MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
 
     /// <summary>
+    /// Method to get a <see cref="IOpCodeEmitter"/> from an existing <see cref="ConstructorBuilder"/>.
+    /// </summary>
+    /// <param name="constructorBuilder">Dynamic constructor builder.</param>
+    /// <param name="debuggable">Shows debug logging as the constructor generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the constructor executes.</param>
+    /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    IOpCodeEmitter AsEmitter(ConstructorBuilder constructorBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
+
+    /// <summary>
     /// Creates an abstracted <see cref="IVariable"/> for <paramref name="field"/>.
     /// </summary>
     /// <param name="field">The underlying field.</param>

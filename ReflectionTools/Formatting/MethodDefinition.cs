@@ -335,7 +335,7 @@ public class MethodDefinition : IMemberDefinition
                 Type returnType = returnableMethod.ReturnType;
                 if (!found && returnType.HasElementType)
                 {
-                    for (Type? elementType = returnType.GetElementType(); elementType != null; elementType = elementType.GetElementType())
+                    for (Type? elementType = DefaultAccessor.TryGetElementType(returnType); elementType != null; elementType = DefaultAccessor.TryGetElementType(elementType))
                     {
                         returnType = elementType;
                     }
@@ -350,7 +350,7 @@ public class MethodDefinition : IMemberDefinition
 
                     if (returnType != returnableMethod.ReturnType)
                     {
-                        for (Type? elementType = type; elementType != null; elementType = type.GetElementType())
+                        for (Type? elementType = type; elementType != null; elementType = DefaultAccessor.TryGetElementType(type))
                         {
                             if (elementType.IsArray)
                                 builder.AddArray(elementType.GetArrayRank());
@@ -444,7 +444,7 @@ public class MethodDefinition : IMemberDefinition
                 Type returnType = invokeMethod.ReturnType;
                 if (!found && returnType.HasElementType)
                 {
-                    for (Type? elementType = returnType.GetElementType(); elementType != null; elementType = elementType.GetElementType())
+                    for (Type? elementType = DefaultAccessor.TryGetElementType(returnType); elementType != null; elementType = DefaultAccessor.TryGetElementType(elementType))
                     {
                         returnType = elementType;
                     }
@@ -459,7 +459,7 @@ public class MethodDefinition : IMemberDefinition
                     
                     if (returnType != invokeMethod.ReturnType)
                     {
-                        for (Type? elementType = type; elementType != null; elementType = type.GetElementType())
+                        for (Type? elementType = type; elementType != null; elementType = DefaultAccessor.TryGetElementType(type))
                         {
                             if (elementType.IsArray)
                                 builder.AddArray(elementType.GetArrayRank());

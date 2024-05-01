@@ -82,6 +82,11 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     public DebuggableEmitter(MethodBuilder method, IAccessor? accessor = null) : this(method.GetILGenerator().AsEmitter(), method, accessor) { }
 
     /// <summary>
+    /// Create a <see cref="DebuggableEmitter"/> from a <see cref="ConstructorBuilder"/>.
+    /// </summary>
+    public DebuggableEmitter(ConstructorBuilder constructor, IAccessor? accessor = null) : this(constructor.GetILGenerator().AsEmitter(), constructor, accessor) { }
+
+    /// <summary>
     /// Create a <see cref="DebuggableEmitter"/> from a <see cref="DynamicMethod"/>.
     /// </summary>
     public DebuggableEmitter(DynamicMethod method, IAccessor? accessor = null) : this(method.GetILGenerator().AsEmitter(), method, accessor) { }

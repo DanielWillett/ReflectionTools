@@ -5,6 +5,9 @@ using System.Runtime.InteropServices;
 #if NETFRAMEWORK
 using System.Diagnostics.SymbolStore;
 #endif
+#if NET40_OR_GREATER || !NETFRAMEWORK
+using System.Diagnostics.Contracts;
+#endif
 
 namespace DanielWillett.ReflectionTools.Emit;
 
@@ -19,6 +22,9 @@ public static class OpCodeEmitters
     /// <param name="generator"><see cref="ILGenerator"/> to wrap.</param>
     /// <param name="debuggable">Shows debug logging as the method generates.</param>
     /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
     public static IOpCodeEmitter AsEmitter(this ILGenerator generator, bool debuggable = false, bool addBreakpoints = false)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter((ILGeneratorEmitter)generator, null) { DebugLog = debuggable, Breakpointing = addBreakpoints }
@@ -31,6 +37,9 @@ public static class OpCodeEmitters
     /// <param name="debuggable">Shows debug logging as the method generates.</param>
     /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
     /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
     public static IOpCodeEmitter AsEmitter(this DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter(dynMethod) { DebugLog = debuggable, Breakpointing = addBreakpoints }
@@ -43,10 +52,28 @@ public static class OpCodeEmitters
     /// <param name="debuggable">Shows debug logging as the method generates.</param>
     /// <param name="addBreakpoints">Shows debug logging as the method executes.</param>
     /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
     public static IOpCodeEmitter AsEmitter(this MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter(methodBuilder) { DebugLog = debuggable, Breakpointing = addBreakpoints }
             : (ILGeneratorEmitter)methodBuilder.GetILGenerator(streamSize);
+
+    /// <summary>
+    /// Extension method to get a <see cref="IOpCodeEmitter"/>.
+    /// </summary>
+    /// <param name="constructorBuilder">Dynamic constructor builder.</param>
+    /// <param name="debuggable">Shows debug logging as the constructor generates.</param>
+    /// <param name="addBreakpoints">Shows debug logging as the constructor executes.</param>
+    /// <param name="streamSize">The size of the MSIL stream, in bytes.</param>
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public static IOpCodeEmitter AsEmitter(this ConstructorBuilder constructorBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
+        => debuggable || addBreakpoints
+            ? new DebuggableEmitter(constructorBuilder) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+            : (ILGeneratorEmitter)constructorBuilder.GetILGenerator(streamSize);
 
     /// <summary>
     /// For emitters that support it (implement <see cref="IOpCodeEmitterLogSource"/>), sets the log source to <paramref name="source"/>.

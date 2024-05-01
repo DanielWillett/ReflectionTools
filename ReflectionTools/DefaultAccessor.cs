@@ -3965,6 +3965,15 @@ public class DefaultAccessor : IAccessor, IDisposable
             : (ILGeneratorEmitter)methodBuilder.GetILGenerator(streamSize);
 
     /// <inheritdoc />
+#if NET40_OR_GREATER || !NETFRAMEWORK
+    [Pure]
+#endif
+    public virtual IOpCodeEmitter AsEmitter(ConstructorBuilder constructorBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
+        => debuggable || addBreakpoints
+            ? new DebuggableEmitter(constructorBuilder, accessor: this) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+            : (ILGeneratorEmitter)constructorBuilder.GetILGenerator(streamSize);
+
+    /// <inheritdoc />
     /// <exception cref="ArgumentNullException"/>
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
@@ -4304,5 +4313,9 @@ public class DefaultAccessor : IAccessor, IDisposable
             _nreExCtorCalc = true;
             NreExCtor = typeof(NullReferenceException).GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null)!;
         }
+    }
+    internal static Type? TryGetElementType(Type type)
+    {
+        return type.HasElementType ? type.GetElementType() : null;
     }
 }
