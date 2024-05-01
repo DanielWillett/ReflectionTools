@@ -28,8 +28,8 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <AssemblyVersion>$(Version).0</AssemblyVersion>
-    <FileVersion>$(Version).0</FileVersion>
+    <AssemblyVersion>$(Version).1</AssemblyVersion>
+    <FileVersion>$(Version).1</FileVersion>
     <NoWarn>CS8002</NoWarn>
     <!--<AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.Harmony.dll.snk</AssemblyOriginatorKeyFile>-->
   </PropertyGroup>
