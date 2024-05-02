@@ -184,7 +184,7 @@ public class ConsoleReflectionToolsLogger : IReflectionToolsLogger
         Console.ForegroundColor = DebugColor;
 
         if (!string.IsNullOrEmpty(message))
-            Console.WriteLine("[DBG] [" + source + "] " + message + ".");
+            Console.WriteLine("[DBG] [" + source + "] " + message);
         else
             Console.WriteLine("[DBG] [" + source + "]");
 
@@ -202,7 +202,7 @@ public class ConsoleReflectionToolsLogger : IReflectionToolsLogger
         Console.ForegroundColor = ConsoleColor.Gray;
 
         if (!string.IsNullOrEmpty(message))
-            Console.WriteLine("[INF] [" + source + "] " + message + ".");
+            Console.WriteLine("[INF] [" + source + "] " + message);
         else
             Console.WriteLine("[INF] [" + source + "]");
 
@@ -220,7 +220,7 @@ public class ConsoleReflectionToolsLogger : IReflectionToolsLogger
         Console.ForegroundColor = ConsoleColor.Yellow;
 
         if (!string.IsNullOrEmpty(message))
-            Console.WriteLine("[WRN] [" + source + "] " + message + ".");
+            Console.WriteLine("[WRN] [" + source + "] " + message);
         else
             Console.WriteLine("[WRN] [" + source + "]");
 
@@ -238,7 +238,7 @@ public class ConsoleReflectionToolsLogger : IReflectionToolsLogger
         Console.ForegroundColor = ConsoleColor.Red;
 
         if (!string.IsNullOrEmpty(message))
-            Console.WriteLine("[ERR] [" + source + "] " + message + ".");
+            Console.WriteLine("[ERR] [" + source + "] " + message);
 
         if (ex != null)
             Console.WriteLine(ex.ToString());
