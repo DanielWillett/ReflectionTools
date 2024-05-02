@@ -2,6 +2,7 @@
 using System;
 using System.Reflection;
 using System.Reflection.Emit;
+using MethodDefinition = DanielWillett.ReflectionTools.Formatting.MethodDefinition;
 #if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
 using System.Runtime.InteropServices;
 #endif
@@ -98,8 +99,8 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     {
         accessor ??= Accessor.Active;
         _accessor = accessor;
-        if (generator.GetType() == typeof(DebuggableEmitter))
-            generator = ((DebuggableEmitter)generator).Generator;
+        if (generator is DebuggableEmitter emitter && emitter.GetType() == typeof(DebuggableEmitter))
+            generator = emitter.Generator;
         Generator = generator;
         Method = method;
     }
@@ -116,16 +117,50 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     protected virtual void Initialize()
     {
         IReflectionToolsLogger? reflectionToolsLogger = _accessor.Logger;
+        MethodDefinition? def = null;
         if (DebugLog && reflectionToolsLogger != null)
         {
-            reflectionToolsLogger.LogDebug(LogSource, ".method " + _accessor.Formatter.Format(Method!));
+            if (Method is not null)
+            {
+                string txt;
+                try
+                {
+                    txt = ".method " + _accessor.Formatter.Format(Method!);
+                }
+                // type builders, etc can throw NotSupportedException in a lot of cases
+                catch (NotSupportedException)
+                {
+                    def = Method is ConstructorBuilder { DeclaringType: not null } ctor ? new MethodDefinition(ctor.DeclaringType, ctor.IsStatic) : new MethodDefinition(Method.Name);
+                    txt = ".method " + _accessor.Formatter.Format(def) + " (in type builder)";
+                }
+
+                reflectionToolsLogger.LogDebug(LogSource, txt);
+            }
+            else
+                reflectionToolsLogger.LogDebug(LogSource, ".method <" + _accessor.Formatter.Format(typeof(ILGenerator)));
             if (Breakpointing)
                 reflectionToolsLogger.LogDebug(LogSource, " (with breakpointing)");
         }
         if (Breakpointing)
         {
             Generator.Emit(OpCodes.Ldstr, LogSource);
-            Generator.Emit(OpCodes.Ldstr, ".method " + _accessor.Formatter.Format(Method!));
+            if (Method is not null)
+            {
+                string txt;
+                try
+                {
+                    txt = ".method " + _accessor.Formatter.Format(Method!);
+                }
+                // type builders, etc can throw NotSupportedException in a lot of cases
+                catch (NotSupportedException)
+                {
+                    def ??= Method is ConstructorBuilder { DeclaringType: not null } ctor ? new MethodDefinition(ctor.DeclaringType, ctor.IsStatic) : new MethodDefinition(Method.Name);
+                    txt = ".method " + _accessor.Formatter.Format(def) + " (in type builder)";
+                }
+                Generator.Emit(OpCodes.Ldstr, txt);
+            }
+            else
+                Generator.Emit(OpCodes.Ldstr, ".method <" + _accessor.Formatter.Format(typeof(ILGenerator)));
             if (LogMethod != null)
                 Generator.Emit(_accessor.GetCallRuntime(LogMethod), LogMethod);
         }
@@ -136,7 +171,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     /// </summary>
     protected void CheckInit()
     {
-        if (_init || Method is null) return;
+        if (_init) return;
         Initialize();
         _init = true;
     }

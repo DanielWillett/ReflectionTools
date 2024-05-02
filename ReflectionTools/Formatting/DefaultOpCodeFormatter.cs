@@ -2278,6 +2278,21 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 #else
 
     /// <summary>
+    /// Format <typeparam name="T"/> into a string representation.
+    /// </summary>
+    /// <typeparam name="T">The type to format. This type will be made by-ref if <paramref name="refMode"/> is anything but <see cref="ByRefTypeMode.Ignore"/>.</typeparam>
+    /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    public virtual string Format<T>(bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ignore)
+    {
+        Type type = typeof(T);
+        if (refMode is > ByRefTypeMode.Ignore and <= ByRefTypeMode.ScopedRefReadOnly && !type.IsByRef)
+            type = type.MakeByRefType();
+
+        return Format(type, includeDefinitionKeywords, refMode);
+    }
+
+    /// <summary>
     /// Write the visibilty keyword for the given visibility.
     /// </summary>
     protected virtual unsafe void WriteVisibility(MemberVisibility visibility, ref int index, char* output)

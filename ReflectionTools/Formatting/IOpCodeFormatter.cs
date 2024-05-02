@@ -83,6 +83,40 @@ public interface IOpCodeFormatter : ICloneable
     int Format(Type type, Span<char> output, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref);
 
     /// <summary>
+    /// Calculate the length of the string returned by <see cref="Format{T}(Span{char}, bool, ByRefTypeMode)"/>.
+    /// </summary>
+    /// <typeparam name="T">The type to format. This type will be made by-ref if <paramref name="refMode"/> is anything but <see cref="ByRefTypeMode.Ignore"/>.</typeparam>
+    /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    /// <returns>The length in characters of <typeparamref name="T"/> as a string.</returns>
+    public int GetFormatLength<T>(bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ignore)
+    {
+        Type type = typeof(T);
+        if (refMode is > ByRefTypeMode.Ignore and <= ByRefTypeMode.ScopedRefReadOnly && !type.IsByRef)
+            type = type.MakeByRefType();
+
+        return GetFormatLength(type, includeDefinitionKeywords, refMode);
+    }
+
+    /// <summary>
+    /// Format <typeparam name="T"/> into a string representation. Use <see cref="GetFormatLength{T}(bool, ByRefTypeMode)"/> to get the desired length of <paramref name="output"/>.
+    /// </summary>
+    /// <returns>The length in characters of <typeparamref name="T"/> as a string that were written to <paramref name="output"/>.</returns>
+    /// <typeparam name="T">The type to format. This type will be made by-ref if <paramref name="refMode"/> is anything but <see cref="ByRefTypeMode.Ignore"/>.</typeparam>
+    /// <param name="output">Buffer to put the formatted characters in.</param>
+    /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    /// <exception cref="IndexOutOfRangeException"><paramref name="output"/> is not large enough.</exception>
+    public int Format<T>(Span<char> output, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ignore)
+    {
+        Type type = typeof(T);
+        if (refMode is > ByRefTypeMode.Ignore and <= ByRefTypeMode.ScopedRefReadOnly && !type.IsByRef)
+            type = type.MakeByRefType();
+
+        return Format(type, output, includeDefinitionKeywords, refMode);
+    }
+
+    /// <summary>
     /// Calculate the length of the string returned by <see cref="Format(TypeDefinition, Span{char}, ByRefTypeMode)"/>.
     /// </summary>
     /// <param name="type">The type to format.</param>
@@ -309,7 +343,7 @@ public interface IOpCodeFormatter : ICloneable
     /// </summary>
     /// <param name="type">The type to format.</param>
     /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
-    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter if <paramref name="type"/> is a by-ref type..</param>
     public string Format(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
         int formatLength = GetFormatLength(type, includeDefinitionKeywords, refMode);
@@ -322,13 +356,28 @@ public interface IOpCodeFormatter : ICloneable
     /// Format <paramref name="type"/> into a string representation.
     /// </summary>
     /// <param name="type">The type to format.</param>
-    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter if <paramref name="type"/> is a by-ref type.</param>
     public string Format(TypeDefinition type, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
         int formatLength = GetFormatLength(type, refMode);
         Span<char> span = stackalloc char[formatLength];
         span = span[..Format(type, span, refMode)];
         return new string(span);
+    }
+
+    /// <summary>
+    /// Format <typeparam name="T"/> into a string representation.
+    /// </summary>
+    /// <typeparam name="T">The type to format. This type will be made by-ref if <paramref name="refMode"/> is anything but <see cref="ByRefTypeMode.Ignore"/>.</typeparam>
+    /// <param name="includeDefinitionKeywords">Should definition keywords such as 'struct', 'class', 'static', 'ref', 'readonly' be included.</param>
+    /// <param name="refMode">Describes the way a by-ref type is passed as a parameter.</param>
+    public string Format<T>(bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ignore)
+    {
+        Type type = typeof(T);
+        if (refMode is > ByRefTypeMode.Ignore and <= ByRefTypeMode.ScopedRefReadOnly && !type.IsByRef)
+            type = type.MakeByRefType();
+
+        return Format(type, includeDefinitionKeywords, refMode);
     }
 
     /// <summary>
