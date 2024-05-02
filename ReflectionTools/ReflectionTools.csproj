@@ -29,8 +29,8 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageVersion>$(Version)</PackageVersion>
-    <AssemblyVersion>$(Version).1</AssemblyVersion>
-    <FileVersion>$(Version).1</FileVersion>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
     <NoWarn>CS8002</NoWarn>
     <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.dll.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
