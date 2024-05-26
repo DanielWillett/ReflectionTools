@@ -3920,10 +3920,16 @@ public class DefaultAccessor : IAccessor, IDisposable
     public virtual int GetListVersion<TElementType>(List<TElementType> list) => ListInfo<TElementType>.GetListVersion(list);
 
     /// <inheritdoc />
+    public virtual void SetUnderlyingArray<TElementType>(List<TElementType> list, TElementType[] underlyingArray, int size) => ListInfo<TElementType>.SetUnderlyingArray(list, underlyingArray, size);
+
+    /// <inheritdoc />
     public virtual bool TryGetUnderlyingArray<TElementType>(List<TElementType> list, out TElementType[] underlyingArray) => ListInfo<TElementType>.TryGetUnderlyingArray(list, out underlyingArray);
 
     /// <inheritdoc />
     public virtual bool TryGetListVersion<TElementType>(List<TElementType> list, out int version) => ListInfo<TElementType>.TryGetListVersion(list, out version);
+
+    /// <inheritdoc />
+    public virtual bool TrySetUnderlyingArray<TElementType>(List<TElementType> list, TElementType[] underlyingArray, int size) => ListInfo<TElementType>.TrySetUnderlyingArray(list, underlyingArray, size);
 
     /// <inheritdoc />
 #if NET40_OR_GREATER || !NETFRAMEWORK
@@ -4128,13 +4134,71 @@ public class DefaultAccessor : IAccessor, IDisposable
     protected class ListInfo<TElementType>
     {
         private static InstanceGetter<List<TElementType>, TElementType[]>? _underlyingArrayGetter;
+        private static InstanceSetter<List<TElementType>, TElementType[]>? _underlyingArraySetter;
         private static InstanceGetter<List<TElementType>, int>? _versionGetter;
+        private static InstanceSetter<List<TElementType>, int>? _sizeSetter;
         private static bool _checkUndArr;
         private static bool _checkVer;
+        private static bool _checkSize;
+        private static bool CheckSize()
+        {
+            if (_checkSize)
+            {
+                return _sizeSetter != null;
+            }
+
+            try
+            {
+                FieldInfo? field = typeof(List<TElementType>).GetField("_size", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                if (field == null)
+                {
+                    _checkSize = true;
+                    return false;
+                }
+
+                MethodAttributes attr;
+                CallingConventions convention;
+                if (Type.GetType("Mono.Runtime", false, false) != null)
+                {
+                    attr = MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig;
+                    convention = CallingConventions.HasThis;
+                }
+                else
+                {
+                    attr = MethodAttributes.Public | MethodAttributes.Static;
+                    convention = CallingConventions.Standard;
+                }
+
+                DynamicMethod method = new DynamicMethod("set__size", attr, convention, typeof(void), [ typeof(List<TElementType>), typeof(int) ], typeof(List<TElementType>), true);
+                method.DefineParameter(1, ParameterAttributes.None, "this");
+                method.DefineParameter(2, ParameterAttributes.None, "value");
+
+                IOpCodeEmitter il = method.AsEmitter();
+
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Stfld, field);
+                il.Emit(OpCodes.Ret);
+
+                _sizeSetter = (InstanceSetter<List<TElementType>, int>)method.CreateDelegate(typeof(InstanceSetter<List<TElementType>, int>));
+            }
+            catch
+            {
+                // ignored.
+            }
+            finally
+            {
+                _checkSize = true;
+            }
+
+            return _sizeSetter != null;
+        }
         private static bool CheckUndArr()
         {
             if (_checkUndArr)
-                return _underlyingArrayGetter != null;
+            {
+                return _underlyingArrayGetter != null && _underlyingArraySetter != null;
+            }
 
             try
             {
@@ -4168,6 +4232,19 @@ public class DefaultAccessor : IAccessor, IDisposable
                 il.Emit(OpCodes.Ret);
 
                 _underlyingArrayGetter = (InstanceGetter<List<TElementType>, TElementType[]>)method.CreateDelegate(typeof(InstanceGetter<List<TElementType>, TElementType[]>));
+
+                method = new DynamicMethod("set__items", attr, convention, typeof(void), [ typeof(List<TElementType>), typeof(TElementType[]) ], typeof(List<TElementType>), true);
+                method.DefineParameter(1, ParameterAttributes.None, "this");
+                method.DefineParameter(2, ParameterAttributes.None, "value");
+
+                il = method.AsEmitter();
+
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Stfld, field);
+                il.Emit(OpCodes.Ret);
+
+                _underlyingArraySetter = (InstanceSetter<List<TElementType>, TElementType[]>)method.CreateDelegate(typeof(InstanceSetter<List<TElementType>, TElementType[]>));
             }
             catch
             {
@@ -4178,7 +4255,7 @@ public class DefaultAccessor : IAccessor, IDisposable
                 _checkUndArr = true;
             }
 
-            return _underlyingArrayGetter != null;
+            return _underlyingArrayGetter != null && _underlyingArraySetter != null;
         }
         private static bool CheckVer()
         {
@@ -4265,6 +4342,24 @@ public class DefaultAccessor : IAccessor, IDisposable
         }
 
         /// <summary>
+        /// Sets the underlying array and size of the list.
+        /// </summary>
+        public static void SetUnderlyingArray(List<TElementType> list, TElementType[] underlyingArray, int size)
+        {
+            if (list == null)
+                throw new ArgumentNullException(nameof(list));
+
+            if (_sizeSetter == null && !CheckSize())
+                throw new NotSupportedException($"Unable to find '_size' in list of {typeof(TElementType).Name}.");
+
+            if (_underlyingArraySetter == null && !CheckUndArr())
+                throw new NotSupportedException($"Unable to find '_items' in list of {typeof(TElementType).Name}.");
+
+            _sizeSetter!(list, size);
+            _underlyingArraySetter!(list, underlyingArray);
+        }
+
+        /// <summary>
         /// Gets the underlying array from the list.
         /// </summary>
         /// <exception cref="ArgumentNullException"/>
@@ -4298,6 +4393,22 @@ public class DefaultAccessor : IAccessor, IDisposable
             }
 
             version = _versionGetter!(list);
+            return true;
+        }
+
+        /// <summary>
+        /// Sets the underlying array and size of the list.
+        /// </summary>
+        public static bool TrySetUnderlyingArray(List<TElementType> list, TElementType[] underlyingArray, int size)
+        {
+            if (list == null)
+                throw new ArgumentNullException(nameof(list));
+
+            if (_sizeSetter == null && !CheckSize() || _underlyingArraySetter == null && !CheckUndArr())
+                return false;
+
+            _sizeSetter!(list, size);
+            _underlyingArraySetter!(list, underlyingArray);
             return true;
         }
     }

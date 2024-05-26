@@ -1540,6 +1540,15 @@ public static class Accessor
         => _accessor.GetListVersion(list);
 
     /// <summary>
+    /// Set the size and underlying array of a list without any validation checks.
+    /// </summary>
+    /// <remarks>If used incorrectly this could corrupt a list.</remarks>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentNullException"/>
+    public static void SetUnderlyingArray<TElementType>(this List<TElementType> list, TElementType[] underlyingArray, int size)
+        => _accessor.SetUnderlyingArray(list, underlyingArray, size);
+
+    /// <summary>
     /// Get the underlying array from a list.
     /// </summary>
     /// <exception cref="ArgumentNullException"/>
@@ -1552,6 +1561,14 @@ public static class Accessor
     /// <exception cref="ArgumentNullException"/>
     public static bool TryGetListVersion<TElementType>(List<TElementType> list, out int version)
         => _accessor.TryGetListVersion(list, out version);
+
+    /// <summary>
+    /// Set the size and underlying array of a list without any validation checks.
+    /// </summary>
+    /// <remarks>If used incorrectly this could corrupt a list.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+    public static bool TrySetUnderlyingArray<TElementType>(this List<TElementType> list, TElementType[] underlyingArray, int size)
+        => _accessor.TrySetUnderlyingArray(list, underlyingArray, size);
 
     /// <summary>
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <paramref name="queriedType"/>. 

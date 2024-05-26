@@ -1378,6 +1378,14 @@ public interface IAccessor
     int GetListVersion<TElementType>(List<TElementType> list);
 
     /// <summary>
+    /// Set the size and underlying array of a list without any validation checks.
+    /// </summary>
+    /// <remarks>If used incorrectly this could corrupt a list.</remarks>
+    /// <exception cref="NotSupportedException">Reflection failure.</exception>
+    /// <exception cref="ArgumentNullException"/>
+    void SetUnderlyingArray<TElementType>(List<TElementType> list, TElementType[] underlyingArray, int size);
+
+    /// <summary>
     /// Get the underlying array from a list.
     /// </summary>
     /// <exception cref="ArgumentNullException"/>
@@ -1388,6 +1396,13 @@ public interface IAccessor
     /// </summary>
     /// <exception cref="ArgumentNullException"/>
     bool TryGetListVersion<TElementType>(List<TElementType> list, out int version);
+
+    /// <summary>
+    /// Set the size and underlying array of a list without any validation checks.
+    /// </summary>
+    /// <remarks>If used incorrectly this could corrupt a list.</remarks>
+    /// <exception cref="ArgumentNullException"/>
+    bool TrySetUnderlyingArray<TElementType>(List<TElementType> list, TElementType[] underlyingArray, int size);
 
     /// <summary>
     /// Checks if it's possible for a variable of type <paramref name="actualType"/> to have a value of type <paramref name="queriedType"/>. 
