@@ -2542,6 +2542,17 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
         length += keywordLength + 2;
     }
 
+    private static int GetGraveIndex(string name)
+    {
+        int index = -1;
+        do
+        {
+            index = name.IndexOf('`', index + 1);
+        } while (index > 0 && name[index - 1] == '\\');
+
+        return index;
+    }
+
     /// <summary>
     /// Calculate the length of a type name without adding declaring (nesting parent) types.
     /// </summary>
@@ -2552,7 +2563,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
         if (nestingType.IsGenericType)
         {
-            int graveIndex = name.IndexOf('`');
+            int graveIndex = GetGraveIndex(name);
             if (graveIndex != -1)
                 length += graveIndex;
             else length += name.Length;
@@ -2569,9 +2580,24 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
                 }
                 int s = GetTypeKeywordLength(type);
                 if (s != -1)
+                {
                     length += s;
+                }
                 else
-                    length += GetNestedInvariantTypeNameLength(type, true);
+                {
+                    for (Type? nestingType2 = type; nestingType2 != null; nestingType2 = nestingType2.DeclaringType)
+                    {
+                        if (!ReferenceEquals(nestingType2, type))
+                            ++length;
+
+                        bool willBreakNext = nestingType2.IsGenericParameter || nestingType2.DeclaringType == null;
+
+                        length += GetNestedInvariantTypeNameLength(nestingType2, willBreakNext);
+
+                        if (willBreakNext)
+                            break;
+                    }
+                }
             }
         }
         else length += name.Length;
@@ -3745,7 +3771,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
             if (type.IsGenericType)
             {
-                int graveIndex = name.IndexOf('`');
+                int graveIndex = GetGraveIndex(name);
                 if (graveIndex == -1) graveIndex = name.Length;
                 for (int i = 0; i < graveIndex; ++i)
                     output[i + index] = name[i];
@@ -3809,7 +3835,7 @@ public class DefaultOpCodeFormatter : IOpCodeFormatter
 
                 if (nestingType.IsGenericType)
                 {
-                    int graveIndex = name.IndexOf('`');
+                    int graveIndex = GetGraveIndex(name);
                     if (graveIndex == -1) graveIndex = name.Length;
                     for (int i = 0; i < graveIndex; ++i)
                         output[i + pos] = name[i];

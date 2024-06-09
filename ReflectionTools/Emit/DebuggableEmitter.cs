@@ -131,13 +131,47 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
                 catch (NotSupportedException)
                 {
                     def = Method is ConstructorBuilder { DeclaringType: not null } ctor ? new MethodDefinition(ctor.DeclaringType, ctor.IsStatic) : new MethodDefinition(Method.Name);
-                    txt = ".method " + _accessor.Formatter.Format(def) + " (in type builder)";
+                    try
+                    {
+                        txt = ".method " + _accessor.Formatter.Format(def) + " {in type builder}";
+                    }
+                    catch (Exception ex)
+                    {
+                        txt = ".method " + def + " {in type builder}";
+                        if (Accessor.LogErrorMessages)
+                        {
+                            _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {def}.");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    txt = ".method " + Method;
+                    if (Accessor.LogErrorMessages)
+                    {
+                        _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format method: {Method}.");
+                    }
                 }
 
                 reflectionToolsLogger.LogDebug(LogSource, txt);
             }
             else
-                reflectionToolsLogger.LogDebug(LogSource, ".method <" + _accessor.Formatter.Format(typeof(ILGenerator)));
+            {
+                string fmt;
+                try
+                {
+                    fmt = _accessor.Formatter.Format(typeof(ILGenerator));
+                }
+                catch (Exception ex)
+                {
+                    fmt = nameof(ILGenerator);
+                    if (Accessor.LogErrorMessages)
+                    {
+                        _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, "Failed to format type: ILGenerator.");
+                    }
+                }
+                reflectionToolsLogger.LogDebug(LogSource, ".method <" + fmt + ">");
+            }
             if (Breakpointing)
                 reflectionToolsLogger.LogDebug(LogSource, " (with breakpointing)");
         }
@@ -154,13 +188,48 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
                 // type builders, etc can throw NotSupportedException in a lot of cases
                 catch (NotSupportedException)
                 {
-                    def ??= Method is ConstructorBuilder { DeclaringType: not null } ctor ? new MethodDefinition(ctor.DeclaringType, ctor.IsStatic) : new MethodDefinition(Method.Name);
-                    txt = ".method " + _accessor.Formatter.Format(def) + " (in type builder)";
+                    def = Method is ConstructorBuilder { DeclaringType: not null } ctor ? new MethodDefinition(ctor.DeclaringType, ctor.IsStatic) : new MethodDefinition(Method.Name);
+                    try
+                    {
+                        txt = ".method " + _accessor.Formatter.Format(def) + " {in type builder}";
+                    }
+                    catch (Exception ex)
+                    {
+                        txt = ".method " + def + " {in type builder}";
+                        if (Accessor.LogErrorMessages)
+                        {
+                            _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {def}.");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    txt = ".method " + Method;
+                    if (Accessor.LogErrorMessages)
+                    {
+                        _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format method: {Method}.");
+                    }
                 }
                 Generator.Emit(OpCodes.Ldstr, txt);
             }
             else
-                Generator.Emit(OpCodes.Ldstr, ".method <" + _accessor.Formatter.Format(typeof(ILGenerator)));
+            {
+                string fmt;
+                try
+                {
+                    fmt = _accessor.Formatter.Format(typeof(ILGenerator));
+                }
+                catch (Exception ex)
+                {
+                    fmt = nameof(ILGenerator);
+                    if (Accessor.LogErrorMessages)
+                    {
+                        _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, "Failed to format type: ILGenerator.");
+                    }
+                }
+                Generator.Emit(OpCodes.Ldstr, ".method <" + fmt + ">");
+            }
+
             if (LogMethod != null)
                 Generator.Emit(_accessor.GetCallRuntime(LogMethod), LogMethod);
         }
@@ -223,7 +292,19 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     protected virtual void Log(OpCode code, object? operand)
     {
         CheckInit();
-        string msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent)) + _accessor.Formatter.Format(code, operand, OpCodeFormattingContext.List);
+
+        string msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent));
+        try
+        {
+            msg += _accessor.Formatter.Format(code, operand, OpCodeFormattingContext.List);
+        }
+        catch (Exception ex)
+        {
+            if (Accessor.LogErrorMessages)
+            {
+                _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format opcode: {code} {operand}.");
+            }
+        }
         
         if (DebugLog)
             _accessor.Logger?.LogDebug(LogSource, msg);
@@ -244,7 +325,18 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         {
             CheckInit();
             Log("}");
-            Log(".catch (" + _accessor.Formatter.Format(exceptionType) + ") {");
+            try
+            {
+                Log(".catch (" + _accessor.Formatter.Format(exceptionType) + ") {");
+            }
+            catch (Exception ex)
+            {
+                Log(".catch (" + exceptionType + ") {");
+                if (Accessor.LogErrorMessages)
+                {
+                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {exceptionType}.");
+                }
+            }
         }
         ++LogIndent;
         Generator.BeginCatchBlock(exceptionType);
@@ -336,7 +428,18 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
-            Log("// Declared local: # " + lcl.LocalIndex + " " + _accessor.Formatter.Format(lcl.LocalType ?? localType) + " (Pinned: " + lcl.IsPinned + ")");
+            try
+            {
+                Log("// Declared local: # " + lcl.LocalIndex + " " + _accessor.Formatter.Format(lcl.LocalType ?? localType) + " (Pinned: " + lcl.IsPinned + ")");
+            }
+            catch (Exception ex)
+            {
+                Log("// Declared local: # " + lcl.LocalIndex + " " + (lcl.LocalType ?? localType) + " (Pinned: " + lcl.IsPinned + ")");
+                if (Accessor.LogErrorMessages)
+                {
+                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {lcl.LocalType ?? localType}.");
+                }
+            }
         }
 
         return lcl;
@@ -349,7 +452,18 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
-            Log("// Defined label: " + _accessor.Formatter.Format(lbl));
+            try
+            {
+                Log("// Defined label: " + _accessor.Formatter.Format(lbl));
+            }
+            catch (Exception ex)
+            {
+                Log("// Defined label: " + lbl);
+                if (Accessor.LogErrorMessages)
+                {
+                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format label: {lbl}.");
+                }
+            }
         }
 
         return lbl;
@@ -627,7 +741,18 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
-            Log("// Write Line: Field " + _accessor.Formatter.Format(fld));
+            try
+            {
+                Log("// Write Line: Field " + _accessor.Formatter.Format(fld));
+            }
+            catch (Exception ex)
+            {
+                Log("// Write Line: Field " + fld);
+                if (Accessor.LogErrorMessages)
+                {
+                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format field: {fld}.");
+                }
+            }
         }
 
         Generator.EmitWriteLine(fld);
@@ -665,11 +790,26 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
+            try
+            {
 #if NET40_OR_GREATER
-            Log(".label " + _accessor.Formatter.Format(loc) + ": @ IL" + ILOffset.ToString("X") + ".");
+                Log(".label " + _accessor.Formatter.Format(loc) + ": @ IL" + ILOffset.ToString("X") + ".");
 #else
-            Log(".label " + _accessor.Formatter.Format(loc) + ".");
+                Log(".label " + _accessor.Formatter.Format(loc) + ".");
 #endif
+            }
+            catch (Exception ex)
+            {
+#if NET40_OR_GREATER
+                Log(".label " + loc + ": @ IL" + ILOffset.ToString("X") + ".");
+#else
+                Log(".label " + loc + ".");
+#endif
+                if (Accessor.LogErrorMessages)
+                {
+                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format label: {loc}.");
+                }
+            }
         }
         Generator.MarkLabel(loc);
     }
@@ -693,7 +833,18 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
-            Log($"// Throw Exception {_accessor.Formatter.Format(excType)}.");
+            try
+            {
+                Log($"// Throw Exception {_accessor.Formatter.Format(excType)}.");
+            }
+            catch (Exception ex)
+            {
+                Log($"// Throw Exception {excType}.");
+                if (Accessor.LogErrorMessages)
+                {
+                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {excType}.");
+                }
+            }
         }
         Generator.ThrowException(excType);
     }

@@ -63,6 +63,15 @@ public static class EmitUtility
     }
 
     /// <summary>
+    /// Mark a label if it's not <see langword="null"/>.
+    /// </summary>
+    public static void TryMarkLabel(this IOpCodeEmitter il, Label? label)
+    {
+        if (label.HasValue)
+            il.MarkLabel(label.Value);
+    }
+
+    /// <summary>
     /// Get the label ID from a <see cref="Label"/> object.
     /// </summary>
     /// <remarks>Uses an unsafe cast to an integer, may not work in some non-standard .NET implementations.</remarks>
