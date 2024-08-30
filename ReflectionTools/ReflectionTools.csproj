@@ -31,7 +31,7 @@
     <PackageVersion>$(Version)</PackageVersion>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
-    <NoWarn>CS8002</NoWarn>
+    <NoWarn>CS8002;CS1573</NoWarn>
     <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.dll.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 

@@ -156,7 +156,7 @@ public class Accessor_GenerateInstanceCaller
         Assert.AreEqual(value, sampleClass.PublicRefTypeField);
     }
     [TestMethod]
-    public void TestRTNoUnsafeTypeBindingDelegateActionBoxxedVTArg()
+    public void TestRTNoUnsafeTypeBindingDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
@@ -229,7 +229,7 @@ public class Accessor_GenerateInstanceCaller
         });
     }
     [TestMethod]
-    public void TestRTDynamicDelegateActionBoxxedVTArg()
+    public void TestRTDynamicDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
@@ -249,7 +249,7 @@ public class Accessor_GenerateInstanceCaller
         Assert.AreEqual(value, sampleClass.PublicValTypeField);
     }
     [TestMethod]
-    public void TestRTDynamicDelegateActionBoxxedVTArgThrowsExceptions()
+    public void TestRTDynamicDelegateActionBoxedVTArgThrowsExceptions()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
@@ -363,7 +363,7 @@ public class Accessor_GenerateInstanceCaller
         Assert.AreEqual(value, sampleClass.PublicRefTypeField);
     }
     [TestMethod]
-    public void TestObjectRTNoUnsafeTypeBindingDelegateActionBoxxedVTArg()
+    public void TestObjectRTNoUnsafeTypeBindingDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
@@ -403,7 +403,7 @@ public class Accessor_GenerateInstanceCaller
         Assert.AreEqual(value, sampleClass.PublicRefTypeField);
     }
     [TestMethod]
-    public void TestObjectRTDynamicDelegateActionBoxxedVTArg()
+    public void TestObjectRTDynamicDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
@@ -467,7 +467,7 @@ public class Accessor_GenerateInstanceCaller
         }, "Threw correct exception for non-readonly method as a value type.");
     }
     [TestMethod]
-    public void TestVTNoUnsafeTypeBindingDelegateActionBoxxedVTArg()
+    public void TestVTNoUnsafeTypeBindingDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         Assert.ThrowsException<Exception>(() =>
@@ -485,7 +485,7 @@ public class Accessor_GenerateInstanceCaller
         }, "Threw correct exception for non-readonly method as a value type.");
     }
     [TestMethod]
-    public void TestVTDynamicDelegateActionBoxxedVTArg()
+    public void TestVTDynamicDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         Assert.ThrowsException<Exception>(() =>
@@ -575,7 +575,7 @@ public class Accessor_GenerateInstanceCaller
         Assert.AreEqual(value, ((SampleStruct)sampleClass).PublicRefTypeField);
     }
     [TestMethod]
-    public void TestBoxedVTNoUnsafeTypeBindingDelegateActionBoxxedVTArg()
+    public void TestBoxedVTNoUnsafeTypeBindingDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
@@ -617,7 +617,7 @@ public class Accessor_GenerateInstanceCaller
         Assert.AreEqual(value, ((SampleStruct)sampleClass).PublicRefTypeField);
     }
     [TestMethod]
-    public void TestBoxedVTDynamicDelegateActionBoxxedVTArg()
+    public void TestBoxedVTDynamicDelegateActionBoxedVTArg()
     {
         const string methodName = "SetValTypeField";
         const int value = 3;
