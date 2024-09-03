@@ -307,9 +307,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(OpCode opCode)
     {
         int formatLength = GetFormatLength(opCode);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(opCode, span)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, OpCode>(this, opCode), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span);
+        });
     }
 
     /// <summary>
@@ -319,9 +320,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(Label label)
     {
         int formatLength = GetFormatLength(label);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(label, span)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, Label>(this, label), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span);
+        });
     }
 
     /// <summary>
@@ -333,9 +335,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(OpCode opCode, object? operand, OpCodeFormattingContext usageContext)
     {
         int formatLength = GetFormatLength(opCode, operand, usageContext);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(opCode, operand, span, usageContext)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, OpCode, object?, OpCodeFormattingContext>(this, opCode, operand, usageContext), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, state.Item3, span, state.Item4);
+        });
     }
 
     /// <summary>
@@ -347,9 +350,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(Type type, bool includeDefinitionKeywords = false, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
         int formatLength = GetFormatLength(type, includeDefinitionKeywords, refMode);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(type, span, includeDefinitionKeywords, refMode)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, Type, bool, ByRefTypeMode>(this, type, includeDefinitionKeywords, refMode), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3, state.Item4);
+        });
     }
 
     /// <summary>
@@ -360,9 +364,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(TypeDefinition type, ByRefTypeMode refMode = ByRefTypeMode.Ref)
     {
         int formatLength = GetFormatLength(type, refMode);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(type, span, refMode)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, TypeDefinition, ByRefTypeMode>(this, type, refMode), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3);
+        });
     }
 
     /// <summary>
@@ -388,9 +393,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(MethodBase method, bool includeDefinitionKeywords = false)
     {
         int formatLength = GetFormatLength(method, includeDefinitionKeywords);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(method, span, includeDefinitionKeywords)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, MethodBase, bool>(this, method, includeDefinitionKeywords), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3);
+        });
     }
 
     /// <summary>
@@ -400,9 +406,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(MethodDefinition method)
     {
         int formatLength = GetFormatLength(method);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(method, span)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, MethodDefinition>(this, method), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span);
+        });
     }
 
     /// <summary>
@@ -413,9 +420,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(FieldInfo field, bool includeDefinitionKeywords = false)
     {
         int formatLength = GetFormatLength(field, includeDefinitionKeywords);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(field, span, includeDefinitionKeywords)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, FieldInfo, bool>(this, field, includeDefinitionKeywords), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3);
+        });
     }
 
     /// <summary>
@@ -425,9 +433,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(FieldDefinition field)
     {
         int formatLength = GetFormatLength(field);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(field, span)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, FieldDefinition>(this, field), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span);
+        });
     }
 
     /// <summary>
@@ -439,9 +448,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(PropertyInfo property, bool includeAccessors = true, bool includeDefinitionKeywords = false)
     {
         int formatLength = GetFormatLength(property, includeAccessors, includeDefinitionKeywords);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(property, span, includeAccessors, includeDefinitionKeywords)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, PropertyInfo, bool, bool>(this, property, includeAccessors, includeDefinitionKeywords), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3, state.Item4);
+        });
     }
 
     /// <summary>
@@ -452,9 +462,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(PropertyDefinition property, bool includeAccessors = true)
     {
         int formatLength = GetFormatLength(property, includeAccessors);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(property, span, includeAccessors)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, PropertyDefinition, bool>(this, property, includeAccessors), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3);
+        });
     }
 
     /// <summary>
@@ -467,9 +478,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(EventInfo @event, bool includeAccessors = true, bool includeEventKeyword = true, bool includeDefinitionKeywords = false)
     {
         int formatLength = GetFormatLength(@event, includeAccessors, includeEventKeyword, includeDefinitionKeywords);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(@event, span, includeAccessors, includeEventKeyword, includeDefinitionKeywords)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, EventInfo, bool, bool, bool>(this, @event, includeAccessors, includeEventKeyword, includeDefinitionKeywords), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3, state.Item4, state.Item5);
+        });
     }
 
     /// <summary>
@@ -481,9 +493,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(EventDefinition @event, bool includeAccessors = true, bool includeEventKeyword = true)
     {
         int formatLength = GetFormatLength(@event, includeAccessors, includeEventKeyword);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(@event, span, includeAccessors, includeEventKeyword)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, EventDefinition, bool, bool>(this, @event, includeAccessors, includeEventKeyword), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3, state.Item4);
+        });
     }
 
     /// <summary>
@@ -494,9 +507,10 @@ public interface IOpCodeFormatter : ICloneable
     public string Format(ParameterInfo parameter, bool isExtensionThisParameter = false)
     {
         int formatLength = GetFormatLength(parameter, isExtensionThisParameter);
-        Span<char> span = stackalloc char[formatLength];
-        span = span[..Format(parameter, span, isExtensionThisParameter)];
-        return new string(span);
+        return string.Create(formatLength, new ValueTuple<IOpCodeFormatter, ParameterInfo, bool>(this, parameter, isExtensionThisParameter), (span, state) =>
+        {
+            state.Item1.Format(state.Item2, span, state.Item3);
+        });
     }
 #else
     /// <summary>
