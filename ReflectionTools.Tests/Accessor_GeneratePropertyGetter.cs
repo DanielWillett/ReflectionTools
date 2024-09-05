@@ -6,6 +6,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("Accessor")]
 public class Accessor_GeneratePropertyGetter
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     [TestMethod]
     public void BasicInstanceGetter()
     {

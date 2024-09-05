@@ -10,6 +10,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("DefaultOpCodeFormatter")]
 public class DefaultOpCodeFormatter_OpCodes
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     private int _testField;
 
     [TestMethod]

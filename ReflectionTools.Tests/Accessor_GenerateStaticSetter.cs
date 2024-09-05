@@ -7,6 +7,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("Accessor")]
 public class Accessor_GenerateStaticSetter
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     /*
      * Private value type
      */
@@ -27,6 +33,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, 0);
     }
 
     [TestMethod]
@@ -45,6 +53,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, 0);
     }
 
     /*
@@ -67,6 +77,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, null);
     }
 
     [TestMethod]
@@ -85,6 +97,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, null);
     }
 
     /*
@@ -106,6 +120,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicValTypeField);
+
+        SampleStaticMembers.PublicValTypeField = 0;
     }
 
     [TestMethod]
@@ -123,6 +139,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicValTypeField);
+
+        SampleStaticMembers.PublicValTypeField = 0;
     }
 
     /*
@@ -144,6 +162,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicRefTypeField);
+
+        SampleStaticMembers.PublicRefTypeField = null;
     }
 
     [TestMethod]
@@ -161,6 +181,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicRefTypeField);
+
+        SampleStaticMembers.PublicRefTypeField = null;
     }
 
     /*
@@ -184,6 +206,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, 0);
 #else
         Assert.ThrowsException<NotSupportedException>(() =>
         {
@@ -209,6 +233,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, 0);
 #else
         Assert.ThrowsException<NotSupportedException>(() =>
         {
@@ -237,6 +263,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        setter(null);
     }
 
     [TestMethod]
@@ -255,6 +283,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        setter(null);
     }
 
     /*
@@ -267,22 +297,11 @@ public class Accessor_GenerateStaticSetter
     public void TestPublicReadonlyValueTypeField()
     {
         const string fieldName = "PublicReadonlyValTypeField";
-#if !NET && !NETCOREAPP
-        const int value = 1;
 
-        StaticSetter<int> setter = Accessor.GenerateStaticSetter<SampleStaticMembers, int>(fieldName, throwOnError: true)!;
-
-        Assert.IsNotNull(setter);
-
-        setter(value);
-
-        Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyValTypeField);
-#else
         Assert.ThrowsException<NotSupportedException>(() =>
         {
             _ = Accessor.GenerateStaticSetter<SampleStaticMembers, int>(fieldName, throwOnError: true)!;
         }, "Didn't throw NotSupportedException for readonly static value type field.");
-#endif
     }
 
     [TestMethod]
@@ -291,22 +310,11 @@ public class Accessor_GenerateStaticSetter
     public void TestPublicReadonlyBoxedValueTypeField()
     {
         const string fieldName = "PublicReadonlyValTypeField";
-#if !NET && !NETCOREAPP
-        const int value = 1;
 
-        StaticSetter<object> setter = Accessor.GenerateStaticSetter<SampleStaticMembers, object>(fieldName, throwOnError: true)!;
-
-        Assert.IsNotNull(setter);
-
-        setter(value);
-
-        Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyValTypeField);
-#else
         Assert.ThrowsException<NotSupportedException>(() =>
         {
             _ = Accessor.GenerateStaticSetter<SampleStaticMembers, object>(fieldName, throwOnError: true)!;
         }, "Didn't throw NotSupportedException for readonly static value type field.");
-#endif
     }
 
     /*
@@ -328,6 +336,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyRefTypeField);
+
+        setter(null);
     }
 
     [TestMethod]
@@ -345,6 +355,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyRefTypeField);
+
+        setter(null);
     }
     /*
      * Private value type
@@ -370,6 +382,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, 0);
     }
 
     /*
@@ -395,6 +409,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, null);
     }
 
     /*
@@ -419,6 +435,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicValTypeField);
+
+        SampleStaticMembers.PublicValTypeField = 0;
     }
 
     /*
@@ -443,6 +461,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicRefTypeField);
+
+        SampleStaticMembers.PublicRefTypeField = null;
     }
 
     /*
@@ -469,6 +489,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        field.SetValue(null, 0);
 #else
         Assert.ThrowsException<NotSupportedException>(() =>
         {
@@ -500,6 +522,8 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, field.GetValue(null));
+
+        setter(null);
     }
 
     /*
@@ -514,22 +538,11 @@ public class Accessor_GenerateStaticSetter
         const string fieldName = "PublicReadonlyValTypeField";
         IStaticVariable<int>? variable = Variables.FindStatic<SampleStaticMembers, int>(fieldName);
         Assert.IsNotNull(variable);
-#if !NET && !NETCOREAPP
-        const int value = 1;
 
-        StaticSetter<int> setter = variable.GenerateSetter(throwOnError: true);
-
-        Assert.IsNotNull(setter);
-
-        setter(value);
-
-        Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyValTypeField);
-#else
         Assert.ThrowsException<NotSupportedException>(() =>
         {
             _ = variable.GenerateSetter(throwOnError: true);
         }, "Didn't throw NotSupportedException for readonly static value type field.");
-#endif
     }
 
     /*
@@ -554,5 +567,7 @@ public class Accessor_GenerateStaticSetter
         setter(value);
 
         Assert.AreEqual(value, SampleStaticMembers.PublicReadonlyRefTypeField);
+
+        setter(null);
     }
 }

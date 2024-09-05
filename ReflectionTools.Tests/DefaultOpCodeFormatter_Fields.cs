@@ -7,6 +7,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("DefaultOpCodeFormatter")]
 public class DefaultOpCodeFormatter_Fields
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     private static readonly int Field1;
     private static readonly Version Field2;
     public unsafe SpinLock** Field3;

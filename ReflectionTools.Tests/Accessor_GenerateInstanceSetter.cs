@@ -7,6 +7,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("Accessor")]
 public class Accessor_GenerateInstanceSetter
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     /*
      * Private value type field in reference type
      */

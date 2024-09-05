@@ -1,9 +1,10 @@
-﻿using System;
+﻿using DanielWillett.ReflectionTools.Formatting;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
-using DanielWillett.ReflectionTools.Formatting;
 
 namespace DanielWillett.ReflectionTools.Emit;
 
@@ -28,15 +29,18 @@ public static class EmitterExtensions
     private static readonly Type TypeU8 = typeof(ulong);
     private static readonly Type TypeR4 = typeof(float);
     private static readonly Type TypeR8 = typeof(double);
+    private static readonly Type TypeR16 = typeof(decimal);
+    private static readonly Type TypeBoolean = typeof(bool);
+    private static readonly Type TypeCharacter = typeof(char);
 
-    private static void EmitAlignmentPrefix(IOpCodeEmitter emitter, MemoryAlignment alignment)
+    private static void EmitVolatileAndAlignmentPrefixes(IOpCodeEmitter emitter, MemoryAlignment alignment, bool @volatile)
     {
         switch (alignment)
         {
             case MemoryAlignment.AlignedPerByte:
                 emitter.Emit(OpCodes.Unaligned, (byte)1);
                 break;
-            
+
             case MemoryAlignment.AlignedPerTwoBytes:
                 emitter.Emit(OpCodes.Unaligned, (byte)2);
                 break;
@@ -45,6 +49,45 @@ public static class EmitterExtensions
                 emitter.Emit(OpCodes.Unaligned, (byte)4);
                 break;
         }
+
+        if (@volatile)
+        {
+            emitter.Emit(OpCodes.Volatile);
+        }
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <typeparamref name="TLocalType"/>.
+    /// </summary>
+    public static LocalBuilder DeclareLocal<TLocalType>(this IOpCodeEmitter emitter)
+    {
+        return emitter.DeclareLocal(typeof(TLocalType));
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <typeparamref name="TLocalType"/>, specifying whether or not it's address is <paramref name="pinned"/>.
+    /// </summary>
+    public static LocalBuilder DeclareLocal<TLocalType>(this IOpCodeEmitter emitter, bool pinned)
+    {
+        return emitter.DeclareLocal(typeof(TLocalType), pinned);
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <paramref name="localType"/> and stores the top value on the stack in it.
+    /// </summary>
+    public static IOpCodeEmitter PopToLocal(this IOpCodeEmitter emitter, Type localType, out LocalBuilder local)
+    {
+        local = emitter.DeclareLocal(localType);
+        return emitter.SetLocalValue(local);
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <typeparamref name="TLocalType"/> and stores the top value on the stack in it.
+    /// </summary>
+    public static IOpCodeEmitter PopToLocal<TLocalType>(this IOpCodeEmitter emitter, out LocalBuilder local)
+    {
+        local = emitter.DeclareLocal(typeof(TLocalType));
+        return emitter.SetLocalValue(local);
     }
 
     /// <summary>
@@ -66,7 +109,6 @@ public static class EmitterExtensions
     {
         emitter.Emit(OpCodes.Ldtoken, type);
         emitter.Emit(OpCodes.Call, TokenToTypeMtd);
-        
         return emitter;
     }
 
@@ -82,7 +124,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Adds the top two values on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
+    /// Adds the top two integers on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
     /// <para><c>add.ovf</c></para>
     /// </summary>
     /// <remarks>..., value1, value2 -&gt; ..., value1 + value2</remarks>
@@ -93,7 +135,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Adds the top two unsigned values on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
+    /// Adds the top two unsigned integers on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
     /// <para><c>add.ovf.un</c></para>
     /// </summary>
     /// <remarks>..., value1, value2 -&gt; ..., value1 + value2</remarks>
@@ -150,7 +192,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Branches to the given label if the second to top unsigned value is greater than or equal to the top unsigned value on the stack, or the second to top or both values are unordered (meaning <see langword="NaN"/>).
+    /// Branches to the given label if the second to top unsigned integer is greater than or equal to the top unsigned integer on the stack, or the second to top or both values are unordered (meaning <see langword="NaN"/>).
     /// <para><c>bge.un</c></para>
     /// </summary>
     /// <param name="forceShort">Use <c>bge.un.s</c>. Only set this to <see langword="true"/> if you know the label will be less than 256 IL bytes.</param>
@@ -174,7 +216,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Branches to the given label if the second to top unsigned value is greater than the top unsigned value on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>).
+    /// Branches to the given label if the second to top unsigned integer is greater than the top unsigned integer on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>).
     /// <para><c>bgt.un</c></para>
     /// </summary>
     /// <param name="forceShort">Use <c>bgt.un.s</c>. Only set this to <see langword="true"/> if you know the label will be less than 256 IL bytes.</param>
@@ -198,7 +240,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Branches to the given label if the second to top unsigned value is less than or equal to the top unsigned value on the stack, or the second to top or both values are unordered (meaning <see langword="NaN"/>).
+    /// Branches to the given label if the second to top unsigned integer is less than or equal to the top unsigned integer on the stack, or the second to top or both values are unordered (meaning <see langword="NaN"/>).
     /// <para><c>ble.un</c></para>
     /// </summary>
     /// <param name="forceShort">Use <c>ble.un.s</c>. Only set this to <see langword="true"/> if you know the label will be less than 256 IL bytes.</param>
@@ -222,7 +264,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Branches to the given label if the second to top unsigned value is less than the top unsigned value on the stack, or the second to top is unordered (meaning <see langword="NaN"/>).
+    /// Branches to the given label if the second to top unsigned integer is less than the top unsigned integer on the stack, or the second to top is unordered (meaning <see langword="NaN"/>).
     /// <para><c>blt.un</c></para>
     /// </summary>
     /// <param name="forceShort">Use <c>blt.un.s</c>. Only set this to <see langword="true"/> if you know the label will be less than 256 IL bytes.</param>
@@ -254,6 +296,16 @@ public static class EmitterExtensions
     {
         emitter.Emit(OpCodes.Box, valueType);
         return emitter;
+    }
+
+    /// <summary>
+    /// Converts the top value type on the stack to a boxed value (moving it to the heap) and pushes a reference type onto the stack.
+    /// <para><c>box</c></para>
+    /// </summary>
+    /// <remarks>..., <see langword="struct"/> -&gt; ..., <see cref="object"/></remarks>
+    public static IOpCodeEmitter Box<TValueType>(this IOpCodeEmitter emitter) where TValueType : struct
+    {
+        return emitter.Box(typeof(TValueType));
     }
 
     /// <summary>
@@ -306,21 +358,29 @@ public static class EmitterExtensions
 
     /// <summary>
     /// Invokes the given method, removing all parameters from the stack and pushing the return value if it isn't <see langword="void"/>.
+    /// <para>Using a <paramref name="tailcall"/> inside a try, filter, catch, or finally block is invalid.</para>
     /// <para><c>constrained.</c> if needed, and <c>call</c> or <c>callvirt</c></para>
     /// </summary>
     /// <param name="forceValueTypeCallvirt">Use <c>callvirt</c> for methods declared in value types. This will throw an error unless the method is called on a boxed value type.</param>
     /// <param name="constrainingType">The type to constrain the <c>callvirt</c> invocation to. Allows virtually calling functions on value types or reference types. This parameter does nothing if the function is static or can't be <c>callvirt</c>'d.</param>
+    /// <param name="tailcall">This call will be the last call in the method. The stack must be empty at this point. The value returned from the tailcalled method will be used as the return value for the current method.</param>
     /// <remarks>..., (parameters) -&gt; (return value if not void), ...</remarks>
-    public static IOpCodeEmitter Invoke(this IOpCodeEmitter emitter, MethodInfo method, bool forceValueTypeCallvirt = false, Type? constrainingType = null)
+    public static IOpCodeEmitter Invoke(this IOpCodeEmitter emitter, MethodInfo method, bool forceValueTypeCallvirt = false, Type? constrainingType = null, bool tailcall = false)
     {
+        bool hasConstrainingType = constrainingType is { IsValueType: false };
+        forceValueTypeCallvirt |= hasConstrainingType;
         bool callvirt = !method.IsStatic && (forceValueTypeCallvirt || method.DeclaringType is { IsValueType: false });
-        if (callvirt && constrainingType != null)
+        if (callvirt && hasConstrainingType)
         {
-            emitter.Emit(OpCodes.Constrained, constrainingType);
+            emitter.Emit(OpCodes.Constrained, constrainingType!);
+            if (tailcall)
+                emitter.Emit(OpCodes.Tailcall);
             emitter.Emit(OpCodes.Callvirt, method);
         }
         else
         {
+            if (tailcall)
+                emitter.Emit(OpCodes.Tailcall);
             emitter.Emit(callvirt ? OpCodes.Callvirt : OpCodes.Call, method);
         }
         return emitter;
@@ -328,16 +388,20 @@ public static class EmitterExtensions
 
     /// <summary>
     /// Invokes the given static method with no parameters or return value.
+    /// <para>Using a <paramref name="tailcall"/> inside a try, filter, catch, or finally block is invalid.</para>
     /// <para><c>call</c></para>
     /// </summary>
+    /// <param name="tailcall">This call will be the last call in the method. The stack must be empty at this point. The value returned from the tailcalled method will be used as the return value for the current method.</param>
     /// <exception cref="ArgumentException"><paramref name="simpleCall"/> is not <see langword="static"/>.</exception>
     /// <exception cref="MemberAccessException">The caller does not have access to the method represented by the delegate (for example, if the method is private).</exception>
     /// <remarks>... -&gt; ...</remarks>
-    public static IOpCodeEmitter Invoke(this IOpCodeEmitter emitter, Action simpleCall)
+    public static IOpCodeEmitter Invoke(this IOpCodeEmitter emitter, Action simpleCall, bool tailcall = false)
     {
         if (simpleCall.Target is not null)
             throw new ArgumentException("Expected a static function.");
 
+        if (tailcall)
+            emitter.Emit(OpCodes.Tailcall);
         emitter.Emit(OpCodes.Call, simpleCall.Method);
         return emitter;
     }
@@ -386,7 +450,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Loads whether or not the second to top unsigned value is greater than the top unsigned value on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>) as a 0 or 1.
+    /// Loads whether or not the second to top unsigned integer is greater than the top unsigned integer on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>) as a 0 or 1.
     /// <para><c>cgt.un</c></para>
     /// </summary>
     /// <remarks>..., value1, value2 -&gt; int(value1 &gt; value2), ...</remarks>
@@ -394,6 +458,28 @@ public static class EmitterExtensions
     {
         emitter.Emit(OpCodes.Cgt_Un);
         return emitter;
+    }
+
+    /// <summary>
+    /// Loads whether or not the second to top value is greater or equal to than the top value on the stack as a 0 or 1.
+    /// <para><c>!clt</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; int(value1 &gt;= value2), ...</remarks>
+    public static IOpCodeEmitter LoadIfGreaterOrEqual(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Clt);
+        return emitter.Not();
+    }
+
+    /// <summary>
+    /// Loads whether or not the second to top unsigned integer is greater than or equal to the top unsigned integer on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>) as a 0 or 1.
+    /// <para><c>!clt.un</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; int(value1 &gt;= value2), ...</remarks>
+    public static IOpCodeEmitter LoadIfGreaterOrEqualUnsigned(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Clt_Un);
+        return emitter.Not();
     }
 
     /// <summary>
@@ -419,7 +505,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Loads whether or not the second to top unsigned value is less than the top unsigned value on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>) as a 0 or 1.
+    /// Loads whether or not the second to top unsigned integer is less than the top unsigned integer on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>) as a 0 or 1.
     /// <para><c>clt.un</c></para>
     /// </summary>
     /// <remarks>..., value1, value2 -&gt; int(value1 &lt; value2), ...</remarks>
@@ -427,6 +513,28 @@ public static class EmitterExtensions
     {
         emitter.Emit(OpCodes.Clt_Un);
         return emitter;
+    }
+
+    /// <summary>
+    /// Loads whether or not the second to top value is less than or equal to than the top value on the stack as a 0 or 1.
+    /// <para><c>!cgt</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; int(value1 &lt;= value2), ...</remarks>
+    public static IOpCodeEmitter LoadIfLessOrEqual(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Cgt);
+        return emitter.Not();
+    }
+
+    /// <summary>
+    /// Loads whether or not the second to top unsigned integer is less than than or equal to the top unsigned integer on the stack, or the second to top value is unordered (meaning <see langword="NaN"/>) as a 0 or 1.
+    /// <para><c>!cgt.un</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; int(value1 &lt;= value2), ...</remarks>
+    public static IOpCodeEmitter LoadIfLessOrEqualUnsigned(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Cgt_Un);
+        return emitter.Not();
     }
 
     /// <summary>
@@ -634,19 +742,38 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a 64-bit floating-point value (<see langword="double"/>).
+    /// Convert the unsigned integer on the stack to a 32-bit floating-point value (<see langword="float"/>).
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
     /// Converting floating points to integers truncates towards zero.
     /// Converting large values to smaller floating points brings overflowing values to their corresponding <see langword="Infinity"/> values.
     /// </para>
-    /// <para><c>conv.r.un</c></para>
+    /// <para><c>conv.r.un</c> then <c>conv.r4</c></para>
+    /// </summary>
+    /// <remarks>..., value -&gt; converted value, ...</remarks>
+    public static IOpCodeEmitter ConvertToSingleUnsigned(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Conv_R_Un);
+        emitter.Emit(OpCodes.Conv_R4);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Convert the unsigned integer on the stack to a 64-bit floating-point value (<see langword="double"/>).
+    /// <para>
+    /// Converting larger integers to smaller integers disposes of the higher bits.
+    /// Converting smaller integers to larger integers brings the sign bit to the first bit.
+    /// Converting floating points to integers truncates towards zero.
+    /// Converting large values to smaller floating points brings overflowing values to their corresponding <see langword="Infinity"/> values.
+    /// </para>
+    /// <para><c>conv.r.un</c> then <c>conv.r8</c></para>
     /// </summary>
     /// <remarks>..., value -&gt; converted value, ...</remarks>
     public static IOpCodeEmitter ConvertToDoubleUnsigned(this IOpCodeEmitter emitter)
     {
         emitter.Emit(OpCodes.Conv_R_Un);
+        emitter.Emit(OpCodes.Conv_R8);
         return emitter;
     }
 
@@ -821,7 +948,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a native signed integer (<see langword="nint"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a native signed integer (<see langword="nint"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -838,7 +965,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a signed 8-bit integer (<see langword="sbyte"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a signed 8-bit integer (<see langword="sbyte"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -855,7 +982,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a signed 16-bit integer (<see langword="short"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a signed 16-bit integer (<see langword="short"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -872,7 +999,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a signed 32-bit integer (<see langword="int"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a signed 32-bit integer (<see langword="int"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -889,7 +1016,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a signed 64-bit integer (<see langword="long"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a signed 64-bit integer (<see langword="long"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -906,7 +1033,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a native unsigned integer (<see langword="nuint"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a native unsigned integer (<see langword="nuint"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -923,7 +1050,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a unsigned 8-bit integer (<see langword="byte"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a unsigned 8-bit integer (<see langword="byte"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -940,7 +1067,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a unsigned 16-bit integer (<see langword="ushort"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a unsigned 16-bit integer (<see langword="ushort"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -957,7 +1084,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a unsigned 32-bit integer (<see langword="uint"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a unsigned 32-bit integer (<see langword="uint"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -974,7 +1101,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Convert the unsigned value on the stack to a unsigned 64-bit integer (<see langword="ulong"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
+    /// Convert the unsigned integer on the stack to a unsigned 64-bit integer (<see langword="ulong"/>), throwing an <see cref="OverflowException"/> if the value can't be converted.
     /// <para>
     /// Converting larger integers to smaller integers disposes of the higher bits.
     /// Converting smaller integers to larger integers brings the sign bit to the first bit.
@@ -997,10 +1124,7 @@ public static class EmitterExtensions
     /// <remarks>..., destinationAddress, sourceAddress, sizeInBytes -&gt; ...</remarks>
     public static IOpCodeEmitter CopyBytes(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
-        EmitAlignmentPrefix(emitter, alignment);
-        if (@volatile)
-            emitter.Emit(OpCodes.Volatile);
-
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
         emitter.Emit(OpCodes.Cpblk);
         return emitter;
     }
@@ -1041,7 +1165,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Divides the top two unsigned values on the stack and pushes the result onto the stack. The value will be truncated towards zero.
+    /// Divides the top two unsigned integers on the stack and pushes the result onto the stack. The value will be truncated towards zero.
     /// <para>
     /// Dividing a number by zero will result in a <see cref="DivideByZeroException"/>.
     /// </para>
@@ -1091,22 +1215,27 @@ public static class EmitterExtensions
     /// <remarks>..., destinationAddress, value, sizeInBytes -&gt; ...</remarks>
     public static IOpCodeEmitter SetBytes(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
-        EmitAlignmentPrefix(emitter, alignment);
-        if (@volatile)
-            emitter.Emit(OpCodes.Volatile);
-
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
         emitter.Emit(OpCodes.Initblk);
         return emitter;
     }
 
-    /// <summary>
-    /// Sets the default value of a type to a given address. Value types will be initialized to <see langword="default"/>, and reference types to <see langword="null"/>.
-    /// <para><c>initobj</c></para>
-    /// </summary>
-    /// <remarks>..., destinationAddress -&gt; ...</remarks>
-    public static IOpCodeEmitter SetDefaultValue<T>(this IOpCodeEmitter emitter)
+    private static void InitObjectIntl(IOpCodeEmitter emitter, Type type, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
-        return emitter.SetDefaultValue(typeof(T));
+        if (!@volatile && (alignment & MemoryMask) == 0)
+        {
+            emitter.Emit(OpCodes.Initobj, type);
+        }
+        else
+        {
+            LocalBuilder lcl = emitter.DeclareLocal(type);
+            emitter.Emit(OpCodes.Ldloca, lcl);
+            emitter.Emit(OpCodes.Dup);
+            emitter.Emit(OpCodes.Initobj, type);
+            emitter.Emit(OpCodes.Ldobj, type);
+            EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
+            emitter.Emit(OpCodes.Stobj, type);
+        }
     }
 
     /// <summary>
@@ -1114,34 +1243,213 @@ public static class EmitterExtensions
     /// <para><c>initobj</c></para>
     /// </summary>
     /// <remarks>..., destinationAddress -&gt; ...</remarks>
-    public static IOpCodeEmitter SetDefaultValue(this IOpCodeEmitter emitter, Type type)
+    public static IOpCodeEmitter SetDefaultValue<T>(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
-        emitter.Emit(OpCodes.Initobj, type);
+        if (typeof(T) == TypeI4 || typeof(T) == TypeU4 || typeof(T) == TypeU1
+            || typeof(T) == TypeI1 || typeof(T) == TypeBoolean || typeof(T) == TypeI8
+            || typeof(T) == TypeU8 || typeof(T) == TypeI || typeof(T) == TypeU
+            || typeof(T) == TypeI2 || typeof(T) == TypeU2 || typeof(T) == TypeCharacter)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_0);
+            return emitter.SetAddressValue<T>(alignment, @volatile);
+        }
+
+        if (typeof(T) == TypeR4)
+        {
+            emitter.Emit(OpCodes.Ldc_R4, 0f);
+            return emitter.SetAddressValue<float>(alignment, @volatile);
+        }
+
+        if (typeof(T) == TypeR8)
+        {
+            emitter.Emit(OpCodes.Ldc_R8, 0d);
+            return emitter.SetAddressValue<double>(alignment, @volatile);
+        }
+
+        if (!typeof(T).IsValueType)
+        {
+            emitter.Emit(OpCodes.Ldnull);
+            EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
+            emitter.Emit(OpCodes.Stind_Ref);
+        }
+        else
+        {
+            InitObjectIntl(emitter, typeof(T), alignment, @volatile);
+        }
+
         return emitter;
     }
 
     /// <summary>
-    /// Loads whether or not the type on the stack is assignable to type <typeparamref name="T"/> as a 0 or 1.
+    /// Sets the default value of a type to a given address. Value types will be initialized to <see langword="default"/>, and reference types to <see langword="null"/>. Numeric values will be simplified to <c>ldc</c> and <c>stind</c> operations.
+    /// <para><c>initobj</c> or <c>stind</c></para>
+    /// </summary>
+    /// <remarks>..., destinationAddress -&gt; ...</remarks>
+    public static IOpCodeEmitter SetDefaultValue(this IOpCodeEmitter emitter, Type type, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (type.IsPrimitive)
+        {
+            if (type == TypeI4 || type == TypeU4)
+            {
+                emitter.Emit(OpCodes.Ldc_I4_0);
+                return emitter.SetAddressValue<int>();
+            }
+            if (type == TypeU1 || type == TypeI1 || type == TypeBoolean)
+            {
+                emitter.Emit(OpCodes.Ldc_I4_0);
+                return emitter.SetAddressValue<byte>();
+            }
+            if (type == TypeI8 || type == TypeU8)
+            {
+                emitter.Emit(OpCodes.Ldc_I4_0);
+                return emitter.SetAddressValue<long>();
+            }
+            if (type == TypeI || type == TypeU)
+            {
+                emitter.Emit(OpCodes.Ldc_I4_0);
+                return emitter.SetAddressValue<nint>();
+            }
+            if (type == TypeI2 || type == TypeU2 || type == TypeCharacter)
+            {
+                emitter.Emit(OpCodes.Ldc_I4_0);
+                return emitter.SetAddressValue<short>();
+            }
+            if (type == TypeR4)
+            {
+                emitter.Emit(OpCodes.Ldc_R4, 0f);
+                return emitter.SetAddressValue<float>();
+            }
+            if (type == TypeR8)
+            {
+                emitter.Emit(OpCodes.Ldc_R8, 0d);
+                return emitter.SetAddressValue<double>();
+            }
+        }
+        
+        if (!type.IsValueType)
+        {
+            emitter.Emit(OpCodes.Ldnull);
+            emitter.Emit(OpCodes.Stind_Ref);
+        }
+        else
+        {
+            InitObjectIntl(emitter, type, alignment, @volatile);
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Sets the default value of a type to a given address. Value types will be initialized to <see langword="default"/>, and reference types to <see langword="null"/>.
+    /// <para><c>initobj</c></para>
+    /// </summary>
+    /// <remarks>..., destinationAddress -&gt; ...</remarks>
+    public static IOpCodeEmitter SetLocalToDefaultValue<T>(this IOpCodeEmitter emitter, LocalReference local)
+    {
+        if (typeof(T) == TypeI4 || typeof(T) == TypeU4 || typeof(T) == TypeU1
+            || typeof(T) == TypeI1 || typeof(T) == TypeBoolean || typeof(T) == TypeI8
+            || typeof(T) == TypeU8 || typeof(T) == TypeI || typeof(T) == TypeU
+            || typeof(T) == TypeI2 || typeof(T) == TypeU2 || typeof(T) == TypeCharacter)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_0);
+            return emitter.SetLocalValue(local);
+        }
+
+        if (typeof(T) == TypeR4)
+        {
+            emitter.Emit(OpCodes.Ldc_R4, 0f);
+            return emitter.SetLocalValue(local);
+        }
+
+        if (typeof(T) == TypeR8)
+        {
+            emitter.Emit(OpCodes.Ldc_R8, 0d);
+            return emitter.SetLocalValue(local);
+        }
+
+        if (!typeof(T).IsValueType)
+        {
+            emitter.Emit(OpCodes.Ldnull);
+            return emitter.SetLocalValue(local);
+        }
+
+        emitter.LoadLocalAddress(local)
+               .Emit(OpCodes.Initobj, typeof(T));
+        return emitter;
+    }
+
+    /// <summary>
+    /// Sets the default value of a type to a given address. Value types will be initialized to <see langword="default"/>, and reference types to <see langword="null"/>. Numeric values will be simplified to <c>ldc</c> and <c>stind</c> operations.
+    /// <para><c>initobj</c> or <c>stind</c></para>
+    /// </summary>
+    /// <remarks>..., destinationAddress -&gt; ...</remarks>
+    public static IOpCodeEmitter SetLocalToDefaultValue(this IOpCodeEmitter emitter, LocalReference local, Type localType)
+    {
+        if (localType == TypeI4 || localType == TypeU4 || localType == TypeU1
+            || localType == TypeI1 || localType == TypeBoolean || localType == TypeI8
+            || localType == TypeU8 || localType == TypeI || localType == TypeU
+            || localType == TypeI2 || localType == TypeU2 || localType == TypeCharacter)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_0);
+            return emitter.SetLocalValue(local);
+        }
+
+        if (localType == TypeR4)
+        {
+            emitter.Emit(OpCodes.Ldc_R4, 0f);
+            return emitter.SetLocalValue(local);
+        }
+
+        if (localType == TypeR8)
+        {
+            emitter.Emit(OpCodes.Ldc_R8, 0d);
+            return emitter.SetLocalValue(local);
+        }
+
+        if (!localType.IsValueType)
+        {
+            emitter.Emit(OpCodes.Ldnull);
+            return emitter.SetLocalValue(local);
+        }
+
+        emitter.LoadLocalAddress(local)
+            .Emit(OpCodes.Initobj, localType);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Sets the default value of a type to a given address. Value types will be initialized to <see langword="default"/>, and reference types to <see langword="null"/>.
+    /// <para><c>initobj</c></para>
+    /// </summary>
+    /// <remarks>..., destinationAddress -&gt; ...</remarks>
+    public static IOpCodeEmitter SetLocalToDefaultValue(this IOpCodeEmitter emitter, LocalBuilder local)
+    {
+        Type type = local.LocalType!;
+        return emitter.SetLocalToDefaultValue(local, type);
+    }
+
+    /// <summary>
+    /// Loads the object on the stack if it's assignable to type <typeparamref name="T"/>, otherwise <see langword="null"/>.
     /// <para>
     /// If <typeparamref name="T"/> is a value type, it should be in it's boxed form before <c>isinst</c> is emitted.
     /// </para>
     /// <para><c>isinst</c></para>
     /// </summary>
     /// <remarks>..., <see cref="object"/> -&gt; ..., <typeparamref name="T"/></remarks>
-    public static IOpCodeEmitter Is<T>(this IOpCodeEmitter emitter)
+    public static IOpCodeEmitter LoadIsAsType<T>(this IOpCodeEmitter emitter)
     {
-        return emitter.Is(typeof(T));
+        return emitter.LoadIsAsType(typeof(T));
     }
 
     /// <summary>
-    /// Asserts that the reference type on the stack is assignable to type <paramref name="type"/>, throwing a <see cref="InvalidCastException"/> if not.
+    /// Loads the object on the stack if it's assignable to type <paramref name="type"/>, otherwise <see langword="null"/>.
     /// <para>
     /// If <paramref name="type"/> is a value type, it should be in it's boxed form before <c>isinst</c> is emitted.
     /// </para>
     /// <para><c>isinst</c></para>
     /// </summary>
     /// <remarks>..., <see cref="object"/> -&gt; ..., <paramref name="type"/></remarks>
-    public static IOpCodeEmitter Is(this IOpCodeEmitter emitter, Type type)
+    public static IOpCodeEmitter LoadIsAsType(this IOpCodeEmitter emitter, Type type)
     {
         emitter.Emit(OpCodes.Isinst, type);
         return emitter;
@@ -1149,6 +1457,7 @@ public static class EmitterExtensions
 
     /// <summary>
     /// Transfers execution of the current method to <paramref name="method"/>. The stack must be empty and any parameters of the current method are transferred to <paramref name="method"/>.
+    /// <para>Jumping inside a try, filter, catch, or finally block is invalid.</para>
     /// <para><c>jmp</c></para>
     /// </summary>
     /// <remarks>... -&gt; (jump to <paramref name="method"/>) ...</remarks>
@@ -1156,6 +1465,21 @@ public static class EmitterExtensions
     {
         emitter.Emit(OpCodes.Jmp, method);
         return emitter;
+    }
+
+    /// <summary>
+    /// Load an argument by it's zero-based index. Note that on non-static methods, 0 denotes the <see langword="this"/> argument.
+    /// <para><c>ldarg</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is either negative or too high to be an argument index.</exception>
+    /// <remarks>... -&gt; ..., value</remarks>
+    public static IOpCodeEmitter LoadArgument(this IOpCodeEmitter emitter, long index)
+    {
+        // using long so the ushort overload is chosen when using literals
+        if (index is > ushort.MaxValue or < 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return emitter.LoadArgument((ushort)index);
     }
 
     /// <summary>
@@ -1188,11 +1512,26 @@ public static class EmitterExtensions
                 break;
 
             default:
-                emitter.Emit(OpCodes.Ldarg, index);
+                emitter.Emit(OpCodes.Ldarg, unchecked ( (short)index ));
                 break;
         }
 
         return emitter;
+    }
+
+    /// <summary>
+    /// Load an argument's address by it's zero-based index. Note that on non-static methods, 0 denotes the <see langword="this"/> argument.
+    /// <para><c>ldarga</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is either negative or too high to be an argument index.</exception>
+    /// <remarks>... -&gt; ..., value</remarks>
+    public static IOpCodeEmitter LoadArgumentAddress(this IOpCodeEmitter emitter, long index)
+    {
+        // using long so the ushort overload is chosen when using literals
+        if (index is > ushort.MaxValue or < 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return emitter.LoadArgumentAddress((ushort)index);
     }
 
     /// <summary>
@@ -1209,7 +1548,7 @@ public static class EmitterExtensions
                 break;
 
             default:
-                emitter.Emit(OpCodes.Ldarga, index);
+                emitter.Emit(OpCodes.Ldarga, unchecked ( (short)index ));
                 break;
         }
 
@@ -1218,46 +1557,63 @@ public static class EmitterExtensions
 
     /// <summary>
     /// Load a constant 8-bit signed integer.
-    /// <para><c>ldc.i4</c> and <c>conv.i1</c></para>
+    /// <para><c>ldc.i4</c></para>
     /// </summary>
     /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
     public static IOpCodeEmitter LoadConstantInt8(this IOpCodeEmitter emitter, sbyte value)
     {
-        return emitter.LoadConstantInt32(value)
-                      .ConvertToInt8();
+        return emitter.LoadConstantInt32(value);
     }
 
     /// <summary>
     /// Load a constant 8-bit unsigned integer.
-    /// <para><c>ldc.i4</c> and <c>conv.u1</c></para>
+    /// <para><c>ldc.i4</c></para>
     /// </summary>
     /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
     public static IOpCodeEmitter LoadConstantUInt8(this IOpCodeEmitter emitter, byte value)
     {
-        return emitter.LoadConstantInt32(value)
-                      .ConvertToUInt8();
+        return emitter.LoadConstantInt32(value);
+    }
+
+    /// <summary>
+    /// Load a constant boolean value.
+    /// <para><c>ldc.i4</c></para>
+    /// </summary>
+    /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
+    public static IOpCodeEmitter LoadConstantBoolean(this IOpCodeEmitter emitter, bool value)
+    {
+        emitter.Emit(value ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
+        return emitter;
     }
 
     /// <summary>
     /// Load a constant 16-bit signed integer.
-    /// <para><c>ldc.i4</c> and <c>conv.i2</c></para>
+    /// <para><c>ldc.i4</c></para>
     /// </summary>
     /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
     public static IOpCodeEmitter LoadConstantInt16(this IOpCodeEmitter emitter, short value)
     {
-        return emitter.LoadConstantInt32(value)
-                      .ConvertToInt16();
+        return emitter.LoadConstantInt32(value);
+    }
+
+    /// <summary>
+    /// Load a constant character.
+    /// <para><c>ldc.i4</c></para>
+    /// </summary>
+    /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
+    public static IOpCodeEmitter LoadConstantCharacter(this IOpCodeEmitter emitter, char value)
+    {
+        return emitter.LoadConstantInt32(value);
     }
 
     /// <summary>
     /// Load a constant 16-bit unsigned integer.
-    /// <para><c>ldc.i4</c> and <c>conv.u2</c></para>
+    /// <para><c>ldc.i4</c></para>
     /// </summary>
     /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
     public static IOpCodeEmitter LoadConstantUInt16(this IOpCodeEmitter emitter, ushort value)
     {
-        return emitter.LoadConstantInt32(value)
-                      .ConvertToUInt16();
+        return emitter.LoadConstantInt32(value);
     }
 
     /// <summary>
@@ -1320,7 +1676,7 @@ public static class EmitterExtensions
                 emitter.Emit(OpCodes.Ldc_I4_8);
                 break;
                 
-            case <= byte.MaxValue:
+            case <= byte.MaxValue and > 0:
                 emitter.Emit(OpCodes.Ldc_I4_S, value);
                 break;
 
@@ -1376,6 +1732,45 @@ public static class EmitterExtensions
         return emitter;
     }
 
+    private static ConstructorInfo? _decimalConstructor;
+
+    /// <summary>
+    /// Load a constant 128-bit floating point value.
+    /// <para><c>ldc.i4</c> x 5 then <c>newobj decimal(int, int, int, bool, byte)</c></para>
+    /// </summary>
+    /// <exception cref="MemberAccessException">Unable to find the constructor for creating a decimal from it's components: decimal(int, int, int, bool, byte).</exception>
+    /// <remarks>... -&gt; ..., <paramref name="value"/></remarks>
+    public static IOpCodeEmitter LoadConstantDecimal(this IOpCodeEmitter emitter, decimal value)
+    {
+        _decimalConstructor ??= typeof(decimal).GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, [ TypeI4, TypeI4, TypeI4, TypeBoolean, TypeU1 ], null);
+        if (_decimalConstructor == null)
+        {
+            throw new MemberAccessException($"Unable to find {Accessor.ExceptionFormatter.Format(new MethodDefinition(typeof(decimal))
+                .WithParameter<int>("lo")
+                .WithParameter<int>("mid")
+                .WithParameter<int>("hi")
+                .WithParameter<bool>("isNegative")
+                .WithParameter<byte>("scale"))
+            }.");
+        }
+
+#if NET5_0_OR_GREATER
+        Span<int> bits = stackalloc int[4];
+        decimal.GetBits(value, bits);
+#else
+        int[] bits = decimal.GetBits(value);
+#endif
+        int flags = bits[3];
+        emitter.LoadConstantInt32(bits[0])
+               .LoadConstantInt32(bits[1])
+               .LoadConstantInt32(bits[2])
+               .LoadConstantBoolean((flags & int.MinValue) != 0)
+               .LoadConstantUInt8(unchecked( (byte)(flags >> 16) ));
+        
+        emitter.Emit(OpCodes.Newobj, _decimalConstructor);
+        return emitter;
+    }
+
     /// <summary>
     /// Load a constant string literal.
     /// <para><c>ldstr</c> or <c>ldnull</c></para>
@@ -1410,7 +1805,7 @@ public static class EmitterExtensions
         {
             emitter.Emit(OpCodes.Ldelem_I4);
         }
-        else if (typeof(TElementType) == typeof(byte))
+        else if (typeof(TElementType) == typeof(byte) || typeof(TElementType) == typeof(bool))
         {
             emitter.Emit(OpCodes.Ldelem_U1);
         }
@@ -1442,7 +1837,7 @@ public static class EmitterExtensions
         {
             emitter.Emit(OpCodes.Ldelem_I2);
         }
-        else if (typeof(TElementType) == typeof(ushort))
+        else if (typeof(TElementType) == typeof(ushort) || typeof(TElementType) == typeof(char))
         {
             emitter.Emit(OpCodes.Ldelem_U2);
         }
@@ -1465,7 +1860,7 @@ public static class EmitterExtensions
     /// </summary>
     /// <exception cref="ArgumentException"><typeparamref name="TElementType"/> doesn't match <paramref name="arrayType"/>'s element type or <paramref name="arrayType"/> isn't an array type.</exception>
     /// <exception cref="MemberAccessException">Unable to find the expected Get or Address method in <paramref name="arrayType"/>.</exception>
-    /// <remarks>..., array[, index] × dimensions -&gt; ..., address</remarks>
+    /// <remarks>..., array, index × dimensions -&gt; ..., address</remarks>
     public static IOpCodeEmitter LoadArrayElement<TElementType>(this IOpCodeEmitter emitter, Type arrayType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
         if (!arrayType.IsArray)
@@ -1513,7 +1908,7 @@ public static class EmitterExtensions
         {
             emitter.Emit(OpCodes.Ldelem_I4);
         }
-        else if (elementType == TypeU1)
+        else if (elementType == TypeU1 || elementType == TypeBoolean)
         {
             emitter.Emit(OpCodes.Ldelem_U1);
         }
@@ -1545,7 +1940,7 @@ public static class EmitterExtensions
         {
             emitter.Emit(OpCodes.Ldelem_I2);
         }
-        else if (elementType == TypeU2)
+        else if (elementType == TypeU2 || elementType == TypeCharacter)
         {
             emitter.Emit(OpCodes.Ldelem_U2);
         }
@@ -1568,7 +1963,7 @@ public static class EmitterExtensions
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="elementType"/> doesn't match <paramref name="arrayType"/>'s element type or <paramref name="arrayType"/> isn't an array type.</exception>
     /// <exception cref="MemberAccessException">Unable to find the expected Get or Address method in <paramref name="arrayType"/>.</exception>
-    /// <remarks>..., array[, index] × dimensions -&gt; ..., address</remarks>
+    /// <remarks>..., array, index × dimensions -&gt; ..., address</remarks>
     public static IOpCodeEmitter LoadArrayElement(this IOpCodeEmitter emitter, Type elementType, Type arrayType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
         if (!arrayType.IsArray)
@@ -1642,7 +2037,7 @@ public static class EmitterExtensions
     /// <exception cref="ArgumentException"><paramref name="elementType"/> doesn't match <paramref name="arrayType"/>'s element type or <paramref name="arrayType"/> isn't an array type.</exception>
     /// <exception cref="MemberAccessException">Unable to find the expected Address method in <paramref name="arrayType"/>.</exception>
     /// <param name="readonly">The given address will be read-only, avoids unnecessary type-checking.</param>
-    /// <remarks>..., array[, index] × dimensions -&gt; ..., address</remarks>
+    /// <remarks>..., array, index × dimensions -&gt; ..., address</remarks>
     public static IOpCodeEmitter LoadArrayElementAddress(this IOpCodeEmitter emitter, Type elementType, Type arrayType, bool @readonly = false)
     {
         if (!arrayType.IsArray)
@@ -1692,7 +2087,7 @@ public static class EmitterExtensions
     /// <exception cref="ArgumentException"><typeparamref name="TElementType"/> doesn't match <paramref name="arrayType"/>'s element type or <paramref name="arrayType"/> isn't an array type.</exception>
     /// <exception cref="MemberAccessException">Unable to find the expected Address method in <paramref name="arrayType"/>.</exception>
     /// <param name="readonly">The given address will be read-only, avoids unnecessary type-checking.</param>
-    /// <remarks>..., array[, index] × dimensions -&gt; ..., address</remarks>
+    /// <remarks>..., array, index × dimensions -&gt; ..., address</remarks>
     public static IOpCodeEmitter LoadArrayElementAddress<TElementType>(this IOpCodeEmitter emitter, Type arrayType, bool @readonly = false)
     {
         if (!arrayType.IsArray)
@@ -1755,9 +2150,7 @@ public static class EmitterExtensions
         if (field.IsStatic)
             throw new ArgumentException("Expected instance field.", nameof(field));
 
-        EmitAlignmentPrefix(emitter, alignment);
-        if (@volatile)
-            emitter.Emit(OpCodes.Volatile);
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
 
         emitter.Emit(OpCodes.Ldfld, field);
         return emitter;
@@ -1769,21 +2162,19 @@ public static class EmitterExtensions
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="field"/> is not a <see langword="static"/> field.</exception>
     /// <remarks>... -&gt; ..., value</remarks>
-    public static IOpCodeEmitter LoadStaticFieldValue(this IOpCodeEmitter emitter, FieldInfo field, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    public static IOpCodeEmitter LoadStaticFieldValue(this IOpCodeEmitter emitter, FieldInfo field, bool @volatile = false)
     {
         if (!field.IsStatic)
             throw new ArgumentException("Expected static field.", nameof(field));
 
-        EmitAlignmentPrefix(emitter, alignment);
         if (@volatile)
             emitter.Emit(OpCodes.Volatile);
-
         emitter.Emit(OpCodes.Ldsfld, field);
         return emitter;
     }
 
     /// <summary>
-    /// Load the value at the given static or instance field.
+    /// Load the value at the given static or instance field. <paramref name="alignment"/> is ignored on static fields.
     /// <para><c>ldfld</c> or <c>ldsfld</c></para>
     /// </summary>
     /// <exception cref="ArgumentException">The expression <paramref name="field"/> doesn't load a field.</exception>
@@ -1805,7 +2196,7 @@ public static class EmitterExtensions
         if (expr.NodeType == ExpressionType.MemberAccess && (expr as MemberExpression)?.Member is FieldInfo fld)
         {
             return fld.IsStatic
-                ? emitter.LoadStaticFieldValue(fld, alignment, @volatile)
+                ? emitter.LoadStaticFieldValue(fld, @volatile)
                 : emitter.LoadInstanceFieldValue(fld, alignment, @volatile);
         }
 
@@ -1835,7 +2226,7 @@ public static class EmitterExtensions
         if (expr.NodeType == ExpressionType.MemberAccess && (expr as MemberExpression)?.Member is FieldInfo fld)
         {
             return fld.IsStatic
-                ? emitter.LoadStaticFieldValue(fld, alignment, @volatile)
+                ? emitter.LoadStaticFieldValue(fld, @volatile)
                 : emitter.LoadInstanceFieldValue(fld, alignment, @volatile);
         }
 
@@ -1929,7 +2320,7 @@ public static class EmitterExtensions
                 : emitter.LoadInstanceFieldAddress(fld);
         }
 
-        throw new ArgumentException("Expected a static or instance field (such as '() => _field')", nameof(field));
+        throw new ArgumentException("Expected a static or instance field (such as 'x => x._field')", nameof(field));
     }
 
     /// <summary>
@@ -1956,58 +2347,56 @@ public static class EmitterExtensions
 
     /// <summary>
     /// Load the value at the given address.
-    /// <para><c>ldind_[i/u/r][sz]</c> or <c>ldobj <paramref name="elementType"/></c> or <c>ldind_ref</c></para>
+    /// <para><c>ldind_[i/u/r][sz]</c> or <c>ldobj <paramref name="valueType"/></c> or <c>ldind_ref</c></para>
     /// </summary>
     /// <remarks>..., address -&gt; ..., value</remarks>
-    public static IOpCodeEmitter LoadAddressValue(this IOpCodeEmitter emitter, Type elementType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    public static IOpCodeEmitter LoadAddressValue(this IOpCodeEmitter emitter, Type valueType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
-        EmitAlignmentPrefix(emitter, alignment);
-        if (@volatile)
-            emitter.Emit(OpCodes.Volatile);
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
 
-        if (elementType == TypeI4)
+        if (valueType == TypeI4)
         {
             emitter.Emit(OpCodes.Ldind_I4);
         }
-        else if (elementType == TypeU1)
+        else if (valueType == TypeU1 || valueType == TypeBoolean)
         {
             emitter.Emit(OpCodes.Ldind_U1);
         }
-        else if (elementType == TypeU4)
+        else if (valueType == TypeU4)
         {
             emitter.Emit(OpCodes.Ldind_U4);
         }
-        else if (elementType == TypeR4)
+        else if (valueType == TypeR4)
         {
             emitter.Emit(OpCodes.Ldind_R4);
         }
-        else if (elementType == TypeR8)
+        else if (valueType == TypeR8)
         {
             emitter.Emit(OpCodes.Ldind_R8);
         }
-        else if (elementType == TypeI8 || elementType == TypeU8)
+        else if (valueType == TypeI8 || valueType == TypeU8)
         {
             emitter.Emit(OpCodes.Ldind_I8);
         }
-        else if (elementType == TypeI1)
+        else if (valueType == TypeI1)
         {
             emitter.Emit(OpCodes.Ldind_I1);
         }
-        else if (elementType == TypeI || elementType == TypeU)
+        else if (valueType == TypeI || valueType == TypeU)
         {
             emitter.Emit(OpCodes.Ldind_I);
         }
-        else if (elementType == TypeI2)
+        else if (valueType == TypeI2)
         {
             emitter.Emit(OpCodes.Ldind_I2);
         }
-        else if (elementType == TypeU2)
+        else if (valueType == TypeU2 || valueType == TypeCharacter)
         {
             emitter.Emit(OpCodes.Ldind_U2);
         }
-        else if (elementType.IsValueType)
+        else if (valueType.IsValueType)
         {
-            emitter.Emit(OpCodes.Ldobj, elementType);
+            emitter.Emit(OpCodes.Ldobj, valueType);
         }
         else
         {
@@ -2019,58 +2408,56 @@ public static class EmitterExtensions
 
     /// <summary>
     /// Load the value at the given address.
-    /// <para><c>ldind_[i/u/r][sz]</c> or <c>ldobj <typeparamref name="TElementType"/></c> or <c>ldind_ref</c></para>
+    /// <para><c>ldind_[i/u/r][sz]</c> or <c>ldobj <typeparamref name="TValueType"/></c> or <c>ldind_ref</c></para>
     /// </summary>
     /// <remarks>..., address -&gt; ..., value</remarks>
-    public static IOpCodeEmitter LoadAddressValue<TElementType>(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    public static IOpCodeEmitter LoadAddressValue<TValueType>(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
     {
-        EmitAlignmentPrefix(emitter, alignment);
-        if (@volatile)
-            emitter.Emit(OpCodes.Volatile);
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
 
-        if (typeof(TElementType) == typeof(int))
+        if (typeof(TValueType) == typeof(int))
         {
             emitter.Emit(OpCodes.Ldind_I4);
         }
-        else if (typeof(TElementType) == typeof(byte))
+        else if (typeof(TValueType) == typeof(byte) || typeof(TValueType) == typeof(bool))
         {
             emitter.Emit(OpCodes.Ldind_U1);
         }
-        else if (typeof(TElementType) == typeof(uint))
+        else if (typeof(TValueType) == typeof(uint))
         {
             emitter.Emit(OpCodes.Ldind_U4);
         }
-        else if (typeof(TElementType) == typeof(float))
+        else if (typeof(TValueType) == typeof(float))
         {
             emitter.Emit(OpCodes.Ldind_R4);
         }
-        else if (typeof(TElementType) == typeof(double))
+        else if (typeof(TValueType) == typeof(double))
         {
             emitter.Emit(OpCodes.Ldind_R8);
         }
-        else if (typeof(TElementType) == typeof(long) || typeof(TElementType) == typeof(ulong))
+        else if (typeof(TValueType) == typeof(long) || typeof(TValueType) == typeof(ulong))
         {
             emitter.Emit(OpCodes.Ldind_I8);
         }
-        else if (typeof(TElementType) == typeof(sbyte))
+        else if (typeof(TValueType) == typeof(sbyte))
         {
             emitter.Emit(OpCodes.Ldind_I1);
         }
-        else if (typeof(TElementType) == typeof(nint) || typeof(TElementType) == typeof(nuint))
+        else if (typeof(TValueType) == typeof(nint) || typeof(TValueType) == typeof(nuint))
         {
             emitter.Emit(OpCodes.Ldind_I);
         }
-        else if (typeof(TElementType) == typeof(short))
+        else if (typeof(TValueType) == typeof(short) || typeof(TValueType) == typeof(char))
         {
             emitter.Emit(OpCodes.Ldind_I2);
         }
-        else if (typeof(TElementType) == typeof(ushort))
+        else if (typeof(TValueType) == typeof(ushort))
         {
             emitter.Emit(OpCodes.Ldind_U2);
         }
-        else if (typeof(TElementType).IsValueType)
+        else if (typeof(TValueType).IsValueType)
         {
-            emitter.Emit(OpCodes.Ldobj, typeof(TElementType));
+            emitter.Emit(OpCodes.Ldobj, typeof(TValueType));
         }
         else
         {
@@ -2128,7 +2515,7 @@ public static class EmitterExtensions
             throw new MemberAccessException($"Unable to find {Accessor.ExceptionFormatter.Format(new PropertyDefinition(nameof(Array.Length))
                 .DeclaredIn<Array>(isStatic: false)
                 .WithPropertyType<int>()
-                .WithNoSetter())}.Length.");
+                .WithNoSetter())}.");
         }
 
         emitter.Emit(OpCodes.Callvirt, _getArrayLength);
@@ -2164,7 +2551,7 @@ public static class EmitterExtensions
                 .DeclaredIn<Array>(isStatic: false)
                 .WithPropertyType<int>()
                 .WithNoSetter())
-            }.Length.");
+            }.");
         }
 
         emitter.Emit(OpCodes.Callvirt, _getArrayLength);
@@ -2178,6 +2565,7 @@ public static class EmitterExtensions
     /// </para>
     /// <para><c>ldloc</c></para>
     /// </summary>
+    /// <exception cref="ArgumentException">Missing or invalid local variable reference.</exception>
     /// <remarks>... -&gt; ..., value</remarks>
     public static IOpCodeEmitter LoadLocalValue(this IOpCodeEmitter emitter, LocalReference lclRef)
     {
@@ -2218,6 +2606,7 @@ public static class EmitterExtensions
     /// </para>
     /// <para><c>ldloca</c></para>
     /// </summary>
+    /// <exception cref="ArgumentException">Missing or invalid local variable reference.</exception>
     /// <remarks>... -&gt; ..., address</remarks>
     public static IOpCodeEmitter LoadLocalAddress(this IOpCodeEmitter emitter, LocalReference lclRef)
     {
@@ -2479,7 +2868,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Multiplies the top two values on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
+    /// Multiplies the top two integers on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
     /// <para><c>mul.ovf</c></para>
     /// </summary>
     /// <remarks>..., value1, value2 -&gt; ..., value1 × value2</remarks>
@@ -2490,7 +2879,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Multiplies the top two unsigned values on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
+    /// Multiplies the top two unsigned integers on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
     /// <para><c>mul.ovf.un</c></para>
     /// </summary>
     /// <remarks>..., value1, value2 -&gt; ..., value1 × value2</remarks>
@@ -2635,7 +3024,7 @@ public static class EmitterExtensions
         // old check if SZ array
         if (arrayType == typeof(TElementType[]))
         {
-            emitter.Emit(OpCodes.Newarr, elementType);
+            emitter.Emit(OpCodes.Newarr, elementType2);
             return emitter;
         }
 #endif
@@ -2797,7 +3186,7 @@ public static class EmitterExtensions
     }
 
     /// <summary>
-    /// Divides the top two unsigned values on the stack and pushes the remainder onto the stack. If both values are integers, the value will be truncated towards zero.
+    /// Divides the top two unsigned integers on the stack and pushes the remainder onto the stack. If both values are integers, the value will be truncated towards zero.
     /// <para>
     /// The result will always be smaller than the divisor.
     /// The result will always be positive or zero.
@@ -2835,6 +3224,771 @@ public static class EmitterExtensions
     public static IOpCodeEmitter Rethrow(this IOpCodeEmitter emitter)
     {
         emitter.Emit(OpCodes.Rethrow);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Bitwise shifts an integer to the left by a certain number of bits.
+    /// <para><c>shl</c></para>
+    /// </summary>
+    /// <remarks>..., value, bitCount -&gt; ..., value &lt;&lt; bitCount</remarks>
+    public static IOpCodeEmitter ShiftLeft(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Shl);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Bitwise shifts an integer to the right by a certain number of bits, leaving the sign bit to stay the same and following bits to copy the sign bit. Use <see cref="ShiftRightUnsigned"/> if you want the sign bit to shift as well.
+    /// <para><c>shr</c></para>
+    /// </summary>
+    /// <remarks>..., value, bitCount -&gt; ..., value &gt;&gt; bitCount</remarks>
+    public static IOpCodeEmitter ShiftRight(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Shr);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Bitwise shifts an unsigned integer to the right by a certain number of bits, including the sign bit. Use <see cref="ShiftRight"/> if you want the sign bit to not be shifted.
+    /// <para><c>shr.un</c></para>
+    /// </summary>
+    /// <remarks>..., value, bitCount -&gt; ..., value &gt;&gt;&gt; bitCount</remarks>
+    public static IOpCodeEmitter ShiftRightUnsigned(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Shr_Un);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Loads the size of the given value type. The <c>sizeof</c> instruction works on reference types but just returns the size of the reference (<see cref="IntPtr.Size"/>).
+    /// <para>Known primitive types will be optimized to a <c>ldc.i4</c> instructions.</para>
+    /// <para><c>sizeof</c></para>
+    /// </summary>
+    /// <remarks>... -&gt; ..., size</remarks>
+    public static IOpCodeEmitter LoadSizeOf<T>(this IOpCodeEmitter emitter) where T : struct
+    {
+        if (typeof(T) == typeof(int) || typeof(T) == typeof(uint) || typeof(T) == typeof(float))
+        {
+            emitter.Emit(OpCodes.Ldc_I4_4);
+        }
+        else if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte) || typeof(T) == typeof(bool))
+        {
+            emitter.Emit(OpCodes.Ldc_I4_1);
+        }
+        else if (typeof(T) == typeof(long) || typeof(T) == typeof(ulong) || typeof(T) == typeof(double))
+        {
+            emitter.Emit(OpCodes.Ldc_I4_8);
+        }
+        else if (typeof(T) == typeof(decimal))
+        {
+            emitter.Emit(OpCodes.Ldc_I4_S, (byte)16);
+        }
+        else if (typeof(T) == typeof(nint) || typeof(T) == typeof(nuint) || !typeof(T).IsValueType)
+        {
+            emitter.Emit(IntPtr.Size == 4 ? OpCodes.Ldc_I4_4 : OpCodes.Ldc_I4_8);
+        }
+        else if (typeof(T) == typeof(short) || typeof(T) == typeof(ushort) || typeof(T) == typeof(char))
+        {
+            emitter.Emit(OpCodes.Ldc_I4_2);
+        }
+        else
+        {
+            emitter.Emit(OpCodes.Sizeof, typeof(T));
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Loads the size of the given value type. The <c>sizeof</c> instruction works on reference types but just returns the size of the reference (<see cref="IntPtr.Size"/>).
+    /// <para>Known primitive types will be optimized to a <c>ldc.i4</c> instructions.</para>
+    /// <para><c>sizeof</c></para>
+    /// </summary>
+    /// <remarks>... -&gt; ..., size</remarks>
+    public static IOpCodeEmitter LoadSizeOf(this IOpCodeEmitter emitter, Type type)
+    {
+        if (type == TypeI4 || type == TypeU4 || type == TypeR4)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_4);
+        }
+        else if (type == TypeU1 || type == TypeI1 || type == TypeBoolean)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_1);
+        }
+        else if (type == TypeI8 || type == TypeU8 || type == TypeR8)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_8);
+        }
+        else if (type == TypeR16)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_S, (byte)16);
+        }
+        else if (type == TypeI || type == TypeU || !type.IsValueType)
+        {
+            emitter.Emit(IntPtr.Size == 4 ? OpCodes.Ldc_I4_4 : OpCodes.Ldc_I4_8);
+        }
+        else if (type == TypeI2 || type == TypeU2 || type == TypeCharacter)
+        {
+            emitter.Emit(OpCodes.Ldc_I4_2);
+        }
+        else
+        {
+            emitter.Emit(OpCodes.Sizeof, type);
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set an argument by it's zero-based index. Note that on non-static methods, 0 denotes the <see langword="this"/> argument.
+    /// <para><c>starg</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is either negative or too high to be an argument index.</exception>
+    /// <remarks>..., value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetArgument(this IOpCodeEmitter emitter, long index)
+    {
+        // using long so the ushort overload is chosen when using literals
+        if (index is > ushort.MaxValue or < 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return emitter.SetArgument((ushort)index);
+    }
+
+    /// <summary>
+    /// Set an argument by it's zero-based index. Note that on non-static methods, 0 denotes the <see langword="this"/> argument.
+    /// <para><c>starg</c></para>
+    /// </summary>
+    /// <remarks>..., value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetArgument(this IOpCodeEmitter emitter, ushort index)
+    {
+        switch (index)
+        {
+            case <= byte.MaxValue:
+                emitter.Emit(OpCodes.Starg_S, (byte)index);
+                break;
+
+            default:
+                emitter.Emit(OpCodes.Starg, unchecked ( (short)index ));
+                break;
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set an element at the given index in a zero-bound 1-dimensional array.
+    /// <para><c>stelem.[i/u/r][sz]</c> or <c>stelem <typeparamref name="TElementType"/></c> or <c>stelem.ref</c></para>
+    /// </summary>
+    /// <remarks>..., array, index, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetArrayElement<TElementType>(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (@volatile || (alignment & MemoryMask) != 0)
+        {
+            // volatile or unaligned values have to be loaded by address
+            emitter.PopToLocal<TElementType>(out LocalBuilder value)
+                   .Emit(OpCodes.Ldelema, typeof(TElementType));
+            emitter.LoadLocalValue(value)
+                   .SetAddressValue<TElementType>(alignment, @volatile)
+                   .SetLocalToDefaultValue<TElementType>(value);
+            return emitter;
+        }
+
+        // benefits from JIT optimization so using typeof literals
+        if (typeof(TElementType) == typeof(int) || typeof(TElementType) == typeof(uint))
+        {
+            emitter.Emit(OpCodes.Stelem_I4);
+        }
+        else if (typeof(TElementType) == typeof(byte) || typeof(TElementType) == typeof(sbyte) || typeof(TElementType) == typeof(bool))
+        {
+            emitter.Emit(OpCodes.Stelem_I1);
+        }
+        else if (typeof(TElementType) == typeof(float))
+        {
+            emitter.Emit(OpCodes.Stelem_R4);
+        }
+        else if (typeof(TElementType) == typeof(double))
+        {
+            emitter.Emit(OpCodes.Stelem_R8);
+        }
+        else if (typeof(TElementType) == typeof(long) || typeof(TElementType) == typeof(ulong))
+        {
+            emitter.Emit(OpCodes.Stelem_I8);
+        }
+        else if (typeof(TElementType) == typeof(nint) || typeof(TElementType) == typeof(nuint))
+        {
+            emitter.Emit(OpCodes.Stelem_I);
+        }
+        else if (typeof(TElementType) == typeof(short) || typeof(TElementType) == typeof(ushort) || typeof(TElementType) == typeof(char))
+        {
+            emitter.Emit(OpCodes.Stelem_I2);
+        }
+        else if (typeof(TElementType).IsValueType)
+        {
+            emitter.Emit(OpCodes.Stelem, typeof(TElementType));
+        }
+        else
+        {
+            emitter.Emit(OpCodes.Stelem_Ref);
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set an element at the given index in any array.
+    /// <para>Consider using <see cref="SetArrayElement{TElementType}(IOpCodeEmitter,MemoryAlignment,bool)"/> if you know the array will be a standard ('SZ') array.</para>
+    /// <para><c>stelem.[i/u/r][sz]</c> or <c>stelem <typeparamref name="TElementType"/></c> or <c>stelem.ref</c> or <c>callvirt <paramref name="arrayType"/>.Set(params int[] indices, value)</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException"><typeparamref name="TElementType"/> doesn't match <paramref name="arrayType"/>'s element type or <paramref name="arrayType"/> isn't an array type.</exception>
+    /// <exception cref="MemberAccessException">Unable to find the expected Set or Address method in <paramref name="arrayType"/>.</exception>
+    /// <remarks>..., array, index × dimensions, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetArrayElement<TElementType>(this IOpCodeEmitter emitter, Type arrayType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (!arrayType.IsArray)
+            throw new ArgumentException("Expected an array type.", nameof(arrayType));
+
+        if (arrayType.GetElementType() != typeof(TElementType))
+            throw new ArgumentException("Incorrect element type.", nameof(TElementType));
+
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_0_OR_GREATER
+        if (arrayType.IsSZArray)
+#else
+        // old check if SZ array
+        if (arrayType == typeof(TElementType[]))
+#endif
+        {
+            return emitter.SetArrayElement<TElementType>(alignment, @volatile);
+        }
+
+        if (@volatile || (alignment & MemoryMask) != 0)
+        {
+            // volatile or unaligned values have to be loaded by address
+            emitter.PopToLocal<TElementType>(out LocalBuilder value);
+            LoadArrayElementAddressIntl(emitter, arrayType, true);
+            emitter.LoadLocalValue(value)
+                   .SetAddressValue<TElementType>(alignment, @volatile)
+                   .SetLocalToDefaultValue<TElementType>(value);
+            return emitter;
+        }
+
+        SetArrayElementIntl(emitter, arrayType, typeof(TElementType));
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set an element at the given index in a zero-bound 1-dimensional array.
+    /// <para><c>stelem.[i/u/r][sz]</c> or <c>stelem <paramref name="elementType"/></c> or <c>stelem.ref</c></para>
+    /// </summary>
+    /// <remarks>..., array, index, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetArrayElement(this IOpCodeEmitter emitter, Type elementType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (@volatile || (alignment & MemoryMask) != 0)
+        {
+            // volatile or unaligned values have to be loaded by address
+            emitter.PopToLocal(elementType, out LocalBuilder value)
+                   .Emit(OpCodes.Ldelema, elementType);
+            emitter.LoadLocalValue(value)
+                   .SetAddressValue(elementType, alignment, @volatile)
+                   .SetLocalToDefaultValue(value, elementType);
+            return emitter;
+        }
+
+        if (elementType == TypeI4 || elementType == TypeU4)
+        {
+            emitter.Emit(OpCodes.Stelem_I4);
+        }
+        else if (elementType == TypeI1 || elementType == TypeU1 || elementType == TypeBoolean)
+        {
+            emitter.Emit(OpCodes.Stelem_I1);
+        }
+        else if (elementType == TypeR4)
+        {
+            emitter.Emit(OpCodes.Stelem_R4);
+        }
+        else if (elementType == TypeR8)
+        {
+            emitter.Emit(OpCodes.Stelem_R8);
+        }
+        else if (elementType == TypeI8 || elementType == TypeU8)
+        {
+            emitter.Emit(OpCodes.Stelem_I8);
+        }
+        else if (elementType == TypeI || elementType == TypeU)
+        {
+            emitter.Emit(OpCodes.Stelem_I);
+        }
+        else if (elementType == TypeI2 || elementType == TypeU2)
+        {
+            emitter.Emit(OpCodes.Stelem_I2);
+        }
+        else if (elementType.IsValueType)
+        {
+            emitter.Emit(OpCodes.Stelem, elementType);
+        }
+        else
+        {
+            emitter.Emit(OpCodes.Stelem_Ref);
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set an element at the given index in any array.
+    /// <para>Consider using <see cref="SetArrayElement(IOpCodeEmitter,Type,MemoryAlignment,bool)"/> if you know the array will be a standard ('SZ') array.</para>
+    /// <para><c>stelem.[i/u/r][sz]</c> or <c>stelem <paramref name="elementType"/></c> or <c>stelem.ref</c> or <c>callvirt <paramref name="arrayType"/>.Set(params int[] indices, <paramref name="elementType"/> value)</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="elementType"/> doesn't match <paramref name="arrayType"/>'s element type or <paramref name="arrayType"/> isn't an array type.</exception>
+    /// <exception cref="MemberAccessException">Unable to find the expected Get or Address method in <paramref name="arrayType"/>.</exception>
+    /// <remarks>..., array, index × dimensions, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetArrayElement(this IOpCodeEmitter emitter, Type elementType, Type arrayType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (!arrayType.IsArray)
+            throw new ArgumentException("Expected an array type.", nameof(arrayType));
+
+        if (arrayType.GetElementType() != elementType)
+            throw new ArgumentException("Incorrect element type.", nameof(elementType));
+
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_0_OR_GREATER
+        if (arrayType.IsSZArray)
+#else
+        // old check if SZ array
+        if (arrayType == elementType.MakeArrayType())
+#endif
+        {
+            return emitter.SetArrayElement(elementType, alignment, @volatile);
+        }
+
+        if (@volatile || (alignment & MemoryMask) != 0)
+        {
+            // volatile or unaligned values have to be loaded by address
+            emitter.PopToLocal(elementType, out LocalBuilder value);
+            LoadArrayElementAddressIntl(emitter, arrayType, true);
+            emitter.LoadLocalValue(value)
+                   .SetAddressValue(elementType, alignment, @volatile)
+                   .SetLocalToDefaultValue(value, elementType);
+            return emitter;
+        }
+
+        SetArrayElementIntl(emitter, arrayType, elementType);
+        return emitter;
+    }
+
+    private static void SetArrayElementIntl(IOpCodeEmitter emitter, Type arrayType, Type elementType)
+    {
+        MethodInfo? setMethod = arrayType.GetMethod("Set", BindingFlags.Public | BindingFlags.Instance);
+        if (setMethod != null)
+        {
+            emitter.Emit(OpCodes.Callvirt, setMethod);
+            return;
+        }
+
+        MethodDefinition def = new MethodDefinition("Set")
+            .DeclaredIn(arrayType, isStatic: false)
+            .Returning(elementType);
+
+        int rank = arrayType.GetArrayRank();
+        for (int i = 0; i < rank; ++i)
+        {
+            def.WithParameter(TypeI4, "index" + (i + 1));
+        }
+
+        def.WithParameter(elementType, "value");
+
+        throw new MemberAccessException($"Unable to find {Accessor.ExceptionFormatter.Format(def)}.");
+    }
+
+    /// <summary>
+    /// Store the value on the top of the stack in the given address.
+    /// <para><c>stobj</c>, <c>stind.[i/r][n]</c>, or <c>stind.ref</c></para>
+    /// </summary>
+    /// <remarks>..., address, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetAddressValue<TValueType>(this IOpCodeEmitter emitter, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
+
+        if (typeof(TValueType) == typeof(int) || typeof(TValueType) == typeof(uint))
+        {
+            emitter.Emit(OpCodes.Stind_I4);
+        }
+        else if (typeof(TValueType) == typeof(byte) || typeof(TValueType) == typeof(sbyte) || typeof(TValueType) == typeof(bool))
+        {
+            emitter.Emit(OpCodes.Stind_I1);
+        }
+        else if (typeof(TValueType) == typeof(float))
+        {
+            emitter.Emit(OpCodes.Stind_R4);
+        }
+        else if (typeof(TValueType) == typeof(double))
+        {
+            emitter.Emit(OpCodes.Stind_R8);
+        }
+        else if (typeof(TValueType) == typeof(long) || typeof(TValueType) == typeof(ulong))
+        {
+            emitter.Emit(OpCodes.Stind_I8);
+        }
+        else if (typeof(TValueType) == typeof(nint) || typeof(TValueType) == typeof(nuint))
+        {
+            emitter.Emit(OpCodes.Stind_I);
+        }
+        else if (typeof(TValueType) == typeof(short) || typeof(TValueType) == typeof(ushort) || typeof(TValueType) == typeof(char))
+        {
+            emitter.Emit(OpCodes.Stind_I2);
+        }
+        else if (typeof(TValueType).IsValueType)
+        {
+            emitter.Emit(OpCodes.Stobj, typeof(TValueType));
+        }
+        else
+        {
+            emitter.Emit(OpCodes.Stind_Ref);
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Store the value on the top of the stack in the given address.
+    /// <para><c>stobj</c>, <c>stind.[i/r][n]</c>, or <c>stind.ref</c></para>
+    /// </summary>
+    /// <remarks>..., address, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetAddressValue(this IOpCodeEmitter emitter, Type valueType, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
+
+        if (valueType == TypeI4 || valueType == TypeU4)
+        {
+            emitter.Emit(OpCodes.Stind_I4);
+        }
+        else if (valueType == TypeU1 || valueType == TypeI1 || valueType == TypeBoolean)
+        {
+            emitter.Emit(OpCodes.Stind_I1);
+        }
+        else if (valueType == TypeR4)
+        {
+            emitter.Emit(OpCodes.Stind_R4);
+        }
+        else if (valueType == TypeR8)
+        {
+            emitter.Emit(OpCodes.Stind_R8);
+        }
+        else if (valueType == TypeI8 || valueType == TypeU8)
+        {
+            emitter.Emit(OpCodes.Stind_I8);
+        }
+        else if (valueType == TypeI || valueType == TypeU)
+        {
+            emitter.Emit(OpCodes.Stind_I);
+        }
+        else if (valueType == TypeI2 || valueType == TypeU2 || valueType == TypeCharacter)
+        {
+            emitter.Emit(OpCodes.Stind_I2);
+        }
+        else if (valueType.IsValueType)
+        {
+            emitter.Emit(OpCodes.Stobj, valueType);
+        }
+        else
+        {
+            emitter.Emit(OpCodes.Stind_Ref);
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set the value at the given instance field, removing the instance and value from the top of the stack.
+    /// <para><c>stfld</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="field"/> is a <see langword="static"/> field.</exception>
+    /// <remarks>..., instance, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetInstanceFieldValue(this IOpCodeEmitter emitter, FieldInfo field, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (field.IsStatic)
+            throw new ArgumentException("Expected instance field.", nameof(field));
+
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
+
+        emitter.Emit(OpCodes.Ldfld, field);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set the value at the given static field.
+    /// <para><c>stsfld</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="field"/> is not a <see langword="static"/> field.</exception>
+    /// <remarks>..., value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetStaticFieldValue(this IOpCodeEmitter emitter, FieldInfo field, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        if (!field.IsStatic)
+            throw new ArgumentException("Expected static field.", nameof(field));
+
+        EmitVolatileAndAlignmentPrefixes(emitter, alignment, @volatile);
+
+        emitter.Emit(OpCodes.Ldsfld, field);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Set the value at the given static or instance field.
+    /// <para><c>stfld</c> or <c>stsfld</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException">The expression <paramref name="field"/> doesn't load a field.</exception>
+    /// <remarks>...[, instance if non-static], value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetFieldValue<T>(this IOpCodeEmitter emitter, Expression<Func<T>> field, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        Expression expr = field;
+        while (expr is LambdaExpression lambda)
+        {
+            expr = lambda.Body;
+        }
+#if NET40_OR_GREATER || NETSTANDARD1_0_OR_GREATER || NETCOREAPP1_0_OR_GREATER
+        while (expr.CanReduce)
+        {
+            expr = expr.Reduce();
+        }
+#endif
+
+        if (expr.NodeType == ExpressionType.MemberAccess && (expr as MemberExpression)?.Member is FieldInfo fld)
+        {
+            return fld.IsStatic
+                ? emitter.SetStaticFieldValue(fld, alignment, @volatile)
+                : emitter.SetInstanceFieldValue(fld, alignment, @volatile);
+        }
+
+        throw new ArgumentException("Expected a static or instance field (such as '() => _field')", nameof(field));
+    }
+
+    /// <summary>
+    /// Set the value at the given instance field.
+    /// <para><c>stfld</c> or <c>stsfld</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException">The expression <paramref name="field"/> doesn't load a field.</exception>
+    /// <remarks>..., instance, value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetFieldValue<TInstance, T>(this IOpCodeEmitter emitter, Expression<Func<TInstance, T>> field, MemoryAlignment alignment = MemoryAlignment.AlignedNative, bool @volatile = false)
+    {
+        Expression expr = field;
+        while (expr is LambdaExpression lambda)
+        {
+            expr = lambda.Body;
+        }
+#if NET40_OR_GREATER || NETSTANDARD1_0_OR_GREATER || NETCOREAPP1_0_OR_GREATER
+        while (expr.CanReduce)
+        {
+            expr = expr.Reduce();
+        }
+#endif
+
+        if (expr.NodeType == ExpressionType.MemberAccess && (expr as MemberExpression)?.Member is FieldInfo fld)
+        {
+            return fld.IsStatic
+                ? emitter.SetStaticFieldValue(fld, alignment, @volatile)
+                : emitter.SetInstanceFieldValue(fld, alignment, @volatile);
+        }
+
+        throw new ArgumentException("Expected a static or instance field (such as 'x => x._field')", nameof(field));
+    }
+
+    /// <summary>
+    /// Set the value of a local variable by a reference to it.
+    /// <para>
+    /// <see cref="LocalBuilder"/> implicitly casts to <see cref="LocalReference"/>.
+    /// </para>
+    /// <para><c>stloc</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException">Missing or invalid local variable reference.</exception>
+    /// <remarks>..., value -&gt; ...</remarks>
+    public static IOpCodeEmitter SetLocalValue(this IOpCodeEmitter emitter, LocalReference lclRef)
+    {
+        int index = lclRef.Index;
+        LocalBuilder? bldr = lclRef.Local;
+        if (bldr == null && (index < 0 || index > 3))
+            throw new ArgumentException("Missing local reference.", nameof(lclRef));
+
+        switch (index)
+        {
+            case 0:
+                emitter.Emit(OpCodes.Stloc_0);
+                return emitter;
+
+            case 1:
+                emitter.Emit(OpCodes.Stloc_1);
+                return emitter;
+
+            case 2:
+                emitter.Emit(OpCodes.Stloc_2);
+                return emitter;
+
+            case 3:
+                emitter.Emit(OpCodes.Stloc_3);
+                return emitter;
+
+            default:
+                // ILGenerator will optimize low indices
+                emitter.Emit(OpCodes.Stloc, bldr!);
+                return emitter;
+        }
+    }
+
+    /// <summary>
+    /// Subtracts the top two values on the stack and pushes the result onto the stack.
+    /// <para>Integer overflow is not detected, and floating point overflow will result in the corresponding <see langword="Infinity"/> value.</para>
+    /// <para><c>sub</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; ..., value1 - value2</remarks>
+    public static IOpCodeEmitter Subtract(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Sub);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Subtracts the top two integers on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
+    /// <para><c>sub.ovf</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; ..., value1 - value2</remarks>
+    public static IOpCodeEmitter SubtractChecked(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Sub_Ovf);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Subtracts the top two unsigned integers on the stack and pushes the result onto the stack, throwing an <see cref="OverflowException"/> if the operation will result in an overflow.
+    /// <para><c>sub.ovf.un</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; ..., value1 - value2</remarks>
+    public static IOpCodeEmitter SubtractUnsignedChecked(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Sub_Ovf_Un);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Branches to the label at the index of the value on the stack minus <paramref name="firstValue"/>, or continues execution if it's out of bounds of <paramref name="cases"/>.
+    /// <para>Switching inside a try, filter, catch, or finally block is invalid.</para>
+    /// <para><c>sub</c> or <c>add</c> then <c>switch</c></para>
+    /// </summary>
+    /// <param name="firstValue">The value of the first case, which will be subtracted from the value on the stack. Can be negative or positive.</param>
+    /// <param name="cases">List of labels that will be branched to depending on the value on the stack relative to <paramref name="firstValue"/>.</param>
+    /// <remarks>..., value -&gt; (branch to value'th label, or continue if out of bounds), ...</remarks>
+    public static IOpCodeEmitter Switch(this IOpCodeEmitter emitter, int firstValue, params Label[] cases)
+    {
+        if (firstValue > 0)
+            emitter.Emit(OpCodes.Sub, firstValue);
+        else if (firstValue < 0)
+            emitter.Emit(OpCodes.Add, -firstValue);
+
+        emitter.Emit(OpCodes.Switch, cases);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Branches to the label at the index of the value on the stack minus <paramref name="firstValue"/>, or continues execution if it's out of bounds of <paramref name="cases"/>.
+    /// <para>Switching inside a try, filter, catch, or finally block is invalid.</para>
+    /// <para><c>sub</c> or <c>add</c> then <c>switch</c></para>
+    /// </summary>
+    /// <param name="firstValue">The value of the first case, which will be subtracted from the value on the stack. Can be negative or positive.</param>
+    /// <param name="cases">List of labels that will be branched to depending on the value on the stack relative to <paramref name="firstValue"/>.</param>
+    /// <remarks>..., value -&gt; (branch to value'th label, or continue if out of bounds), ...</remarks>
+    public static IOpCodeEmitter Switch(this IOpCodeEmitter emitter, int firstValue, IEnumerable<Label> cases)
+    {
+        return emitter.Switch(firstValue, cases.ToArray());
+    }
+
+    /// <summary>
+    /// Branches to the label at the index of the value on the stack, or continues execution if it's out of bounds of <paramref name="cases"/>.
+    /// <para>Switching inside a try, filter, catch, or finally block is invalid.</para>
+    /// <para><c>switch</c></para>
+    /// </summary>
+    /// <param name="cases">List of labels that will be branched to depending on the value on the stack.</param>
+    /// <remarks>..., value -&gt; (branch to value'th label, or continue if out of bounds), ...</remarks>
+    public static IOpCodeEmitter Switch(this IOpCodeEmitter emitter, params Label[] cases)
+    {
+        emitter.Emit(OpCodes.Switch, cases);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Branches to the label at the index of the value on the stack, or continues execution if it's out of bounds of <paramref name="cases"/>.
+    /// <para>Switching inside a try, filter, catch, or finally block is invalid.</para>
+    /// <para><c>switch</c></para>
+    /// </summary>
+    /// <param name="cases">List of labels that will be branched to depending on the value on the stack.</param>
+    /// <remarks>..., value -&gt; (branch to value'th label, or continue if out of bounds), ...</remarks>
+    public static IOpCodeEmitter Switch(this IOpCodeEmitter emitter, IEnumerable<Label> cases)
+    {
+        return emitter.Switch(cases.ToArray());
+    }
+
+    /// <summary>
+    /// Throws the <see cref="Exception"/> on the top of the stack. A <see cref="NullReferenceException"/> will be thrown if there is a <see langword="null"/> value on the stack.
+    /// <para><c>throw</c></para>
+    /// </summary>
+    /// <remarks>..., <see cref="Exception"/> -&gt; (throw), ...</remarks>
+    public static IOpCodeEmitter Throw(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Throw);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Converts the boxed value type on the stack to it's actual value. When used on a reference type it just casts to <paramref name="valueType"/>.
+    /// <para><c>unbox.any</c></para>
+    /// </summary>
+    /// <remarks>..., <see cref="object"/> -&gt; ..., <see langword="struct"/></remarks>
+    public static IOpCodeEmitter LoadUnboxedValue(this IOpCodeEmitter emitter, Type valueType)
+    {
+        emitter.Emit(OpCodes.Unbox_Any, valueType);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Converts the boxed value type on the stack to it's actual value.
+    /// <para><c>unbox.any</c></para>
+    /// </summary>
+    /// <remarks>..., <see cref="object"/> -&gt; ..., <see langword="struct"/></remarks>
+    public static IOpCodeEmitter LoadUnboxedValue<TValueType>(this IOpCodeEmitter emitter) where TValueType : struct
+    {
+        return emitter.LoadUnboxedValue(typeof(TValueType));
+    }
+
+    /// <summary>
+    /// Loads a reference to the boxed value on the stack. Note that if <paramref name="valueType"/> is a <see cref="Nullable{T}"/> type, the referenced value will be a copy of the original.
+    /// <para><c>unbox</c></para>
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="valueType"/> is not a value type.</exception>
+    /// <remarks>..., <see cref="object"/> -&gt; ..., <see langword="struct"/> address</remarks>
+    public static IOpCodeEmitter LoadUnboxedAddress(this IOpCodeEmitter emitter, Type valueType)
+    {
+        if (!valueType.IsValueType)
+            throw new ArgumentException("Expected value type.");
+
+        emitter.Emit(OpCodes.Unbox, valueType);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Loads a reference to the boxed value on the stack.
+    /// <para><c>unbox</c></para>
+    /// </summary>
+    /// <remarks>..., <see cref="object"/> -&gt; ..., <see langword="struct"/> address</remarks>
+    public static IOpCodeEmitter LoadUnboxedAddress<TValueType>(this IOpCodeEmitter emitter) where TValueType : struct
+    {
+        emitter.Emit(OpCodes.Unbox, typeof(TValueType));
+        return emitter;
+    }
+
+    /// <summary>
+    /// Bitwise xor's the top two values on the stack and pushes the result onto the stack.
+    /// <para><c>xor</c></para>
+    /// </summary>
+    /// <remarks>..., value1, value2 -&gt; ..., value1 ^ value2</remarks>
+    public static IOpCodeEmitter Xor(this IOpCodeEmitter emitter)
+    {
+        emitter.Emit(OpCodes.Xor);
         return emitter;
     }
 }

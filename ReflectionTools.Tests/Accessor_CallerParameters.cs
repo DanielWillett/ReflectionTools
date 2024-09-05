@@ -6,6 +6,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("Accessor")]
 public class Accessor_CallerParameters
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     private delegate void TestStaticMethodWithRefVTParameter(int value, ref int refValue);
     [TestMethod]
     public void TestBasicDelegateStaticRefVTParameter()

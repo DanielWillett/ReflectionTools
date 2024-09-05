@@ -7,6 +7,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("DefaultOpCodeFormatter")]
 public class DefaultOpCodeFormatter_Properties
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     public ulong Property5 { private protected get; set; }
     public int Property1 { get; set; }
     public static int StaticProperty1 { protected internal get; set; }

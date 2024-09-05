@@ -1,4 +1,8 @@
-﻿namespace DanielWillett.ReflectionTools.Tests;
+﻿[assembly: DoNotParallelize]
+
+
+namespace DanielWillett.ReflectionTools.Tests;
+
 [TestClass]
 public class TestSetup
 {

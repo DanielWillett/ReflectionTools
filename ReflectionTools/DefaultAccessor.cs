@@ -1454,16 +1454,18 @@ public class DefaultAccessor : IAccessor, IDisposable
         }
 
 
-#if NET || NETCOREAPP
-        if (field.IsInitOnly && field.FieldType.IsValueType)
-        {
-            if (throwOnError)
-                throw new NotSupportedException($"Field {ExceptionFormatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
-            if (LogErrorMessages)
-                reflectionToolsLogger?.LogError(source, null, $"Field {Formatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
-            return null;
-        }
+#if NETFRAMEWORK
+        if (field.IsPublic)
 #endif
+            if (field.IsInitOnly && field.FieldType.IsValueType)
+            {
+                if (throwOnError)
+                    throw new NotSupportedException($"Field {ExceptionFormatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
+                if (LogErrorMessages)
+                    reflectionToolsLogger?.LogError(source, null, $"Field {Formatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
+                return null;
+            }
+
         try
         {
             CheckExceptionConstructors();
@@ -1557,16 +1559,18 @@ public class DefaultAccessor : IAccessor, IDisposable
             return null;
         }
 
-#if NET || NETCOREAPP
-        if (field.IsInitOnly && field.FieldType.IsValueType)
-        {
-            if (throwOnError)
-                throw new NotSupportedException($"Field {ExceptionFormatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
-            if (LogErrorMessages)
-                reflectionToolsLogger?.LogError(source, null, $"Field {Formatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
-            return null;
-        }
+#if NETFRAMEWORK
+        if (field.IsPublic)
 #endif
+            if (field.IsInitOnly && field.FieldType.IsValueType)
+            {
+                if (throwOnError)
+                    throw new NotSupportedException($"Field {ExceptionFormatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
+                if (LogErrorMessages)
+                    reflectionToolsLogger?.LogError(source, null, $"Field {Formatter.Format(field)} is a static readonly value type field, which is not settable in the current runtime.");
+                return null;
+            }
+
         try
         {
             CheckExceptionConstructors();

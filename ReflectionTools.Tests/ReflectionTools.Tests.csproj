@@ -30,7 +30,7 @@
     <PackageReference Include="coverlet.collector" Version="3.2.0" />
 
     <ProjectReference Include="..\ReflectionTools\ReflectionTools.csproj" />
-    <ProjectReference Include="..\ReflectionTools.Harmony\ReflectionTools.Harmony.csproj" Condition="'$(TargetFramework)' != 'net45'"/>
+    <ProjectReference Include="..\ReflectionTools.Harmony\ReflectionTools.Harmony.csproj" Condition="'$(TargetFramework)' != 'net45'" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
   </ItemGroup>

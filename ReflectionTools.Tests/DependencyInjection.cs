@@ -8,6 +8,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestClass]
 public class DependencyInjection
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     [TestMethod]
     public void AddAccessor()
     {

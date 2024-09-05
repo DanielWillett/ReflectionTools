@@ -7,6 +7,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("DefaultOpCodeFormatter")]
 public class DefaultOpCodeFormatter_Types
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     [DataRow(typeof(int), "int")]
     [DataRow(typeof(IComparable<>), "IComparable<T>")]
     [DataRow(typeof(IComparable<IComparable<IComparable<string>>>), "IComparable<IComparable<IComparable<string>>>")]

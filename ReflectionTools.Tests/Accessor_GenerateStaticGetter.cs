@@ -7,6 +7,12 @@ namespace DanielWillett.ReflectionTools.Tests;
 [TestCategory("Accessor")]
 public class Accessor_GenerateStaticGetter
 {
+    [ClassInitialize]
+    public static void Initialize(TestContext testContext)
+    {
+        TestSetup.Initialize(testContext);
+    }
+
     /*
      * Private value type
      */
@@ -27,6 +33,8 @@ public class Accessor_GenerateStaticGetter
         field.SetValue(null, value);
 
         Assert.AreEqual(value, getter());
+
+        field.SetValue(null, 0);
     }
 
     [TestMethod]
@@ -45,6 +53,8 @@ public class Accessor_GenerateStaticGetter
         field.SetValue(null, value);
 
         Assert.AreEqual(value, (int)getter());
+
+        field.SetValue(null, 0);
     }
 
     /*
@@ -67,6 +77,8 @@ public class Accessor_GenerateStaticGetter
         field.SetValue(null, value);
 
         Assert.AreEqual(value, getter());
+
+        field.SetValue(null, null);
     }
 
     [TestMethod]
@@ -85,6 +97,8 @@ public class Accessor_GenerateStaticGetter
         field.SetValue(null, value);
 
         Assert.AreEqual(value, (string)getter());
+
+        field.SetValue(null, null);
     }
 
     /*
@@ -106,6 +120,8 @@ public class Accessor_GenerateStaticGetter
         SampleStaticMembers.PublicValTypeField = value;
 
         Assert.AreEqual(value, getter());
+
+        SampleStaticMembers.PublicValTypeField = 0;
     }
 
     [TestMethod]
@@ -123,6 +139,8 @@ public class Accessor_GenerateStaticGetter
         SampleStaticMembers.PublicValTypeField = value;
 
         Assert.AreEqual(value, (int)getter());
+
+        SampleStaticMembers.PublicValTypeField = 0;
     }
 
     /*
@@ -144,6 +162,8 @@ public class Accessor_GenerateStaticGetter
         SampleStaticMembers.PublicRefTypeField = value;
 
         Assert.AreEqual(value, getter());
+
+        SampleStaticMembers.PublicRefTypeField = null;
     }
 
     [TestMethod]
@@ -161,6 +181,8 @@ public class Accessor_GenerateStaticGetter
         SampleStaticMembers.PublicRefTypeField = value;
 
         Assert.AreEqual(value, (string)getter());
+
+        SampleStaticMembers.PublicRefTypeField = null;
     }
 
     /*
@@ -189,6 +211,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     [TestMethod]
@@ -213,6 +239,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, (int)getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     /*
@@ -241,6 +271,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     [TestMethod]
@@ -265,6 +299,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, (string)getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     /*
@@ -293,6 +331,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     [TestMethod]
@@ -317,6 +359,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, (int)getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     /*
@@ -345,6 +391,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     [TestMethod]
@@ -369,6 +419,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, (string)getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
     /*
      * Private value type
@@ -393,6 +447,8 @@ public class Accessor_GenerateStaticGetter
         field.SetValue(null, value);
 
         Assert.AreEqual(value, getter());
+
+        field.SetValue(null, 0);
     }
 
     /*
@@ -418,6 +474,8 @@ public class Accessor_GenerateStaticGetter
         field.SetValue(null, value);
 
         Assert.AreEqual(value, getter());
+
+        field.SetValue(null, null);
     }
 
     /*
@@ -442,6 +500,8 @@ public class Accessor_GenerateStaticGetter
         SampleStaticMembers.PublicValTypeField = value;
 
         Assert.AreEqual(value, getter());
+
+        SampleStaticMembers.PublicValTypeField = 0;
     }
 
     /*
@@ -466,6 +526,8 @@ public class Accessor_GenerateStaticGetter
         SampleStaticMembers.PublicRefTypeField = value;
 
         Assert.AreEqual(value, getter());
+
+        SampleStaticMembers.PublicRefTypeField = null;
     }
 
     /*
@@ -497,6 +559,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     /*
@@ -528,6 +594,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     /*
@@ -559,6 +629,10 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 
     /*
@@ -590,5 +664,9 @@ public class Accessor_GenerateStaticGetter
 #endif
 
         Assert.AreEqual(value, getter());
+
+#if !NET && !NETCOREAPP
+        field.SetValue(null, null);
+#endif
     }
 }
