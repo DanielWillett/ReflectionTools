@@ -39,8 +39,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DanielWillett.ReflectionTools" Version="[3.0.0,)" NoWarn="NU1701" />
-    <!--<ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />-->
+    <!--<PackageReference Include="DanielWillett.ReflectionTools" Version="[3.0.0,)" NoWarn="NU1701" />-->
+    <ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />
 
     <PackageReference Include="Lib.Harmony" Version="[2.3.3,)" NoWarn="NU1701" />
     <PackageReference Include="System.Reflection.Emit" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />

@@ -1,10 +1,18 @@
 ﻿using DanielWillett.ReflectionTools.Emit;
+using System.Reflection;
+using System.Reflection.Emit;
 
 namespace DanielWillett.ReflectionTools.Tests.EmitterTests;
 
 [TestClass]
 public class EmitterExtensionTests
 {
+    private static readonly Type[] PrimitiveTypes =
+    [
+        typeof(bool), typeof(byte), typeof(sbyte), typeof(char), typeof(double), typeof(float), typeof(int), typeof(uint), typeof(nint), 
+        typeof(nuint), typeof(long), typeof(ulong), typeof(short), typeof(ushort) 
+    ];
+
     private delegate decimal GetDecimalHandler();
     private delegate Type GetTypeHandler();
     private delegate void Over256ArgsHandler(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7,
@@ -36,8 +44,10 @@ public class EmitterExtensionTests
         int arg242, int arg243, int arg244, int arg245, int arg246, int arg247, int arg248, int arg249, int arg250,
         int arg251, int arg252, int arg253, int arg254, int arg255, int arg256, int arg257);
 
-    private delegate void SetSZArrayHandler<T>(int index, T value, T[] vector);
-    private delegate void SetVariableArrayHandler<T>(int x, int y, T value, T[,] variableArray);
+    private delegate void SetSZArrayHandler<in T>(int index, T value, T[] vector);
+    private delegate void SetVariableArrayHandler<in T>(int x, int y, T value, T[,] variableArray);
+    private delegate T LoadSZArrayHandler<T>(int index, T[] vector);
+    private delegate T LoadVariableArrayHandler<T>(int x, int y, T[,] variableArray);
 
     [ClassInitialize]
     public static void Initialize(TestContext testContext)
@@ -51,11 +61,11 @@ public class EmitterExtensionTests
     [DataRow("0.00000000000000000000000000000000000")]
     [DataRow("-1474535732890753085.3957395936503750")]
     [DataRow("-1")]
-    public void TestWriteDecimalConstant(string valStr)
+    public void TestLoadDecimalConstant(string valStr)
     {
         decimal value = decimal.Parse(valStr);
 
-        DynamicMethodInfo<GetDecimalHandler> dynMethod = DynamicMethodHelper.Create<GetDecimalHandler>(nameof(TestWriteDecimalConstant));
+        DynamicMethodInfo<GetDecimalHandler> dynMethod = DynamicMethodHelper.Create<GetDecimalHandler>(nameof(TestLoadDecimalConstant));
 
         IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -70,7 +80,7 @@ public class EmitterExtensionTests
     [TestMethod]
     public void TestLoadTypeOf()
     {
-        DynamicMethodInfo<GetTypeHandler> dynMethod = DynamicMethodHelper.Create<GetTypeHandler>(nameof(TestWriteDecimalConstant));
+        DynamicMethodInfo<GetTypeHandler> dynMethod = DynamicMethodHelper.Create<GetTypeHandler>(nameof(TestLoadTypeOf));
 
         IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -91,7 +101,7 @@ public class EmitterExtensionTests
     [DataRow(MemoryAlignment.AlignedPerByte, true, false)]
     public void TestSetDefaultValue(MemoryAlignment unaligned, bool @volatile, bool generic)
     {
-        DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestWriteDecimalConstant));
+        DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestSetDefaultValue));
 
         IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -133,7 +143,7 @@ public class EmitterExtensionTests
     [TestMethod]
     public void TestSetLoadArguments()
     {
-        DynamicMethodInfo<Over256ArgsHandler> dynMethod = DynamicMethodHelper.Create<Over256ArgsHandler>(nameof(TestWriteDecimalConstant));
+        DynamicMethodInfo<Over256ArgsHandler> dynMethod = DynamicMethodHelper.Create<Over256ArgsHandler>(nameof(TestSetLoadArguments));
 
         IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -161,7 +171,7 @@ public class EmitterExtensionTests
     [TestMethod]
     public void TestLoadArgumentAddresses()
     {
-        DynamicMethodInfo<Over256ArgsHandler> dynMethod = DynamicMethodHelper.Create<Over256ArgsHandler>(nameof(TestWriteDecimalConstant));
+        DynamicMethodInfo<Over256ArgsHandler> dynMethod = DynamicMethodHelper.Create<Over256ArgsHandler>(nameof(TestLoadArgumentAddresses));
 
         IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -210,7 +220,7 @@ public class EmitterExtensionTests
 
         void Test<T>(Func<int, T> factory)
         {
-            DynamicMethodInfo<SetSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetSZArrayHandler<T>>(nameof(TestWriteDecimalConstant));
+            DynamicMethodInfo<SetSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetSZArrayHandler<T>>(nameof(TestSetSZArrayElement));
 
             IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -268,7 +278,7 @@ public class EmitterExtensionTests
 
         void Test<T>(Func<int, T> factory)
         {
-            DynamicMethodInfo<SetSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetSZArrayHandler<T>>(nameof(TestWriteDecimalConstant));
+            DynamicMethodInfo<SetSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetSZArrayHandler<T>>(nameof(TestSetSZAsVariableArrayElement));
 
             IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -325,7 +335,7 @@ public class EmitterExtensionTests
 
         void Test<T>(Func<int, int, T> factory)
         {
-            DynamicMethodInfo<SetVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetVariableArrayHandler<T>>(nameof(TestWriteDecimalConstant));
+            DynamicMethodInfo<SetVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetVariableArrayHandler<T>>(nameof(TestSetVariableArrayElement));
 
             IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
 
@@ -358,6 +368,826 @@ public class EmitterExtensionTests
                     Assert.AreEqual(val, array[x, y]);
                 }
             }
+        }
+    }
+    
+    [TestMethod]
+    [DataRow(MemoryAlignment.AlignedNative, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, false, false)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, false)]
+    public void TestLoadSZArrayElement(MemoryAlignment unaligned, bool @volatile, bool generic)
+    {
+        Test(index => (byte)index);
+        Test(index => (sbyte)index);
+        Test(index => index % 2 == 1);
+        Test(index => (ushort)index);
+        Test(index => (short)index);
+        Test(index => (char)index);
+        Test(index => (uint)index);
+        Test(index => index);
+        Test(index => (ulong)index);
+        Test(index => (long)index);
+        Test(index => index.ToString());
+        Test(index => new Guid(index, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+
+        void Test<T>(Func<int, T> factory)
+        {
+            DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZArrayElement));
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            emit.LoadArgument(1);
+            emit.LoadArgument(0);
+
+            if (generic)
+            {
+                emit.LoadArrayElement<T>(unaligned, @volatile);
+            }
+            else
+            {
+                emit.LoadArrayElement(typeof(T), unaligned, @volatile);
+            }
+
+            emit.Return();
+
+            LoadSZArrayHandler<T> getter = dynMethod.CreateDelegate();
+
+            T[] array = new T[257];
+            for (int i = 0; i < array.Length; ++i)
+            {
+                array[i] = factory(i);
+                T val = getter(i, array);
+
+                Assert.AreEqual(array[i], val);
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(MemoryAlignment.AlignedNative, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, false, false)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, false)]
+    public void TestLoadSZAsVariableArrayElement(MemoryAlignment unaligned, bool @volatile, bool generic)
+    {
+        Test(index => (byte)index);
+        Test(index => (sbyte)index);
+        Test(index => index % 2 == 1);
+        Test(index => (ushort)index);
+        Test(index => (short)index);
+        Test(index => (char)index);
+        Test(index => (uint)index);
+        Test(index => index);
+        Test(index => (ulong)index);
+        Test(index => (long)index);
+        Test(index => index.ToString());
+        Test(index => new Guid(index, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+
+        void Test<T>(Func<int, T> factory)
+        {
+            DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZAsVariableArrayElement));
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            emit.LoadArgument(1);
+            emit.LoadArgument(0);
+
+            if (generic)
+            {
+                emit.LoadArrayElement<T>(typeof(T[]), unaligned, @volatile);
+            }
+            else
+            {
+                emit.LoadArrayElement(typeof(T), typeof(T[]), unaligned, @volatile);
+            }
+
+            emit.Return();
+
+            LoadSZArrayHandler<T> getter = dynMethod.CreateDelegate();
+
+            T[] array = new T[257];
+            for (int i = 0; i < array.Length; ++i)
+            {
+                array[i] = factory(i);
+                T val = getter(i, array);
+
+                Assert.AreEqual(array[i], val);
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(MemoryAlignment.AlignedNative, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, false, false)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, false)]
+    public void TestLoadVariableArrayElement(MemoryAlignment unaligned, bool @volatile, bool generic)
+    {
+        Test((x, y) => (byte)(x + y));
+        Test((x, y) => (sbyte)(x + y));
+        Test((x, y) => (x + y) % 2 == 1);
+        Test((x, y) => (ushort)(x + y));
+        Test((x, y) => (short)(x + y));
+        Test((x, y) => (char)(x + y));
+        Test((x, y) => (uint)(x + y));
+        Test((x, y) => x + y);
+        Test((x, y) => (ulong)(x + y));
+        Test((x, y) => (long)(x + y));
+        Test((x, y) => x + "," + y);
+        Test((x, y) => new Guid(x, (short)(y >> 16), (short)y, 0, 0, 0, 0, 0, 0, 0, 0));
+
+
+        void Test<T>(Func<int, int, T> factory)
+        {
+            DynamicMethodInfo<LoadVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadVariableArrayHandler<T>>(nameof(TestLoadVariableArrayElement));
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            emit.LoadArgument(2);
+            emit.LoadArgument(0);
+            emit.LoadArgument(1);
+
+            if (generic)
+            {
+                emit.LoadArrayElement<T>(typeof(T[,]), unaligned, @volatile);
+            }
+            else
+            {
+                emit.LoadArrayElement(typeof(T), typeof(T[,]), unaligned, @volatile);
+            }
+
+            emit.Return();
+
+            LoadVariableArrayHandler<T> getter = dynMethod.CreateDelegate();
+
+            T[,] array = new T[12,12];
+            for (int x = 0; x < array.GetLength(0); ++x)
+            {
+                for (int y = 0; y < array.GetLength(1); ++y)
+                {
+                    array[x, y] = factory(x, y);
+                    T val = getter(x, y, array);
+
+                    Assert.AreEqual(array[x, y], val);
+                }
+            }
+        }
+    }
+    
+    
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestLoadSZArrayAddressElement(bool generic)
+    {
+        Test(index => (byte)index);
+        Test(index => (sbyte)index);
+        Test(index => index % 2 == 1);
+        Test(index => (ushort)index);
+        Test(index => (short)index);
+        Test(index => (char)index);
+        Test(index => (uint)index);
+        Test(index => index);
+        Test(index => (ulong)index);
+        Test(index => (long)index);
+        Test(index => index.ToString());
+        Test(index => new Guid(index, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+
+        void Test<T>(Func<int, T> factory)
+        {
+            DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZArrayAddressElement));
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            emit.LoadArgument(1);
+            emit.LoadArgument(0);
+
+            if (generic)
+            {
+                emit.LoadArrayElementAddress<T>();
+                emit.LoadAddressValue<T>();
+            }
+            else
+            {
+                emit.LoadArrayElementAddress(typeof(T));
+                emit.LoadAddressValue(typeof(T));
+            }
+
+            emit.Return();
+
+            LoadSZArrayHandler<T> getter = dynMethod.CreateDelegate();
+
+            T[] array = new T[257];
+            for (int i = 0; i < array.Length; ++i)
+            {
+                array[i] = factory(i);
+                T val = getter(i, array);
+
+                Assert.AreEqual(array[i], val);
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestLoadSZAsVariableArrayAddressElement(bool generic)
+    {
+        Test(index => (byte)index);
+        Test(index => (sbyte)index);
+        Test(index => index % 2 == 1);
+        Test(index => (ushort)index);
+        Test(index => (short)index);
+        Test(index => (char)index);
+        Test(index => (uint)index);
+        Test(index => index);
+        Test(index => (ulong)index);
+        Test(index => (long)index);
+        Test(index => index.ToString());
+        Test(index => new Guid(index, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+
+        void Test<T>(Func<int, T> factory)
+        {
+            DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZAsVariableArrayAddressElement));
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            emit.LoadArgument(1);
+            emit.LoadArgument(0);
+
+            if (generic)
+            {
+                emit.LoadArrayElementAddress<T>(typeof(T[]));
+                emit.LoadAddressValue<T>();
+            }
+            else
+            {
+                emit.LoadArrayElementAddress(typeof(T), typeof(T[]));
+                emit.LoadAddressValue(typeof(T));
+            }
+
+            emit.Return();
+
+            LoadSZArrayHandler<T> getter = dynMethod.CreateDelegate();
+
+            T[] array = new T[257];
+            for (int i = 0; i < array.Length; ++i)
+            {
+                array[i] = factory(i);
+                T val = getter(i, array);
+
+                Assert.AreEqual(array[i], val);
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestLoadVariableArrayAddressElement(bool generic)
+    {
+        Test((x, y) => (byte)(x + y));
+        Test((x, y) => (sbyte)(x + y));
+        Test((x, y) => (x + y) % 2 == 1);
+        Test((x, y) => (ushort)(x + y));
+        Test((x, y) => (short)(x + y));
+        Test((x, y) => (char)(x + y));
+        Test((x, y) => (uint)(x + y));
+        Test((x, y) => x + y);
+        Test((x, y) => (ulong)(x + y));
+        Test((x, y) => (long)(x + y));
+        Test((x, y) => x + "," + y);
+        Test((x, y) => new Guid(x, (short)(y >> 16), (short)y, 0, 0, 0, 0, 0, 0, 0, 0));
+
+
+        void Test<T>(Func<int, int, T> factory)
+        {
+            DynamicMethodInfo<LoadVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadVariableArrayHandler<T>>(nameof(TestLoadVariableArrayAddressElement));
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            emit.LoadArgument(2);
+            emit.LoadArgument(0);
+            emit.LoadArgument(1);
+
+            if (generic)
+            {
+                emit.LoadArrayElementAddress<T>(typeof(T[,]));
+                emit.LoadAddressValue<T>();
+            }
+            else
+            {
+                emit.LoadArrayElementAddress(typeof(T), typeof(T[,]));
+                emit.LoadAddressValue(typeof(T));
+            }
+
+            emit.Return();
+
+            LoadVariableArrayHandler<T> getter = dynMethod.CreateDelegate();
+
+            T[,] array = new T[12,12];
+            for (int x = 0; x < array.GetLength(0); ++x)
+            {
+                for (int y = 0; y < array.GetLength(1); ++y)
+                {
+                    array[x, y] = factory(x, y);
+                    T val = getter(x, y, array);
+
+                    Assert.AreEqual(array[x, y], val);
+                }
+            }
+        }
+    }
+
+    [TestMethod]
+    public void TestLoadSZArrayLength()
+    {
+        const int length = 12;
+
+        DynamicMethodInfo<Func<int[], int>> dynMethod = DynamicMethodHelper.Create<Func<int[], int>>(nameof(TestLoadSZArrayLength));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadArgument(0)
+            .LoadArrayLength()
+            .Return();
+
+        Func<int[], int> func = dynMethod.CreateDelegate();
+
+        int len = func(new int[length]);
+
+        Assert.AreEqual(length, len);
+    }
+
+    [TestMethod]
+    public void TestLoadSZAsVariableArrayLength()
+    {
+        const int length = 12;
+
+        DynamicMethodInfo<Func<int[], int>> dynMethod = DynamicMethodHelper.Create<Func<int[], int>>(nameof(TestLoadSZAsVariableArrayLength));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadArgument(0)
+            .LoadArrayLength(typeof(int[]))
+            .Return();
+
+        Func<int[], int> func = dynMethod.CreateDelegate();
+
+        int len = func(new int[length]);
+
+        Assert.AreEqual(length, len);
+    }
+
+    [TestMethod]
+    public void TestLoadSZAsVariableArrayLengthSpecified()
+    {
+        const int length = 12;
+
+        DynamicMethodInfo<Func<int[], int>> dynMethod = DynamicMethodHelper.Create<Func<int[], int>>(nameof(TestLoadSZAsVariableArrayLengthSpecified));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadArgument(0)
+            .LoadArrayLength(1)
+            .Return();
+
+        Func<int[], int> func = dynMethod.CreateDelegate();
+
+        int len = func(new int[length]);
+
+        Assert.AreEqual(length, len);
+    }
+
+    [TestMethod]
+    public void TestLoadVariableArrayLength()
+    {
+        const int size = 12;
+
+        DynamicMethodInfo<Func<int[,], int>> dynMethod = DynamicMethodHelper.Create<Func<int[,], int>>(nameof(TestLoadVariableArrayLength));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadArgument(0)
+            .LoadArrayLength(typeof(int[,]))
+            .Return();
+
+        Func<int[,], int> func = dynMethod.CreateDelegate();
+
+        int len = func(new int[size, size]);
+
+        Assert.AreEqual(size * size, len);
+    }
+
+    [TestMethod]
+    public void TestLoadVariableArrayLengthSpecified()
+    {
+        const int size = 12;
+
+        DynamicMethodInfo<Func<int[,], int>> dynMethod = DynamicMethodHelper.Create<Func<int[,], int>>(nameof(TestLoadVariableArrayLengthSpecified));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadArgument(0)
+            .LoadArrayLength(2)
+            .Return();
+
+        Func<int[,], int> func = dynMethod.CreateDelegate();
+
+        int len = func(new int[size, size]);
+
+        Assert.AreEqual(size * size, len);
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestCreateSZArray(bool generic)
+    {
+        const int length = 12;
+
+        DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateSZAsVariableArray));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadConstantInt32(length);
+        if (generic)
+        {
+            emit.CreateArray<int>();
+        }
+        else
+        {
+            emit.CreateArray(typeof(int));
+        }
+
+        emit.Return();
+
+        Func<Array> func = dynMethod.CreateDelegate();
+
+        Array array = func();
+
+        Assert.AreEqual(typeof(int[]), array.GetType());
+        Assert.AreEqual(0, array.GetLowerBound(0));
+        Assert.AreEqual(length, array.Length);
+        Assert.AreEqual(length, array.GetLength(0));
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestCreateSZAsVariableArray(bool generic)
+    {
+        const int length = 12;
+
+        DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateSZAsVariableArray));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadConstantInt32(length);
+        if (generic)
+        {
+            emit.CreateArray<int>(typeof(int[]), hasStartIndices: false);
+        }
+        else
+        {
+            emit.CreateArray(typeof(int), typeof(int[]), hasStartIndices: false);
+        }
+
+        emit.Return();
+
+        Func<Array> func = dynMethod.CreateDelegate();
+
+        Array array = func();
+
+        Assert.AreEqual(typeof(int[]), array.GetType());
+        Assert.AreEqual(0, array.GetLowerBound(0));
+        Assert.AreEqual(length, array.Length);
+        Assert.AreEqual(length, array.GetLength(0));
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestCreateVariableArrayZeroBound(bool generic)
+    {
+        const int size = 12;
+        Type arrayType = typeof(int[,]);
+
+        DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateVariableArrayZeroBound));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadConstantInt32(size)
+            .LoadConstantInt32(size);
+
+        if (generic)
+        {
+            emit.CreateArray<int>(typeof(int[,]), hasStartIndices: false);
+        }
+        else
+        {
+            emit.CreateArray(typeof(int), typeof(int[,]), hasStartIndices: false);
+        }
+        
+        emit.Return();
+
+        Func<Array> func = dynMethod.CreateDelegate();
+
+        Array array = func();
+
+        Assert.AreEqual(arrayType, array.GetType());
+        Assert.AreEqual(0, array.GetLowerBound(0));
+        Assert.AreEqual(0, array.GetLowerBound(1));
+        Assert.AreEqual(size, array.GetLength(0));
+        Assert.AreEqual(size, array.GetLength(1));
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestCreateVariableArrayNonZeroBound(bool generic)
+    {
+        const int size = 12;
+        Type arrayType = Array.CreateInstance(typeof(int), [ size, size ], [ 1, 1 ]).GetType();
+
+        DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateVariableArrayNonZeroBound));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadConstantInt32(1)
+            .LoadConstantInt32(size)
+            .LoadConstantInt32(1)
+            .LoadConstantInt32(size);
+
+        if (generic)
+        {
+            emit.CreateArray<int>(arrayType, hasStartIndices: true);
+        }
+        else
+        {
+            emit.CreateArray(typeof(int), arrayType, hasStartIndices: true);
+        }
+
+        emit.Return();
+
+        Func<Array> func = dynMethod.CreateDelegate();
+
+        Array array = func();
+
+        Assert.AreEqual(arrayType, array.GetType());
+        Assert.AreEqual(1, array.GetLowerBound(0));
+        Assert.AreEqual(1, array.GetLowerBound(1));
+        Assert.AreEqual(size, array.GetLength(0));
+        Assert.AreEqual(size, array.GetLength(1));
+    }
+
+#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
+
+    private static int _fieldStatic;
+    private int _fieldInstance;
+
+#pragma warning restore CS0649
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestSetLoadFieldValueStatic(bool @volatile)
+    {
+        const int value = 1;
+
+        _fieldStatic = 0;
+
+        DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldValueStatic));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadConstantInt32(value)
+            .SetFieldValue(() => _fieldStatic, @volatile: @volatile)
+            .LoadFieldValue(() => _fieldStatic, @volatile: @volatile)
+            .Return();
+
+        Func<int> loadDec = dynMethod.CreateDelegate();
+        Assert.AreEqual(loadDec(), value);
+    }
+
+    [TestMethod]
+    [DataRow(MemoryAlignment.AlignedNative, false)]
+    [DataRow(MemoryAlignment.AlignedNative, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, false)]
+    public void TestSetLoadFieldValueInstance(MemoryAlignment unaligned, bool @volatile)
+    {
+        const int value = 1;
+
+        DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldValueInstance));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.CreateObject<EmitterExtensionTests>()
+            .Duplicate()
+            .LoadConstantInt32(value)
+            .SetFieldValue<EmitterExtensionTests, int>(x => x._fieldInstance, unaligned, @volatile)
+            .LoadFieldValue<EmitterExtensionTests, int>(x => x._fieldInstance, unaligned, @volatile)
+            .Return();
+
+        Func<int> loadDec = dynMethod.CreateDelegate();
+        Assert.AreEqual(loadDec(), value);
+    }
+    
+    [TestMethod]
+    public void TestSetLoadFieldAddressStatic()
+    {
+        const int value = 1;
+
+        _fieldStatic = 0;
+
+        DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldAddressStatic));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.LoadFieldAddress(() => _fieldStatic)
+            .LoadConstantInt32(value)
+            .SetAddressValue<int>()
+            .LoadFieldValue(() => _fieldStatic)
+            .Return();
+
+        Func<int> loadDec = dynMethod.CreateDelegate();
+        Assert.AreEqual(loadDec(), value);
+    }
+
+    [TestMethod]
+    public void TestSetLoadFieldAddressInstance()
+    {
+        const int value = 1;
+
+        DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldAddressInstance));
+
+        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+        emit.CreateObject<EmitterExtensionTests>()
+            .Duplicate()
+            .LoadFieldAddress<EmitterExtensionTests, int>(x => x._fieldInstance)
+            .LoadConstantInt32(value)
+            .SetAddressValue<int>()
+            .LoadFieldValue<EmitterExtensionTests, int>(x => x._fieldInstance)
+            .Return();
+
+        Func<int> loadDec = dynMethod.CreateDelegate();
+        Assert.AreEqual(loadDec(), value);
+    }
+    
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestSizeOf(bool generic)
+    {
+        IEnumerable<Type> types = PrimitiveTypes.Concat([ typeof(decimal), typeof(Guid), typeof(string), typeof(DateTimeOffset) ]);
+
+        foreach (Type type in types)
+        {
+            DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSizeOf) + type.Name);
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            if (generic)
+            {
+                if (!type.IsValueType)
+                    continue;
+
+                MethodInfo mtd =
+                    typeof(EmitterExtensions).GetMethod(nameof(EmitterExtensions.LoadSizeOf),
+                        [ typeof(IOpCodeEmitter) ])!.MakeGenericMethod(type);
+
+                mtd.Invoke(null, [ emit ]);
+            }
+            else
+            {
+                emit.LoadSizeOf(type);
+            }
+
+            emit.Return();
+
+            Func<int> getSize = dynMethod.CreateDelegate();
+
+            Array arr = Array.CreateInstance(type, 4);
+
+            DynamicMethodInfo<Func<Array, int>> dynMethod2 = DynamicMethodHelper.Create<Func<Array, int>>(nameof(TestSizeOf) + "ArrayDist" + type.Name);
+            emit = dynMethod2.GetILGenerator(debuggable: true);
+
+            // makeshift sizeof, gets num bytes between address of arr[0] and arr[1]
+            emit.LoadArgument(0)
+                .LoadConstantInt32(0)
+                .LoadArrayElementAddress(type, @readonly: true)
+                .PopToLocal(type.MakeByRefType(), out LocalBuilder ind0Addr)
+                .LoadArgument(0)
+                .LoadConstantInt32(1)
+                .LoadArrayElementAddress(type, @readonly: true)
+                .LoadLocalValue(ind0Addr)
+                .Subtract()
+                .Return();
+
+            Assert.AreEqual(getSize(), dynMethod2.CreateDelegate()(arr));
+        }
+    }
+    
+    [TestMethod]
+    [DataRow(MemoryAlignment.AlignedNative, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, true)]
+    [DataRow(MemoryAlignment.AlignedPerByte, false, true)]
+    [DataRow(MemoryAlignment.AlignedNative, false, false)]
+    [DataRow(MemoryAlignment.AlignedPerByte, true, false)]
+    public void TestLoadSetAddressValue(MemoryAlignment unaligned, bool @volatile, bool generic)
+    {
+        IEnumerable<Type> types = PrimitiveTypes.Concat([ typeof(decimal), typeof(Guid), typeof(string), typeof(DateTimeOffset) ]);
+
+        foreach (Type type in types)
+        {
+            DynamicMethodInfo<Func<object>> dynMethod = DynamicMethodHelper.Create<Func<object>>(nameof(TestSizeOf) + type.Name);
+
+            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+
+            LocalBuilder lcl2 = emit.DeclareLocal(type);
+            LocalBuilder lcl = emit.DeclareLocal(type);
+            if (generic)
+            {
+                if (!type.IsValueType)
+                    continue;
+
+                MethodInfo setMtd =
+                    typeof(EmitterExtensions).GetMethod(nameof(EmitterExtensions.SetAddressValue),
+                        [ typeof(IOpCodeEmitter), typeof(MemoryAlignment), typeof(bool) ])!.MakeGenericMethod(type);
+                MethodInfo loadMtd =
+                    typeof(EmitterExtensions).GetMethod(nameof(EmitterExtensions.LoadAddressValue),
+                        [ typeof(IOpCodeEmitter), typeof(MemoryAlignment), typeof(bool) ])!.MakeGenericMethod(type);
+                MethodInfo setDefMtd =
+                    typeof(EmitterExtensions).GetMethod(nameof(EmitterExtensions.SetLocalToDefaultValue),
+                        [ typeof(IOpCodeEmitter), typeof(LocalReference) ])!.MakeGenericMethod(type);
+                MethodInfo? boxMtd = type.IsValueType ?
+                    typeof(EmitterExtensions).GetMethod(nameof(EmitterExtensions.Box),
+                        [typeof(IOpCodeEmitter) ])!.MakeGenericMethod(type) : null;
+
+                if (type == typeof(string))
+                {
+                    emit.LoadConstantString("test");
+                    emit.SetLocalValue(lcl2);
+                }
+                else
+                {
+                    setDefMtd.Invoke(null, [ emit, (LocalReference)lcl2 ]);
+                }
+                emit.LoadLocalAddress(lcl);
+                emit.LoadLocalValue(lcl2);
+
+                setMtd.Invoke(null, [ emit, unaligned, @volatile ]);
+                emit.LoadLocalAddress(lcl);
+                loadMtd.Invoke(null, [ emit, unaligned, @volatile ]);
+
+                if (type.IsValueType)
+                    boxMtd!.Invoke(null, [ emit ]);
+            }
+            else
+            {
+                if (type == typeof(string))
+                {
+                    emit.LoadConstantString("test");
+                    emit.SetLocalValue(lcl2);
+                }
+                else
+                {
+                    emit.SetLocalToDefaultValue(lcl2, type);
+                }
+
+                emit.LoadLocalAddress(lcl);
+                emit.LoadLocalValue(lcl2);
+
+                emit.SetAddressValue(type, unaligned, @volatile);
+                emit.LoadLocalAddress(lcl);
+                emit.LoadAddressValue(type, unaligned, @volatile);
+
+                if (type.IsValueType)
+                    emit.Box(type);
+            }
+
+            emit.Return();
+
+            Func<object> getValue = dynMethod.CreateDelegate();
+
+            Assert.AreEqual(
+                type == typeof(string) ? "test" : (type.IsValueType ? Activator.CreateInstance(type) : null),
+                getValue()
+            );
         }
     }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -52,7 +53,7 @@ public static class EmitUtility
         if (_opCodesByValue == null)
             SetupOpCodeInfo();
 
-        ushort index = unchecked((ushort)opCodeValue);
+        ushort index = unchecked( (ushort)opCodeValue );
 
         if (index >= _opCodesByValue!.Length)
         {
@@ -65,6 +66,7 @@ public static class EmitUtility
     /// <summary>
     /// Mark a label if it's not <see langword="null"/>.
     /// </summary>
+    [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.MarksLabel)]
     public static void TryMarkLabel(this IOpCodeEmitter il, Label? label)
     {
         if (label.HasValue)
@@ -83,12 +85,18 @@ public static class EmitUtility
     /// <summary>
     /// Loads an argument from an index.
     /// </summary>
+    /// <remarks>Recommended to use the more up-to-date API: <see cref="EmitterExtensions.LoadArgument(IOpCodeEmitter, ushort)"/>.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static void EmitArgument(ILGenerator il, int index, bool set, bool byref = false)
         => EmitArgument(il.AsEmitter(), index, set, byref);
 
     /// <summary>
     /// Loads an argument from an index.
     /// </summary>
+    /// <remarks>Recommended to use the more up-to-date API: <see cref="EmitterExtensions.LoadArgument(IOpCodeEmitter, ushort)"/>.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static void EmitArgument(IOpCodeEmitter il, int index, bool set, bool byref = false)
     {
         if (index > ushort.MaxValue)
@@ -135,12 +143,18 @@ public static class EmitUtility
     /// <summary>
     /// Emit an Int32.
     /// </summary>
+    /// <remarks>Recommended to use the more up-to-date API: <see cref="EmitterExtensions.LoadConstantInt32(IOpCodeEmitter, int)"/>.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [EmitBehavior(pushBehavior: StackBehaviour.Pushi)]
     public static void LoadConstantI4(ILGenerator generator, int number)
         => LoadConstantI4(generator.AsEmitter(), number);
 
     /// <summary>
     /// Emit an Int32.
     /// </summary>
+    /// <remarks>Recommended to use the more up-to-date API: <see cref="EmitterExtensions.LoadConstantInt32(IOpCodeEmitter, int)"/>.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [EmitBehavior(pushBehavior: StackBehaviour.Pushi)]
     public static void LoadConstantI4(IOpCodeEmitter generator, int number)
     {
         OpCode code = number switch
@@ -164,61 +178,45 @@ public static class EmitUtility
     }
 
     /// <summary>
-    /// Loads a parameter from an index.
+    /// Loads a parameter from an index with optional type checking.
     /// </summary>
+    [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static void EmitParameter(this ILGenerator generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
         => generator.AsEmitter().EmitParameter(index, null, byref, type, targetType);
 
     /// <summary>
-    /// Loads a parameter from an index.
+    /// Loads a parameter from an index with optional type checking.
     /// </summary>
+    [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static void EmitParameter(this IOpCodeEmitter generator, int index, bool byref = false, Type? type = null, Type? targetType = null)
         => generator.EmitParameter(index, null, byref, type, targetType);
 
     /// <summary>
-    /// Loads a parameter from an index.
+    /// Loads a parameter from an index with optional type checking.
     /// </summary>
+    [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static void EmitParameter(this ILGenerator generator, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
         => generator.AsEmitter().EmitParameter(index, castErrorMessage, byref, type, targetType);
 
     /// <summary>
-    /// Loads a parameter from an index.
+    /// Loads a parameter from an index with optional type checking.
     /// </summary>
+    [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static void EmitParameter(this IOpCodeEmitter generator, int index, string? castErrorMessage, bool byref = false, Type? type = null, Type? targetType = null)
     {
         if (index > ushort.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(index));
+
         if (!byref && type != null && targetType != null && type.IsValueType && targetType.IsValueType && type != targetType)
             throw new ArgumentException($"Types not compatible; input type: {type.FullName}, target type: {targetType.FullName}.", nameof(type));
 
         if (byref)
         {
-            OpCode code2 = index > byte.MaxValue ? OpCodes.Ldarga : OpCodes.Ldarga_S;
-            if (index > byte.MaxValue)
-                generator.Emit(code2, (short)index);
-            else
-                generator.Emit(code2, (byte)index);
+            generator.LoadArgumentAddress(index);
             return;
         }
 
-        OpCode code = index switch
-        {
-            0 => OpCodes.Ldarg_0,
-            1 => OpCodes.Ldarg_1,
-            2 => OpCodes.Ldarg_2,
-            3 => OpCodes.Ldarg_3,
-            <= byte.MaxValue => OpCodes.Ldarg_S,
-            _ => OpCodes.Ldarg
-        };
-        if (index > 3)
-        {
-            if (index > byte.MaxValue)
-                generator.Emit(code, (ushort)index);
-            else
-                generator.Emit(code, (byte)index);
-        }
-        else
-            generator.Emit(code);
+        generator.LoadArgument(index);
 
         if (type == null || targetType == null || type == typeof(void) || targetType == typeof(void))
             return;
@@ -239,15 +237,7 @@ public static class EmitUtility
             generator.Emit(OpCodes.Dup);
             generator.Emit(OpCodes.Brtrue, lbl);
             generator.Emit(OpCodes.Pop);
-            if (index > 3)
-            {
-                if (index > byte.MaxValue)
-                    generator.Emit(code, (ushort)index);
-                else
-                    generator.Emit(code, (byte)index);
-            }
-            else
-                generator.Emit(code);
+            generator.LoadArgument(index);
             generator.Emit(OpCodes.Dup);
             generator.Emit(OpCodes.Brfalse, lbl);
             generator.Emit(OpCodes.Pop);
@@ -676,7 +666,7 @@ public static class EmitUtility
         try
         {
             object resultEnum = Enum.Parse(_opCodeEnumType, stringToCheck, true);
-            value = unchecked((ushort)Convert.ToInt16(resultEnum));
+            value = unchecked( (ushort)Convert.ToInt16(resultEnum) );
         }
         catch (ArgumentException)
         {

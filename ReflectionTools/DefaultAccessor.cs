@@ -3951,6 +3951,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     public virtual IOpCodeEmitter AsEmitter(ILGenerator generator, bool debuggable = false, bool addBreakpoints = false)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter((ILGeneratorEmitter)generator, null, accessor: this) { DebugLog = debuggable, Breakpointing = addBreakpoints }
@@ -3960,6 +3961,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     public virtual IOpCodeEmitter AsEmitter(DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter(dynMethod, accessor: this) { DebugLog = debuggable, Breakpointing = addBreakpoints }
@@ -3969,6 +3971,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     public virtual IOpCodeEmitter AsEmitter(MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter(methodBuilder, accessor: this) { DebugLog = debuggable, Breakpointing = addBreakpoints }
@@ -3978,6 +3981,7 @@ public class DefaultAccessor : IAccessor, IDisposable
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     public virtual IOpCodeEmitter AsEmitter(ConstructorBuilder constructorBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
         => debuggable || addBreakpoints
             ? new DebuggableEmitter(constructorBuilder, accessor: this) { DebugLog = debuggable, Breakpointing = addBreakpoints }

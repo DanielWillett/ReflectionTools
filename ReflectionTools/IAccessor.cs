@@ -1431,6 +1431,7 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     IOpCodeEmitter AsEmitter(ILGenerator generator, bool debuggable = false, bool addBreakpoints = false);
 
     /// <summary>
@@ -1443,6 +1444,7 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     IOpCodeEmitter AsEmitter(DynamicMethod dynMethod, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
 
     /// <summary>
@@ -1455,6 +1457,7 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     IOpCodeEmitter AsEmitter(MethodBuilder methodBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
 
     /// <summary>
@@ -1467,6 +1470,7 @@ public interface IAccessor
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     IOpCodeEmitter AsEmitter(ConstructorBuilder constructorBuilder, bool debuggable = false, bool addBreakpoints = false, int streamSize = 64);
 
     /// <summary>

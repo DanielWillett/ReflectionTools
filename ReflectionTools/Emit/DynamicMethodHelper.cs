@@ -89,6 +89,7 @@ public readonly struct DynamicMethodInfo<TDelegateType> where TDelegateType : De
 #if NET40_OR_GREATER || !NETFRAMEWORK
     [Pure]
 #endif
+    [StartsEmitter]
     public IOpCodeEmitter GetILGenerator(bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
     {
         return _accessor.AsEmitter(Method, debuggable, addBreakpoints, streamSize);
@@ -97,6 +98,7 @@ public readonly struct DynamicMethodInfo<TDelegateType> where TDelegateType : De
     /// <summary>
     /// Builds <see cref="Method"/> and returns a delegate that can be invoked.
     /// </summary>
+    [EndsEmitter]
     public TDelegateType CreateDelegate()
     {
         return (TDelegateType)Method.CreateDelegate(typeof(TDelegateType));
@@ -105,6 +107,7 @@ public readonly struct DynamicMethodInfo<TDelegateType> where TDelegateType : De
     /// <summary>
     /// Builds <see cref="Method"/> and returns a delegate that can be invoked.
     /// </summary>
+    [EndsEmitter]
     public TDelegateType CreateDelegate(object? target)
     {
         return target == null
