@@ -91,6 +91,14 @@ public static class OpCodeEmitters
 
         return emitter;
     }
+
+    /// <summary>
+    /// Check if an emitter implements one of it's implementing interfaces like <see cref="IRootOpCodeEmitter"/>.
+    /// </summary>
+    public static bool IsEmitterType<TEmitter>(this IOpCodeEmitter emitter) where TEmitter : IOpCodeEmitter
+    {
+        return emitter is TEmitter or DebuggableEmitter { Generator: TEmitter };
+    }
 }
 
 /// <summary>
@@ -122,7 +130,7 @@ public interface IOpCodeEmitter
     /// <paramref name="exceptionType" /> is <see langword="null" />, and the exception filter block has not returned a value that indicates that finally blocks should be run until this catch block is located.</exception>
     /// <exception cref="T:System.NotSupportedException">The Microsoft intermediate language (MSIL) being generated is not currently in an exception block.</exception>
     [EmitBehavior]
-    void BeginCatchBlock(Type exceptionType);
+    void BeginCatchBlock(Type? exceptionType);
 
     /// <summary>Begins an exception block for a filtered exception.</summary>
     /// <exception cref="T:System.NotSupportedException">The Microsoft intermediate language (MSIL) being generated is not currently in an exception block.

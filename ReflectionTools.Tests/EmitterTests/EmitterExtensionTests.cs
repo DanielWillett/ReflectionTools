@@ -67,7 +67,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<GetDecimalHandler> dynMethod = DynamicMethodHelper.Create<GetDecimalHandler>(nameof(TestLoadDecimalConstant));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadConstantDecimal(value)
             .Return();
@@ -82,7 +82,7 @@ public class EmitterExtensionTests
     {
         DynamicMethodInfo<GetTypeHandler> dynMethod = DynamicMethodHelper.Create<GetTypeHandler>(nameof(TestLoadTypeOf));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadTypeOf<int>()
             .Return();
@@ -103,7 +103,7 @@ public class EmitterExtensionTests
     {
         DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestSetDefaultValue));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         EmitTest<byte>(emit);
         EmitTest<sbyte>(emit);
@@ -145,7 +145,7 @@ public class EmitterExtensionTests
     {
         DynamicMethodInfo<Over256ArgsHandler> dynMethod = DynamicMethodHelper.Create<Over256ArgsHandler>(nameof(TestSetLoadArguments));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         for (int i = 0; i < 257; ++i)
         {
@@ -173,7 +173,7 @@ public class EmitterExtensionTests
     {
         DynamicMethodInfo<Over256ArgsHandler> dynMethod = DynamicMethodHelper.Create<Over256ArgsHandler>(nameof(TestLoadArgumentAddresses));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         for (int i = 0; i < 257; ++i)
         {
@@ -222,7 +222,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<SetSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetSZArrayHandler<T>>(nameof(TestSetSZArrayElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(2);
             emit.LoadArgument(0);
@@ -280,7 +280,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<SetSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetSZArrayHandler<T>>(nameof(TestSetSZAsVariableArrayElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(2);
             emit.LoadArgument(0);
@@ -337,7 +337,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<SetVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<SetVariableArrayHandler<T>>(nameof(TestSetVariableArrayElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(3);
             emit.LoadArgument(0);
@@ -398,7 +398,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZArrayElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(1);
             emit.LoadArgument(0);
@@ -454,7 +454,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZAsVariableArrayElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(1);
             emit.LoadArgument(0);
@@ -510,7 +510,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<LoadVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadVariableArrayHandler<T>>(nameof(TestLoadVariableArrayElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(2);
             emit.LoadArgument(0);
@@ -567,7 +567,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZArrayAddressElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(1);
             emit.LoadArgument(0);
@@ -621,7 +621,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<LoadSZArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadSZArrayHandler<T>>(nameof(TestLoadSZAsVariableArrayAddressElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(1);
             emit.LoadArgument(0);
@@ -675,7 +675,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<LoadVariableArrayHandler<T>> dynMethod = DynamicMethodHelper.Create<LoadVariableArrayHandler<T>>(nameof(TestLoadVariableArrayAddressElement));
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             emit.LoadArgument(2);
             emit.LoadArgument(0);
@@ -717,7 +717,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int[], int>> dynMethod = DynamicMethodHelper.Create<Func<int[], int>>(nameof(TestLoadSZArrayLength));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadArgument(0)
             .LoadArrayLength()
@@ -737,7 +737,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int[], int>> dynMethod = DynamicMethodHelper.Create<Func<int[], int>>(nameof(TestLoadSZAsVariableArrayLength));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadArgument(0)
             .LoadArrayLength(typeof(int[]))
@@ -757,7 +757,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int[], int>> dynMethod = DynamicMethodHelper.Create<Func<int[], int>>(nameof(TestLoadSZAsVariableArrayLengthSpecified));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadArgument(0)
             .LoadArrayLength(1)
@@ -777,7 +777,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int[,], int>> dynMethod = DynamicMethodHelper.Create<Func<int[,], int>>(nameof(TestLoadVariableArrayLength));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadArgument(0)
             .LoadArrayLength(typeof(int[,]))
@@ -797,7 +797,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int[,], int>> dynMethod = DynamicMethodHelper.Create<Func<int[,], int>>(nameof(TestLoadVariableArrayLengthSpecified));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadArgument(0)
             .LoadArrayLength(2)
@@ -819,7 +819,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateSZAsVariableArray));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadConstantInt32(length);
         if (generic)
@@ -852,7 +852,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateSZAsVariableArray));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadConstantInt32(length);
         if (generic)
@@ -886,7 +886,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateVariableArrayZeroBound));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadConstantInt32(size)
             .LoadConstantInt32(size);
@@ -923,7 +923,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<Array>> dynMethod = DynamicMethodHelper.Create<Func<Array>>(nameof(TestCreateVariableArrayNonZeroBound));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadConstantInt32(1)
             .LoadConstantInt32(size)
@@ -970,7 +970,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldValueStatic));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadConstantInt32(value)
             .SetFieldValue(() => _fieldStatic, @volatile: @volatile)
@@ -992,7 +992,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldValueInstance));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.CreateObject<EmitterExtensionTests>()
             .Duplicate()
@@ -1014,7 +1014,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldAddressStatic));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.LoadFieldAddress(() => _fieldStatic)
             .LoadConstantInt32(value)
@@ -1033,7 +1033,7 @@ public class EmitterExtensionTests
 
         DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSetLoadFieldAddressInstance));
 
-        IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
         emit.CreateObject<EmitterExtensionTests>()
             .Duplicate()
@@ -1058,7 +1058,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<Func<int>> dynMethod = DynamicMethodHelper.Create<Func<int>>(nameof(TestSizeOf) + type.Name);
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             if (generic)
             {
@@ -1083,7 +1083,7 @@ public class EmitterExtensionTests
             Array arr = Array.CreateInstance(type, 4);
 
             DynamicMethodInfo<Func<Array, int>> dynMethod2 = DynamicMethodHelper.Create<Func<Array, int>>(nameof(TestSizeOf) + "ArrayDist" + type.Name);
-            emit = dynMethod2.GetILGenerator(debuggable: true);
+            emit = dynMethod2.GetEmitter(debuggable: true);
 
             // makeshift sizeof, gets num bytes between address of arr[0] and arr[1]
             emit.LoadArgument(0)
@@ -1116,7 +1116,7 @@ public class EmitterExtensionTests
         {
             DynamicMethodInfo<Func<object>> dynMethod = DynamicMethodHelper.Create<Func<object>>(nameof(TestSizeOf) + type.Name);
 
-            IOpCodeEmitter emit = dynMethod.GetILGenerator(debuggable: true);
+            IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
 
             LocalBuilder lcl2 = emit.DeclareLocal(type);
             LocalBuilder lcl = emit.DeclareLocal(type);
@@ -1191,4 +1191,174 @@ public class EmitterExtensionTests
         }
     }
 
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public void TestRethrowThrowsInRoot(bool debuggable)
+    {
+        DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestNonFaultExceptionBlocksDynamicMethod));
+
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: debuggable);
+
+        Assert.ThrowsException<InvalidOperationException>(emit.Rethrow);
+    }
+
+
+#if !NETFRAMEWORK
+    [TestMethod]
+    public void TestNonFaultExceptionBlocksDynamicMethod()
+    {
+        DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestNonFaultExceptionBlocksDynamicMethod));
+
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
+
+        emit.EmitWriteLine("init");
+
+        emit.Try(emit =>
+        {
+            emit.EmitWriteLine("try");
+
+            emit.Try(emit =>
+            {
+                emit.EmitWriteLine("try");
+                emit.ThrowException(typeof(IOException));
+
+            }).Catch<FormatException>(emit =>
+            {
+                emit.EmitWriteLine("typed catch handler");
+                emit.PopFromStack()
+                    .Rethrow();
+            }).Catch(emit =>
+            {
+                emit.PopFromStack()
+                    .EmitWriteLine("catch handler");
+            }).Finally(emit =>
+            {
+                emit.EmitWriteLine("finally");
+            }).End();
+
+            emit.ThrowException(typeof(IOException));
+
+        }).CatchWhen<IOException>(emit =>
+        {
+            emit.EmitWriteLine("filter");
+        
+            emit.PopFromStack()
+                .FailFilter();
+        
+        }).OnPass(emit =>
+        {
+            emit.PopFromStack()
+                .EmitWriteLine("filter handler");
+        
+        }).Catch<FormatException>(emit =>
+        {
+            emit.EmitWriteLine("typed catch handler");
+            emit.PopFromStack()
+                .Rethrow();
+        }).Catch(emit =>
+        {
+            emit.PopFromStack()
+                .EmitWriteLine("catch handler");
+        }).Finally(emit =>
+        {
+            emit.EmitWriteLine("finally");
+        }).End();
+
+        emit.EmitWriteLine("done");
+
+        emit.Return();
+
+        Action action = dynMethod.CreateDelegate();
+
+        action();
+    }
+
+    [TestMethod]
+    public void TestFaultExceptionBlocks()
+    {
+        DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestNonFaultExceptionBlocksDynamicMethod));
+
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
+
+        emit.EmitWriteLine("init");
+
+        emit.Try(emit =>
+        {
+            emit.EmitWriteLine("try");
+            emit.ThrowException(typeof(IOException));
+
+        }).Fault(emit =>
+        {
+            emit.EmitWriteLine("fault");
+        }).End();
+
+        emit.EmitWriteLine("done");
+
+        emit.Return();
+
+        Action action = dynMethod.CreateDelegate();
+
+        Assert.ThrowsException<IOException>(() => action());
+    }
+
+#else
+
+    [TestMethod]
+    public void TestNonFaultExceptionBlocksDynamicMethod()
+    {
+        DynamicMethodInfo<Action> dynMethod = DynamicMethodHelper.Create<Action>(nameof(TestNonFaultExceptionBlocksDynamicMethod));
+
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
+
+        emit.EmitWriteLine("init");
+
+        emit.Try(emit =>
+        {
+            emit.EmitWriteLine("try");
+
+            emit.Try(emit =>
+            {
+                emit.EmitWriteLine("try");
+                emit.ThrowException(typeof(IOException));
+
+            }).Catch<FormatException>(emit =>
+            {
+                emit.EmitWriteLine("typed catch handler");
+                emit.PopFromStack()
+                    .Rethrow();
+            }).Catch(emit =>
+            {
+                emit.PopFromStack()
+                    .EmitWriteLine("catch handler");
+            }).Finally(emit =>
+            {
+                emit.EmitWriteLine("finally");
+            }).End();
+
+            emit.ThrowException(typeof(IOException));
+
+        }).Catch<FormatException>(emit =>
+        {
+            emit.EmitWriteLine("typed catch handler");
+            emit.PopFromStack()
+                .Rethrow();
+        }).Catch(emit =>
+        {
+            emit.PopFromStack()
+                .EmitWriteLine("catch handler");
+        }).Finally(emit =>
+        {
+            emit.EmitWriteLine("finally");
+        }).End();
+
+        emit.EmitWriteLine("done");
+
+        emit.Return();
+
+        Action action = dynMethod.CreateDelegate();
+
+        action();
+    }
+#endif
 }

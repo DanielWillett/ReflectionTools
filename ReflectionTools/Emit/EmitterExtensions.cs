@@ -3409,10 +3409,14 @@ public static class EmitterExtensions
     /// <para>Rethrowing is only valid inside a catch block.</para>
     /// <para><c>rethrow</c></para>
     /// </summary>
+    /// <exception cref="InvalidOperationException">Called while known to not be in a catch block, this won't always be thrown depending on the implementation.</exception>
     /// <remarks>... -&gt; (throw exception)</remarks>
     [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.TerminatesBranch)]
     public static IOpCodeEmitter Rethrow(this IOpCodeEmitter emitter)
     {
+        if (emitter.IsEmitterType<IRootOpCodeEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.IFinallyBlockEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.IFaultBlockEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.IFilterBlockEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.ITryBlockEmitter>())
+            throw new InvalidOperationException("Not in catch block.");
+        
         emitter.Emit(OpCodes.Rethrow);
         return emitter;
     }
@@ -4216,6 +4220,40 @@ public static class EmitterExtensions
     public static IOpCodeEmitter Xor(this IOpCodeEmitter emitter)
     {
         emitter.Emit(OpCodes.Xor);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Start an exception block.
+    /// </summary>
+    public static ExceptionBlockBuilder Try(this IOpCodeEmitter emitter, Action<IOpCodeEmitter> tryBlock)
+    {
+        return new ExceptionBlockBuilder(emitter, tryBlock);
+    }
+
+    /// <summary>
+    /// Passes the current filter. This should be the last function called before either the end of the filterBlock action or before branching to the end.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The emitter is not inside a filter block managed with the builder returned by <see cref="Try"/>.</exception>
+    public static IOpCodeEmitter PassFilter(this IOpCodeEmitter emitter)
+    {
+        if (!emitter.IsEmitterType<ExceptionBlockBuilder.IFilterBlockEmitter>())
+            throw new InvalidOperationException("Not in filter block.");
+
+        emitter.Emit(OpCodes.Ldc_I4_1);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Fails the current filter. This should be the last function called before either the end of the filterBlock action or before branching to the end.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The emitter is not inside a filter block managed with the builder returned by <see cref="Try"/>.</exception>
+    public static IOpCodeEmitter FailFilter(this IOpCodeEmitter emitter)
+    {
+        if (!emitter.IsEmitterType<ExceptionBlockBuilder.IFilterBlockEmitter>())
+            throw new InvalidOperationException("Not in filter block.");
+
+        emitter.Emit(OpCodes.Ldc_I4_0);
         return emitter;
     }
 }

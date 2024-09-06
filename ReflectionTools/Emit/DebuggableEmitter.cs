@@ -17,6 +17,7 @@ namespace DanielWillett.ReflectionTools.Emit;
 /// <remarks>See <see cref="DebugLog"/> and <see cref="Breakpointing"/>.</remarks>
 public class DebuggableEmitter : IOpCodeEmitterLogSource
 {
+    private readonly DebuggableEmitter? _owner;
     private bool _init;
     private bool _lastWasPrefix;
     private readonly IAccessor _accessor;
@@ -70,6 +71,12 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     /// <remarks>This is done by inserting log calls for each instruction.</remarks>
     public bool Breakpointing { get; set; }
 
+    /// <summary>
+    /// Number of whitespaces per indent.
+    /// </summary>
+    /// <remarks>Default is 4.</remarks>
+    public int IndentSpacing { get; set; } = 4;
+
     /// <inheritdoc />
     public string LogSource
     {
@@ -80,17 +87,20 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     /// <summary>
     /// Create a <see cref="DebuggableEmitter"/> from a <see cref="MethodBuilder"/>.
     /// </summary>
-    public DebuggableEmitter(MethodBuilder method, IAccessor? accessor = null) : this(method.GetILGenerator().AsEmitter(), method, accessor) { }
+    public DebuggableEmitter(MethodBuilder method, IAccessor? accessor = null)
+        : this(method.GetILGenerator().AsEmitter(), method, accessor) { }
 
     /// <summary>
     /// Create a <see cref="DebuggableEmitter"/> from a <see cref="ConstructorBuilder"/>.
     /// </summary>
-    public DebuggableEmitter(ConstructorBuilder constructor, IAccessor? accessor = null) : this(constructor.GetILGenerator().AsEmitter(), constructor, accessor) { }
+    public DebuggableEmitter(ConstructorBuilder constructor, IAccessor? accessor = null)
+        : this(constructor.GetILGenerator().AsEmitter(), constructor, accessor) { }
 
     /// <summary>
     /// Create a <see cref="DebuggableEmitter"/> from a <see cref="DynamicMethod"/>.
     /// </summary>
-    public DebuggableEmitter(DynamicMethod method, IAccessor? accessor = null) : this(method.GetILGenerator().AsEmitter(), method, accessor) { }
+    public DebuggableEmitter(DynamicMethod method, IAccessor? accessor = null)
+        : this(method.GetILGenerator().AsEmitter(), method, accessor) { }
 
     /// <summary>
     /// Create a <see cref="DebuggableEmitter"/> from an <see cref="IOpCodeEmitter"/> and <see cref="MethodBase"/> used for logging.
@@ -103,6 +113,34 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
             generator = emitter.Generator;
         Generator = generator;
         Method = method;
+    }
+
+    private DebuggableEmitter(DebuggableEmitter other, IOpCodeEmitter newEmitter)
+    {
+        _init = other._init;
+        _owner = other;
+
+        if (newEmitter is DebuggableEmitter emitter && emitter.GetType() == typeof(DebuggableEmitter))
+            newEmitter = emitter.Generator;
+        Generator = newEmitter;
+        Method = other.Method;
+        _lastWasPrefix = other._lastWasPrefix;
+        _accessor = other._accessor;
+        _logSource = other._logSource;
+#if !(NET40_OR_GREATER || !NETFRAMEWORK)
+        _logIndent = other._logIndent;
+        _ilOffsetRepl = other._ilOffsetRepl;
+#else
+        LogIndent = other.LogIndent;
+#endif
+        DebugLog = other.DebugLog;
+        Breakpointing = other.Breakpointing;
+        IndentSpacing = other.IndentSpacing;
+    }
+
+    internal DebuggableEmitter GetEmitterWithDifferentGenerator(IOpCodeEmitter generator)
+    {
+        return new DebuggableEmitter(this, generator);
     }
 
     // ReSharper disable once UnusedMember.Local
@@ -243,13 +281,15 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (_init) return;
         Initialize();
         _init = true;
+        if (_owner != null)
+            _owner._init = true;
     }
     private string GetCommentStarter()
     {
 #if NET40_OR_GREATER || !NETFRAMEWORK
-        return new string(' ', LogIndent + ILOffset.ToString("X5").Length + 3);
+        return new string(' ', LogIndent * IndentSpacing + ILOffset.ToString("X5").Length + 3);
 #else
-        return new string(' ', LogIndent + 8);
+        return new string(' ', LogIndent * IndentSpacing + 8);
 #endif
     }
     private string GetLogStarter()
@@ -257,7 +297,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 #if NET40_OR_GREATER || !NETFRAMEWORK
         return "IL" + ILOffset.ToString("X5") + " ";
 #else
-        return _ilOffsetRepl ??= "IL" + new string(' ', LogIndent + 6);
+        return _ilOffsetRepl ??= "IL" + new string(' ', LogIndent * IndentSpacing + 6);
 #endif
     }
 
@@ -274,7 +314,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
         else
         {
-            msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent)) + txt;
+            msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent * IndentSpacing)) + txt;
         }
         if (DebugLog)
             _accessor.Logger?.LogDebug(LogSource, msg);
@@ -293,7 +333,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     {
         CheckInit();
 
-        string msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent));
+        string msg = GetLogStarter() + (LogIndent <= 0 ? string.Empty : new string(' ', LogIndent * IndentSpacing));
         try
         {
             msg += _accessor.Formatter.Format(code, operand, OpCodeFormattingContext.List);
@@ -318,27 +358,34 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     }
 
     /// <inheritdoc />
-    public virtual void BeginCatchBlock(Type exceptionType)
+    public virtual void BeginCatchBlock(Type? exceptionType)
     {
-        --LogIndent;
         if (DebugLog || Breakpointing)
         {
             CheckInit();
+            --LogIndent;
             Log("}");
-            try
+            if (exceptionType == null)
             {
-                Log(".catch (" + _accessor.Formatter.Format(exceptionType) + ") {");
+                Log(".filter handler {");
             }
-            catch (Exception ex)
+            else
             {
-                Log(".catch (" + exceptionType + ") {");
-                if (Accessor.LogErrorMessages)
+                try
                 {
-                    _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {exceptionType}.");
+                    Log(".catch (" + _accessor.Formatter.Format(exceptionType) + ") {");
+                }
+                catch (Exception ex)
+                {
+                    Log(".catch (" + exceptionType + ") {");
+                    if (Accessor.LogErrorMessages)
+                    {
+                        _accessor.Logger?.LogError(nameof(DebuggableEmitter), ex, $"Failed to format type: {exceptionType}.");
+                    }
                 }
             }
+            ++LogIndent;
         }
-        ++LogIndent;
         Generator.BeginCatchBlock(exceptionType);
     }
 
@@ -348,10 +395,12 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
-            Log(".try (filter) {");
+            --LogIndent;
+            Log("}");
+            Log(".exception filter {");
+            ++LogIndent;
         }
 
-        ++LogIndent;
         Generator.BeginExceptFilterBlock();
     }
 
@@ -374,25 +423,27 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         if (DebugLog || Breakpointing)
         {
             CheckInit();
+            --LogIndent;
+            Log("}");
             Log(".fault {");
+            ++LogIndent;
         }
 
-        ++LogIndent;
         Generator.BeginFaultBlock();
     }
 
     /// <inheritdoc />
     public virtual void BeginFinallyBlock()
     {
-        --LogIndent;
         if (DebugLog || Breakpointing)
         {
             CheckInit();
+            --LogIndent;
             Log("}");
             Log(".finally {");
+            ++LogIndent;
         }
 
-        ++LogIndent;
         Generator.BeginFinallyBlock();
     }
 

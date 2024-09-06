@@ -90,9 +90,11 @@ public readonly struct DynamicMethodInfo<TDelegateType> where TDelegateType : De
     [Pure]
 #endif
     [StartsEmitter]
-    public IOpCodeEmitter GetILGenerator(bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
+    public IOpCodeEmitter GetEmitter(bool debuggable = false, bool addBreakpoints = false, int streamSize = 64)
     {
-        return _accessor.AsEmitter(Method, debuggable, addBreakpoints, streamSize);
+        return debuggable || addBreakpoints
+            ? new DebuggableEmitter(new RootEmitterWrapper((ILGeneratorEmitter)Method.GetILGenerator(streamSize)), Method, accessor: _accessor) { DebugLog = debuggable, Breakpointing = addBreakpoints }
+            : new RootEmitterWrapper((ILGeneratorEmitter)Method.GetILGenerator(streamSize));
     }
 
     /// <summary>

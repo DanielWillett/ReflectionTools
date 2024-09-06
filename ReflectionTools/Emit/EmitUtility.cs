@@ -83,6 +83,22 @@ public static class EmitUtility
     public static unsafe int GetLabelId(this Label label) => *(int*)&label;
 
     /// <summary>
+    /// Begins a catch block for a filter.
+    /// </summary>
+    /// <exception cref="NotSupportedException">The Microsoft intermediate language (MSIL) being generated is not currently in an exception filter block.</exception>
+    public static void BeginExceptFilterHandlerBlock(this IOpCodeEmitter emitter)
+    {
+        try
+        {
+            emitter.BeginCatchBlock(null);
+        }
+        catch (ArgumentNullException ex)
+        {
+            throw new NotSupportedException("Not in filter block.", ex);
+        }
+    }
+
+    /// <summary>
     /// Loads an argument from an index.
     /// </summary>
     /// <remarks>Recommended to use the more up-to-date API: <see cref="EmitterExtensions.LoadArgument(IOpCodeEmitter, ushort)"/>.</remarks>
