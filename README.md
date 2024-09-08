@@ -423,7 +423,7 @@ IVariable? variable = Variables.Find<C, int>("F");
 ## Operators
 The `Operators` class has utilities for finding `operator` methods in types.
 * `Find<TDeclaringType>(OperatorType op, bool preferCheckedOperator = false)`
-  * Finds the best-matching unary or binary operator for the two types.
+  * Finds the best-matching unary or binary operator where all parameters are the declaring type.
 * `Find<TLeft, TRight>(OperatorType op, bool preferCheckedOperator = false)`
   * Finds the best-matching binary operator for the two types.
 * `FindCast<TFrom, TTo>(OperatorType op, bool preferCheckedOperator = false)`

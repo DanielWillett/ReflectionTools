@@ -163,8 +163,6 @@ public static class Operators
         AllOperators = new ReadOnlyCollection<Operator>(OperatorsIntl);
     }
 
-    /* Unary Operators */
-
     /// <summary>
     /// <para><c>value--</c></para>
     /// <c><see langword="static"/> <see langword="T"/> <see langword="operator"/> --(<see langword="T"/> value)</c>
@@ -877,6 +875,8 @@ public enum OperatorType
     /// </summary>
     /// <remarks>Unary</remarks>
     PointerDereference = (10 << 3) | UnaryMask,
+
+    /* Binary Operators */
 
     /// <summary>
     /// <para><c>left + right</c></para>

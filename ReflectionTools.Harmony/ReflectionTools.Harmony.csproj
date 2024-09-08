@@ -12,7 +12,7 @@
     <PackageId>DanielWillett.ReflectionTools.Harmony</PackageId>
     <Title>Reflection Tools - Lib.Harmony Module</Title>
     <Version>4.0.0</Version>
-    <PackageVersion>$(Version)-prerelease1</PackageVersion>
+    <PackageVersion>$(Version)</PackageVersion>
     <PackageReleaseNotes></PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools.Harmony</Product>
