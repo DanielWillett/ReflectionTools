@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
+using DanielWillett.ReflectionTools.Emit;
 
 namespace DanielWillett.ReflectionTools;
 
@@ -83,7 +84,6 @@ public static class PatchUtility
     /// Returns <see langword="true"/> if the instruction at <paramref name="index"/> and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
     /// <remarks><paramref name="index"/> will be incremented to the next instruction after the match.</remarks>
-    [Pure]
     public static bool FollowPattern(IList<CodeInstruction> instructions, ref int index, params PatternMatch?[] matches)
     {
         if (MatchPattern(instructions, index, matches))
@@ -98,7 +98,6 @@ public static class PatchUtility
     /// Returns <see langword="true"/> if the instruction at the caret and the following match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
     /// <remarks>The caret will be incremented to the next instruction after the match.</remarks>
-    [Pure]
     public static bool FollowPattern(TranspileContext instructions, params PatternMatch?[] matches)
     {
         if (MatchPattern(instructions, matches))
@@ -112,7 +111,6 @@ public static class PatchUtility
     /// <summary>
     /// Returns <see langword="true"/> and removes the instructions at <paramref name="index"/> and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
-    [Pure]
     public static bool RemovePattern(IList<CodeInstruction> instructions, int index, params PatternMatch?[] matches)
     {
         if (MatchPattern(instructions, index, matches))
@@ -135,7 +133,6 @@ public static class PatchUtility
     /// Returns a block with info of the removed instructions and removes the instructions at the caret and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
     /// <remarks>The return block will be of size 0 if no matches were found.</remarks>
-    [Pure]
     public static BlockInfo RemovePattern(TranspileContext instructions, params PatternMatch?[] matches)
     {
         if (MatchPattern(instructions, matches))
@@ -143,14 +140,13 @@ public static class PatchUtility
             return instructions.Remove(matches.Length);
         }
 
-        return new BlockInfo(Array.Empty<InstructionBlockInfo>());
+        return new BlockInfo(Array.Empty<InstructionBlockInfo>(), instructions.CaretIndex);
     }
 
     /// <summary>
     /// Creates a block with info of the removed instructions and removes the instructions at the caret and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
     /// </summary>
     /// <remarks>The outputted block will be of size 0 if no matches were found.</remarks>
-    [Pure]
     public static bool TryRemovePattern(TranspileContext instructions, out BlockInfo block, params PatternMatch?[] matches)
     {
         if (MatchPattern(instructions, matches))
@@ -159,8 +155,21 @@ public static class PatchUtility
             return true;
         }
 
-        block = new BlockInfo(Array.Empty<InstructionBlockInfo>());
+        block = new BlockInfo(Array.Empty<InstructionBlockInfo>(), instructions.CaretIndex);
         return false;
+    }
+    
+    /// <summary>
+    /// Creates a block with info of the removed instructions and removes the instructions at the caret and the following if they match <paramref name="matches"/>. Pass <see langword="null"/> as a wildcard match.
+    /// </summary>
+    /// <remarks>The outputted block will be of size 0 if no matches were found.</remarks>
+    public static bool TryReplacePattern(TranspileContext instructions, Action<IOpCodeEmitter> replaceWith, params PatternMatch?[] matches)
+    {
+        if (!MatchPattern(instructions, matches))
+            return false;
+
+        instructions.Replace(matches.Length, replaceWith);
+        return true;
     }
 
     /// <summary>
@@ -255,19 +264,28 @@ public static class PatchUtility
 
         if (@goto.HasValue)
         {
-            instructions.EmitAbove(checker.Method.GetCallRuntime(), checker.Method);
-            instructions.Emit(OpCodes.Brfalse, @goto.Value);
+            Label lbl = @goto.Value;
+            instructions.EmitAbove(emit =>
+            {
+                emit.Invoke(checker.Method)
+                    .BranchIfFalse(lbl);
+            });
             return 2;
         }
 
         Label continueLbl = instructions.DefineLabel();
 
-        instructions.EmitAbove(checker.Method.GetCallRuntime(), checker.Method);
-        instructions.Emit(OpCodes.Brtrue, continueLbl);
-        instructions.Emit(OpCodes.Ret);
+        instructions.EmitAbove(emit =>
+        {
+            emit.Invoke(checker.Method)
+                .BranchIfTrue(continueLbl)
+                .Return();
+        });
 
         if (instructions.Count > instructions.CaretIndex)
             instructions.Instruction.labels.Add(continueLbl);
+        else
+            instructions.MarkLabel(continueLbl);
 
         return 3;
     }
@@ -863,9 +881,7 @@ public static class PatchUtility
     /// Would this block type begin a block?
     /// </summary>
     [Pure]
-    public static bool IsBeginBlockType(this ExceptionBlockType type) => type is ExceptionBlockType.BeginCatchBlock
-        or ExceptionBlockType.BeginExceptFilterBlock or ExceptionBlockType.BeginExceptionBlock
-        or ExceptionBlockType.BeginFaultBlock or ExceptionBlockType.BeginFinallyBlock;
+    public static bool IsBeginBlockType(this ExceptionBlockType type) => (int)type is >= 0 and < 5;
 
     /// <summary>
     /// Would this block type end a block?

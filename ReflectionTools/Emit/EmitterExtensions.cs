@@ -5,6 +5,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Threading;
 
 namespace DanielWillett.ReflectionTools.Emit;
 
@@ -56,11 +57,82 @@ public static class EmitterExtensions
         }
     }
 
+#if NET40_OR_GREATER || NETCOREAPP1_0_OR_GREATER || NETSTANDARD1_0_OR_GREATER
+    /// <summary>
+    /// Marks the next instruction to have <paramref name="optionalLabel"/> if it has a value.
+    /// </summary>
+    [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.MarksLabel)]
+    public static void MarkLabel(this IOpCodeEmitter emitter, Lazy<Label> optionalLabel)
+    {
+        if (optionalLabel.IsValueCreated)
+        {
+            emitter.MarkLabel(optionalLabel.Value);
+        }
+    }
+#endif
+
+    /// <summary>
+    /// Marks the next instruction to have <paramref name="optionalLabel"/> if it has a value.
+    /// </summary>
+    [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.MarksLabel)]
+    public static void MarkLabel(this IOpCodeEmitter emitter, Label? optionalLabel)
+    {
+        if (optionalLabel.HasValue)
+        {
+            emitter.MarkLabel(optionalLabel.Value);
+        }
+    }
+
+    /// <summary>
+    /// Declares a label.
+    /// </summary>
+    [EmitBehavior]
+    public static Label AddLabel(this IOpCodeEmitter emitter)
+    {
+        return emitter.DefineLabel();
+    }
+
+#if NET40_OR_GREATER || NETCOREAPP1_0_OR_GREATER || NETSTANDARD1_0_OR_GREATER
+    /// <summary>
+    /// Returns a lazy label that will be defined later if it's used.
+    /// </summary>
+    /// <remarks>The returned <see cref="Lazy{T}"/> object is not thread-safe.</remarks>
+    [EmitBehavior]
+    public static Lazy<Label> AddLazyLabel(this IOpCodeEmitter emitter)
+    {
+        return new Lazy<Label>(emitter.DefineLabel, LazyThreadSafetyMode.None);
+    }
+#endif
+
+    /// <summary>
+    /// Declares a label.
+    /// </summary>
+    /// <returns></returns>
+    [EmitBehavior]
+    public static IOpCodeEmitter AddLabel(this IOpCodeEmitter emitter, out Label label)
+    {
+        label = emitter.DefineLabel();
+        return emitter;
+    }
+
+#if NET40_OR_GREATER || NETCOREAPP1_0_OR_GREATER || NETSTANDARD1_0_OR_GREATER
+    /// <summary>
+    /// Outputs a lazy label that will be defined later if it's used.
+    /// </summary>
+    /// <remarks>The outputted <see cref="Lazy{T}"/> object is not thread-safe.</remarks>
+    [EmitBehavior]
+    public static IOpCodeEmitter AddLazyLabel(this IOpCodeEmitter emitter, out Lazy<Label> label)
+    {
+        label = new Lazy<Label>(emitter.DefineLabel, LazyThreadSafetyMode.None);
+        return emitter;
+    }
+#endif
+
     /// <summary>
     /// Declares a local variable of type <typeparamref name="TLocalType"/>.
     /// </summary>
     [EmitBehavior]
-    public static LocalBuilder DeclareLocal<TLocalType>(this IOpCodeEmitter emitter)
+    public static LocalBuilder AddLocal<TLocalType>(this IOpCodeEmitter emitter)
     {
         return emitter.DeclareLocal(typeof(TLocalType));
     }
@@ -69,9 +141,67 @@ public static class EmitterExtensions
     /// Declares a local variable of type <typeparamref name="TLocalType"/>, specifying whether or not it's address is <paramref name="pinned"/>.
     /// </summary>
     [EmitBehavior]
-    public static LocalBuilder DeclareLocal<TLocalType>(this IOpCodeEmitter emitter, bool pinned)
+    public static LocalBuilder AddLocal<TLocalType>(this IOpCodeEmitter emitter, bool pinned)
     {
         return emitter.DeclareLocal(typeof(TLocalType), pinned);
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <paramref name="localType"/>.
+    /// </summary>
+    [EmitBehavior]
+    public static LocalBuilder AddLocal(this IOpCodeEmitter emitter, Type localType)
+    {
+        return emitter.DeclareLocal(localType);
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <paramref name="localType"/>, specifying whether or not it's address is <paramref name="pinned"/>.
+    /// </summary>
+    [EmitBehavior]
+    public static LocalBuilder AddLocal(this IOpCodeEmitter emitter, Type localType, bool pinned)
+    {
+        return emitter.DeclareLocal(localType, pinned);
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <typeparamref name="TLocalType"/>.
+    /// </summary>
+    [EmitBehavior]
+    public static IOpCodeEmitter AddLocal<TLocalType>(this IOpCodeEmitter emitter, out LocalBuilder local)
+    {
+        local = emitter.DeclareLocal(typeof(TLocalType));
+        return emitter;
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <typeparamref name="TLocalType"/>, specifying whether or not it's address is <paramref name="pinned"/>.
+    /// </summary>
+    [EmitBehavior]
+    public static IOpCodeEmitter AddLocal<TLocalType>(this IOpCodeEmitter emitter, bool pinned, out LocalBuilder local)
+    {
+        local = emitter.DeclareLocal(typeof(TLocalType), pinned);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <paramref name="localType"/>.
+    /// </summary>
+    [EmitBehavior]
+    public static IOpCodeEmitter AddLocal(this IOpCodeEmitter emitter, Type localType, out LocalBuilder local)
+    {
+        local = emitter.DeclareLocal(localType);
+        return emitter;
+    }
+
+    /// <summary>
+    /// Declares a local variable of type <paramref name="localType"/>, specifying whether or not it's address is <paramref name="pinned"/>.
+    /// </summary>
+    [EmitBehavior]
+    public static IOpCodeEmitter AddLocal(this IOpCodeEmitter emitter, Type localType, bool pinned, out LocalBuilder local)
+    {
+        local = emitter.DeclareLocal(localType, pinned);
+        return emitter;
     }
 
     /// <summary>
@@ -3414,7 +3544,7 @@ public static class EmitterExtensions
     [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.TerminatesBranch)]
     public static IOpCodeEmitter Rethrow(this IOpCodeEmitter emitter)
     {
-        if (emitter.IsEmitterType<IRootOpCodeEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.IFinallyBlockEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.IFaultBlockEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.IFilterBlockEmitter>() || emitter.IsEmitterType<ExceptionBlockBuilder.ITryBlockEmitter>())
+        if (emitter.IsEmitterType<IRootOpCodeEmitter>() || emitter.IsEmitterType<IFinallyBlockOpCodeEmitter>() || emitter.IsEmitterType<IFaultBlockOpCodeEmitter>() || emitter.IsEmitterType<IFilterBlockOpCodeEmitter>() || emitter.IsEmitterType<ITryBlockOpCodeEmitter>())
             throw new InvalidOperationException("Not in catch block.");
         
         emitter.Emit(OpCodes.Rethrow);
@@ -4161,6 +4291,52 @@ public static class EmitterExtensions
     }
 
     /// <summary>
+    /// Throws an <see cref="Exception"/> of type <typeparamref name="TException"/> using it's parameterless constructor.
+    /// <para><c>newobj</c>, <c>throw</c></para>
+    /// </summary>
+    /// <exception cref="MemberAccessException">No parameterless constructor on <typeparamref name="TException"/>.</exception>
+    /// <remarks>... -&gt; (throw), ...</remarks>
+    [EmitBehavior(StackBehaviour.Popref, SpecialBehavior = EmitSpecialBehavior.TerminatesBranch)]
+    public static IOpCodeEmitter Throw<TException>(this IOpCodeEmitter emitter) where TException : Exception, new()
+    {
+        ConstructorInfo? ctor = typeof(TException).GetConstructor(Type.EmptyTypes);
+        if (ctor == null)
+            throw new MemberAccessException($"Exception type {Accessor.ExceptionFormatter.Format(typeof(TException))} missing parameterless constructor.");
+
+        emitter.Emit(OpCodes.Newobj, ctor);
+        emitter.Emit(OpCodes.Throw);
+        return emitter;
+    }
+
+    private static Type[]? _stringArgs;
+
+    /// <summary>
+    /// Throws an <see cref="Exception"/> of type <typeparamref name="TException"/> using it's parameterless constructor, or its Exception(string) constructor if it has one.
+    /// <para>[<c>ldstr</c>], <c>newobj</c>, <c>throw</c></para>
+    /// </summary>
+    /// <exception cref="MemberAccessException">No <typeparamref name="TException"/>(<see cref="string"/>) constructor or parameterless constructor on <typeparamref name="TException"/>.</exception>
+    /// <remarks>... -&gt; (throw), ...</remarks>
+    [EmitBehavior(StackBehaviour.Popref, SpecialBehavior = EmitSpecialBehavior.TerminatesBranch)]
+    public static IOpCodeEmitter Throw<TException>(this IOpCodeEmitter emitter, string message) where TException : Exception
+    {
+        ConstructorInfo? ctor = typeof(TException).GetConstructor(_stringArgs ??= [ typeof(string) ]);
+        if (ctor != null)
+        {
+            emitter.Emit(OpCodes.Ldstr, message);
+        }
+        else
+        {
+            ctor = typeof(TException).GetConstructor(Type.EmptyTypes);
+            if (ctor == null)
+                throw new MemberAccessException($"Exception type {Accessor.ExceptionFormatter.Format(typeof(TException))} missing parameterless constructor.");
+        }
+
+        emitter.Emit(OpCodes.Newobj, ctor);
+        emitter.Emit(OpCodes.Throw);
+        return emitter;
+    }
+
+    /// <summary>
     /// Converts the boxed value type on the stack to it's actual value. When used on a reference type it just casts to <paramref name="valueType"/>.
     /// <para><c>unbox.any</c></para>
     /// </summary>
@@ -4226,8 +4402,13 @@ public static class EmitterExtensions
     /// <summary>
     /// Start an exception block.
     /// </summary>
-    public static ExceptionBlockBuilder Try(this IOpCodeEmitter emitter, Action<IOpCodeEmitter> tryBlock)
+    public static IExceptionBlockBuilder Try(this IOpCodeEmitter emitter, Action<IOpCodeEmitter> tryBlock)
     {
+        if (emitter.IsEmitterType<ICustomExceptionBlockHandlerEmitter>(out ICustomExceptionBlockHandlerEmitter? customEmitter))
+        {
+            return customEmitter.CreateExceptionBlockBuilder(emitter);
+        }
+
         return new ExceptionBlockBuilder(emitter, tryBlock);
     }
 
@@ -4237,7 +4418,7 @@ public static class EmitterExtensions
     /// <exception cref="InvalidOperationException">The emitter is not inside a filter block managed with the builder returned by <see cref="Try"/>.</exception>
     public static IOpCodeEmitter PassFilter(this IOpCodeEmitter emitter)
     {
-        if (!emitter.IsEmitterType<ExceptionBlockBuilder.IFilterBlockEmitter>())
+        if (!emitter.IsEmitterType<IFilterBlockOpCodeEmitter>())
             throw new InvalidOperationException("Not in filter block.");
 
         emitter.Emit(OpCodes.Ldc_I4_1);
@@ -4250,7 +4431,7 @@ public static class EmitterExtensions
     /// <exception cref="InvalidOperationException">The emitter is not inside a filter block managed with the builder returned by <see cref="Try"/>.</exception>
     public static IOpCodeEmitter FailFilter(this IOpCodeEmitter emitter)
     {
-        if (!emitter.IsEmitterType<ExceptionBlockBuilder.IFilterBlockEmitter>())
+        if (!emitter.IsEmitterType<IFilterBlockOpCodeEmitter>())
             throw new InvalidOperationException("Not in filter block.");
 
         emitter.Emit(OpCodes.Ldc_I4_0);

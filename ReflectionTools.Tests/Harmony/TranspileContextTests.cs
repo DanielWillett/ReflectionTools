@@ -1,13 +1,13 @@
 ﻿#if NET461_OR_GREATER || !NETFRAMEWORK
+using DanielWillett.ReflectionTools.Emit;
 using DanielWillett.ReflectionTools.Formatting;
 using HarmonyLib;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace DanielWillett.ReflectionTools.Tests;
+namespace DanielWillett.ReflectionTools.Tests.Harmony;
 
 [TestClass]
-[TestCategory("TranspileContext")]
 public class TranspileContextTests
 {
     [ClassInitialize]
@@ -18,7 +18,7 @@ public class TranspileContextTests
     }
     public void TranspileMethod(string methodName)
     {
-        Harmony h = new Harmony("ReflectionTools.Tests");
+        HarmonyLib.Harmony h = new HarmonyLib.Harmony("ReflectionTools.Tests");
         MethodInfo? patch = typeof(TranspileContextTests).GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
         MethodInfo? target = typeof(TranspileContextTests).GetMethod(methodName + "Target", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
 
@@ -97,19 +97,30 @@ public class TranspileContextTests
 
         while (ctx.MoveNext())
         {
-            if (PatchUtility.TryRemovePattern(ctx,
-                    out BlockInfo block,
-                    null,
-                    x => x.LoadsConstant("Test1"),
+            if (PatchUtility.TryReplacePattern(ctx,
+                emit =>
+                {
+                    emit.Try(emit =>
+                    {
+                        emit.Invoke(getLogger)
+                            .LoadConstantString("test source")
+                            .LoadConstantString("test message")
+                            .Invoke(logInfo);
+                    })
+                    .Catch<Exception>(emit =>
+                    {
+                        emit.PopFromStack()
+                            .EmitWriteLine("catch");
+                    }).End();
+                },
+                new PatternMatch[]
+                {
+                    x => x.LoadsConstant("Test1{0}"),
                     x => x.LoadsConstant("Test2"),
-                    x => logInfo != null && x.Calls(logInfo)
-                    ))
+                    null
+                }
+            ))
             {
-                ctx.Emit(OpCodes.Call, getLogger)
-                    .SetupBlockStart(in block);
-                ctx.Emit(OpCodes.Ldstr, "test source");
-                ctx.Emit(OpCodes.Ldstr, "test message");
-                ctx.Emit(logInfo.GetCallRuntime(), logInfo);
                 ctx.LogDebug("Patched arguments to LogInfo.");
             }
         }
@@ -120,7 +131,35 @@ public class TranspileContextTests
     {
         if (1 == int.Parse("2"))
             return;
-        Accessor.Logger!.LogInfo("Test1", "Test2");
+        if (int.Parse("1") == 1)
+            goto lbl;
+        try
+        {
+            Console.WriteLine();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+        lbl:
+        Console.WriteLine("Test1{0}", "Test2");
+        try
+        {
+            try
+            {
+                Console.WriteLine("Test1{0}", "Test2");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                Console.WriteLine("Test1{0}", "Test2");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Test1{0}", "Test2");
+            Console.WriteLine(ex);
+        }
     }
 }
 #endif

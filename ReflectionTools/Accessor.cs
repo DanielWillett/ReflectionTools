@@ -1275,7 +1275,7 @@ public static class Accessor
     [Pure]
 #endif
     public static Type? GetDefaultDelegate(Type returnType,
-#if NET45_OR_GREATER
+#if NET45_OR_GREATER || !NETFRAMEWORK
         IReadOnlyList<ParameterInfo> parameters,
 #else
         IList<ParameterInfo> parameters,

@@ -5,6 +5,220 @@ NuGet Package: [DanielWillett.ReflectionTools](https://www.nuget.org/packages/Da
 # Reflection Tools
 Base module for ReflectionTools.
 
+## OpCode Emitters
+`IOpCodeEmitter` is an abstraction based off `ILGenerator`.
+
+`DebuggableEmitter` implements this interface fully and logs any emitted instructions to `Accessor.Logger` (or the specified accessor).
+
+It also has tools for adding 'breakpoints' to the method, which log every instruction to the logger as it executes in real-time.
+
+```cs
+DynamicMethod dynMethod = new DyanmicMethod(...);
+
+IOpCodeEmitter emitter = dynMethod
+                            .AsEmitter(debuggable: true, addBreakpoints: false)
+                            .WithLogSource("...");
+
+// also see EmitterExtensions below
+emitter.Emit(OpCodes.Ldarg_0);
+// ...
+emitter.Emit(OpCodes.Ret);
+```
+
+### EmitterExtensions
+
+Extensions that allow a safer and more readable way to emit instructions.
+
+```cs
+DynamicMethodInfo<Func<int, int, int>> dynMethod = DynamicMethodHelper.Create<Func<int, int, int>>("TryDivide");
+
+IOpCodeEmitter emit = dynMethod.GetEmitter();
+
+// *Add* Local and Label so you no longer have to mix up Declare and Define
+emit.AddLocal<int>(out LocalBuilder lclResult)
+    .Try(emit =>
+    {
+        emit.LoadArgument(0)
+            .LoadArgument(1)
+            .Divide()
+            .SetLocalValue(lclResult);
+    })
+    .Catch<DivideByZeroException>(emit =>
+    {
+        emit.PopFromStack() // pop exception object
+            .SetLocalToDefaultValue<int>(lclResult);
+    })
+    .End()
+    .LoadLocalValue(lclResult)
+    .Return();
+```
+
+| OpCode                           | Extension Method                                |
+| -------------------------------- | ----------------------------------------------- |
+| constrained.                     | Invoke                                          |
+| no.                              | *unsupported*                                   |
+| readonly.                        | LoadArrayElementAddress                         |
+| tail.                            | Invoke                                          |
+| unaligned.                       | *Most load-value functions*                     |
+| volatile.                        | *Most load-value functions*                     |
+|                                  |                                                 |
+| *try*, leave                     | Try                                             |
+| *catch*, leave                   | Try(..).Catch                                   |
+| *filter*, endfilter              | Try(..).CatchWhen                               |
+| *filter handler*, leave          | Try(..).CatchWhen(..).OnPass                    |
+| *finally*, endfinally            | Try(..).Finally                                 |
+| *fault*, endfault                | Try(..).Fault                                   |
+| *end try*, leave                 | Try(..).*Handler*(..).End()                     |
+|                                  |                                                 |
+| *define label*                   | AddLabel, AddLazyLabel (Lazy&lt;Label&gt;)      |
+| *declare local*                  | AddLocal                                        |
+| *mark label*                     | MarkLabel (Label, Lazy&lt;Label&gt;, or Label?) |
+|                                  |                                                 |
+| add                              | Add                                             |
+| add.ovf                          | AddChecked                                      |
+| add.ovf.un                       | AddUnsignedChecked                              |
+| and                              | And                                             |
+| arglist                          | LoadArgList                                     |
+| br                               | Branch                                          |
+| leave                            | Leave                                           |
+| beq                              | BranchIfEqual                                   |
+| bge                              | BranchIfGreaterOrEqual                          |
+| bge.un                           | BranchIfGreaterOrEqualUnsigned                  |
+| bgt                              | BranchIfGreater                                 |
+| bgt.un                           | BranchIfGreaterUnsigned                         |
+| ble                              | BranchIfLessOrEqual                             |
+| ble.un                           | BranchIfLessOrEqualUnsigned                     |
+| blt                              | BranchIfLess                                    |
+| blt.un                           | BranchIfLessUnsigned                            |
+| bne.un                           | BranchIfNotEqual                                |
+| brfalse                          | BranchIfFalse                                   |
+| brtrue                           | BranchIfTrue                                    |
+| ceq                              | LoadIfEqual                                     |
+| cgt                              | LoadIfGreater                                   |
+| cgt.un                           | LoadIfGreaterUnsigned                           |
+| clt -> ldc.i4.0 -> ceq           | LoadIfGreaterOrEqual                            |
+| clt.un -> ldc.i4.0 -> ceq        | LoadIfGreaterOrEqualUnsigned                    |
+| clt                              | LoadIfLess                                      |
+| clt.un                           | LoadIfLessUnsigned                              |
+| cgt -> ldc.i4.0 -> ceq           | LoadIfLessOrEqual                               |
+| cgt.un -> ldc.i4.0 -> ceq        | LoadIfLessOrEqualUnsigned                       |
+| ckfinite                         | CheckFinite                                     |
+| box                              | Box                                             |
+| call, callvirt                   | Invoke                                          |
+| castclass                        | CastReference                                   |
+| conv.i                           | ConvertToNativeInt                              |
+| conv.ovf.i                       | ConvertToNativeIntChecked                       |
+| conv.ovf.i.un                    | ConvertToNativeIntUnsignedChecked               |
+| conv.u                           | ConvertToNativeUInt                             |
+| conv.ovf.u                       | ConvertToNativeUIntChecked                      |
+| conv.ovf.u.un                    | ConvertToNativeUIntUnsignedChecked              |
+| conv.i1                          | ConvertToInt8                                   |
+| conv.ovf.i1                      | ConvertToInt8Checked                            |
+| conv.ovf.i1.un                   | ConvertToInt8UnsignedChecked                    |
+| conv.u1                          | ConvertToUInt8                                  |
+| conv.ovf.u1                      | ConvertToUInt8Checked                           |
+| conv.ovf.u1.un                   | ConvertToUInt8UnsignedChecked                   |
+| conv.i2                          | ConvertToInt16                                  |
+| conv.ovf.i2                      | ConvertToInt16Checked                           |
+| conv.ovf.i2.un                   | ConvertToInt16UnsignedChecked                   |
+| conv.u2                          | ConvertToUInt16                                 |
+| conv.ovf.u2                      | ConvertToUInt16Checked                          |
+| conv.ovf.u2.un                   | ConvertToUInt16UnsignedChecked                  |
+| conv.i4                          | ConvertToInt32                                  |
+| conv.ovf.i4                      | ConvertToInt32Checked                           |
+| conv.ovf.i4.un                   | ConvertToInt32UnsignedChecked                   |
+| conv.u4                          | ConvertToUInt32                                 |
+| conv.ovf.u4                      | ConvertToUInt32Checked                          |
+| conv.ovf.u4.un                   | ConvertToUInt32UnsignedChecked                  |
+| conv.i8                          | ConvertToInt64                                  |
+| conv.ovf.i8                      | ConvertToInt64Checked                           |
+| conv.ovf.i8.un                   | ConvertToInt64UnsignedChecked                   |
+| conv.u8                          | ConvertToUInt64                                 |
+| conv.ovf.u8                      | ConvertToUInt64Checked                          |
+| conv.ovf.u8.un                   | ConvertToUInt64UnsignedChecked                  |
+| conv.r4                          | ConvertToSingle                                 |
+| conv.r8                          | ConvertToDouble                                 |
+| conv.r.un -> conv.r4             | ConvertToSingleUnsigned                         |
+| conv.r.un -> conv.r8             | ConvertToDoubleUnsigned                         |
+| cpblk                            | CopyBytes                                       |
+| cpobj                            | CopyValue                                       |
+| div                              | Divide                                          |
+| div.un                           | DivideUnsigned                                  |
+| dup                              | Duplicate                                       |
+| initblk                          | SetBytes                                        |
+| initobj                          | SetDefaultValue, SetLocalToDefaultValue         |
+| isinst                           | LoadIsAsType                                    |
+| jmp                              | JumpTo                                          |
+| ldarg                            | LoadArgument                                    |
+| ldarga                           | LoadArgumentAddress                             |
+| ldc.i4                           | LoadConstant[U]Int[8,16,32]                     |
+| ldc.i4                           | LoadConstantCharacter                           |
+| ldc.i4.[0,1]                     | LoadConstantBoolean                             |
+| ldc.i4.[0,1]                     | FailFilter, PassFilter (in filter only)         |
+| ldc.i8                           | LoadConstant[U]Int64                            |
+| ldc.r4                           | LoadConstantSingle                              |
+| ldc.r8                           | LoadConstantDouble                              |
+| newobj decimal(,,,,)             | LoadConstantDecimal                             |
+| ldstr, ldnull                    | LoadConstantString                              |
+| ldelem*                          | LoadArrayElement                                |
+| ldelema*                         | LoadArrayElementAddress                         |
+| ldfld                            | LoadInstanceFieldValue, LoadFieldValue          |
+| ldflda                           | LoadInstanceFieldAddress, LoadFieldAddress      |
+| ldsfld                           | LoadStaticFieldValue, LoadFieldValue            |
+| ldsflda                          | LoadStaticFieldAddress, LoadFieldAddress        |
+| ldftn                            | LoadFunctionPointer                             |
+| ldvirtftn                        | LoadFunctionPointerVirtual                      |
+| ldind, ldobj                     | LoadAddressValue                                |
+| ldlen*                           | LoadArrayLength                                 |
+| ldloc                            | LoadLocalValue                                  |
+| ldloca                           | LoadLocalAddress                                |
+| ldnull                           | LoadNullValue                                   |
+| ldtoken                          | LoadToken                                       |
+| ldtoken                          | LoadTypeOf (loads Type object)                  |
+| localloc                         | StackAllocate, StackAllocate&lt;T&gt;           |
+| mkrefany                         | MakeTypedReference                              |
+| refanytype                       | LoadTypedReferenceTypeToken                     |
+| refanytype                       | LoadTypedReferenceType (loads Type object)      |
+| refanyval                        | LoadTypedReferenceAddress                       |
+| refanyval                        | LoadTypedReferenceValue (loads value)           |
+| mul                              | Multiply                                        |
+| mul.ovf                          | MultiplyChecked                                 |
+| neg                              | Negate                                          |
+| not                              | BitwiseNot                                      |
+| ldc.i4.0 -> ceq                  | Not                                             |
+| newarr*                          | CreateArray                                     |
+| newobj                           | CreateObject                                    |
+| nop                              | NoOperation                                     |
+| or                               | Or                                              |
+| pop                              | PopFromStack                                    |
+| rem                              | Modulo                                          |
+| rem.un                           | ModuloUnsigned                                  |
+| ret                              | Return                                          |
+| rethrow                          | Rethrow                                         |
+| shl                              | ShiftLeft                                       |
+| shr                              | ShiftRight                                      |
+| shr.un                           | ShiftRightUnsigned                              |
+| sizeof                           | LoadSizeOf                                      |
+| starg                            | SetArgument                                     |
+| stelem*                          | SetArrayElement                                 |
+| stind, stobj                     | SetAddressValue                                 |
+| stfld                            | SetInstanceFieldValue, SetFieldValue            |
+| stsfld                           | SetStaticFieldValue, SetFieldValue              |
+| stloc                            | SetLocalValue                                   |
+| sub                              | Subtract                                        |
+| sub.ovf                          | SubtractChecked                                 |
+| sub.ovf.un                       | SubtractUnsignedChecked                         |
+| switch                           | Switch                                          |
+| throw                            | Throw                                           |
+| unbox.any                        | LoadUnboxedValue                                |
+| unbox                            | LoadUnboxedAddress                              |
+| xor                              | Xor                                             |
+
+\* Non-SZ arrays (multi-dimensional or non-zero bound arrays) use their type's `Get`, `Set`, and `Address` functions, 
+`Length` properties, or constructors instead of the native instruction which only works for vectors.
+
+*TranspileContext from [DanielWillett.ReflectionTools.Harmony](https://www.nuget.org/packages/DanielWillett.ReflectionTools.Harmony) also implements `IOpCodeEmitter`.*
+
 ## Dependency Injection
 Use the `AddReflectionTools` extension for `IServiceCollection` to add `IReflectionToolsLogger`, `IOpCodeFormatter`, and `IAccessor` as services.
 Configures logging from the registered `ILoggerFactory` service.
@@ -206,25 +420,19 @@ IStaticVariable<int>? variable = Variables.FindStatic<C, int>("F");
 IVariable? variable = Variables.Find<C, int>("F");
 ```
 
-## OpCode Emitters
-`IOpCodeEmitter` is an abstraction based off `ILGenerator`.
-
-`DebuggableEmitter` implements this interface fully and logs any emitted instructions to `Accessor.Logger` (or the specified accessor).
-
-It also has tools for adding 'breakpoints' to the method, which log every instruction to the logger as it executes in real-time.
-
-```cs
-DynamicMethod dynMethod = new DyanmicMethod(...);
-
-IOpCodeEmitter emitter = dynMethod
-                            .AsEmitter(debuggable: true, addBreakpoints: false)
-                            .WithLogSource("...");
-
-emitter.Emit(OpCodes.Ldarg_0);
-// ...
-emitter.Emit(OpCodes.Ret);
-```
-*TranspileContext from [DanielWillett.ReflectionTools.Harmony](https://www.nuget.org/packages/DanielWillett.ReflectionTools.Harmony) also implements `IOpCodeEmitter`.*
+## Operators
+The `Operators` class has utilities for finding `operator` methods in types.
+* `Find<TDeclaringType>(OperatorType op, bool preferCheckedOperator = false)`
+  * Finds the best-matching unary or binary operator for the two types.
+* `Find<TLeft, TRight>(OperatorType op, bool preferCheckedOperator = false)`
+  * Finds the best-matching binary operator for the two types.
+* `FindCast<TFrom, TTo>(OperatorType op, bool preferCheckedOperator = false)`
+  * Finds the best-matching `MethodInfo` for the conversion operator from one type to another.
+* `AllOperators { get; }`
+  * Gets a list of all unary and binary operators in the CLI (including unsupported ones).
+* `GetOperator(OperatorType)`
+* `<OperatorName> { get; }`
+  * These two return a data structure (`Operator`) that has some basic information about the operator type.
 
 # Tools for [Lib.Harmony](https://www.nuget.org/packages/Lib.Harmony) 2.3.3+
 Requires `Lib.Harmony 2.3.3+`.
@@ -298,24 +506,23 @@ You can also use `HarmonyLog.ResetConditional`, which is ignored if the compiler
 
 Partially implements `IOpCodeEmitter`.
 
-The following transpiler replaces "Test1" and "Test2" with "test source" and "test message".
+The following transpiler replaces `Console.WriteLine("Test {0}", "Value")` with `Accessor.Logger.LogInfo("Test Source", "Test Value")`.
 ```cs
 public void TranspilerTarget()
 {
     if (1 == int.Parse("2"))
         return;
-    Accessor.Logger!.LogInfo("Test1", "Test2");
+
+    Console.WriteLine("Test {0}", "Test2");
 }
 
-private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase method, ILGenerator generator)
+public static IEnumerable<CodeInstruction> WriteInstructions(IEnumerable<CodeInstruction> instructions, MethodBase method, ILGenerator generator)
 {
     TranspileContext ctx = new TranspileContext(method, generator, instructions);
 
     MethodInfo? logInfo = typeof(IReflectionToolsLogger).GetMethod("LogInfo", BindingFlags.Public | BindingFlags.Instance, null, [ typeof(string), typeof(string) ], null);
     if (logInfo == null)
     {
-        // ctx.Fail returns the original instructions set.
-        // you could also throw an exception here instead of returning.
         return ctx.Fail(new MethodDefinition("LogInfo")
             .DeclaredIn<IReflectionToolsLogger>(false)
             .WithParameter<string>("source")
@@ -334,26 +541,22 @@ private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstructi
 
     while (ctx.MoveNext())
     {
-        if (PatchUtility.TryRemovePattern(ctx,
-                out BlockInfo block,
-                null,
-                x => x.LoadsConstant("Test1"),
-                x => x.LoadsConstant("Test2"),
-                x => x.Calls(logInfo)
-            ))
+        if (PatchUtility.TryReplacePattern(ctx,
+            emit =>
+            {
+                emit.Invoke(getLogger)
+                    .LoadConstantString("Test Source")
+                    .LoadConstantString("Test Value")
+                    .Invoke(logInfo);
+            },
+            new PatternMatch[]
+            {
+                x => x.LoadsConstant("Test {0}"),
+                x => x.LoadsConstant("Value"),
+                null
+            }
+        ))
         {
-            ctx.Emit(getLogger.GetCallRuntime(), getLogger)
-                // transfer labels and start blocks from old first instruction
-                .SetupBlockStart(in block);
-
-            ctx.Emit(OpCodes.Ldstr, "test source");
-
-            ctx.Emit(OpCodes.Ldstr, "test message");
-
-            ctx.Emit(logInfo.GetCallRuntime(), logInfo)
-                // transfer end blocks from old last instruction
-                .SetupBlockEnd(in block);
-
             ctx.LogDebug("Patched arguments to LogInfo.");
         }
     }

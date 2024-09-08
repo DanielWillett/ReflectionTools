@@ -11,14 +11,14 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools.Harmony</PackageId>
     <Title>Reflection Tools - Lib.Harmony Module</Title>
-    <Version>3.0.0</Version>
-    <PackageVersion>$(Version)</PackageVersion>
+    <Version>4.0.0</Version>
+    <PackageVersion>$(Version)-prerelease1</PackageVersion>
     <PackageReleaseNotes></PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools.Harmony</Product>
     <Description>Various reflection tools for Lib.Harmony.</Description>
     <PackageProjectUrl>https://github.com/DanielWillett/ReflectionTools</PackageProjectUrl>
-    <SignAssembly>True</SignAssembly>
+    <SignAssembly>False</SignAssembly>
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -31,7 +31,7 @@
     <AssemblyVersion>$(Version).1</AssemblyVersion>
     <FileVersion>$(Version).1</FileVersion>
     <NoWarn>CS8002</NoWarn>
-    <!--<AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.Harmony.dll.snk</AssemblyOriginatorKeyFile>-->
+    <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.Harmony.dll.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,8 +39,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!--<PackageReference Include="DanielWillett.ReflectionTools" Version="[3.0.0,)" NoWarn="NU1701" />-->
-    <ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />
+    <PackageReference Include="DanielWillett.ReflectionTools" Version="[4.0.0,)" NoWarn="NU1701" />
+    <!--<ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />-->
 
     <PackageReference Include="Lib.Harmony" Version="[2.3.3,)" NoWarn="NU1701" />
     <PackageReference Include="System.Reflection.Emit" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />

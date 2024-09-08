@@ -107,6 +107,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <summary>
     /// Index in the instruction list where instructions are emitted.
     /// </summary>
+    /// <remarks>If <paramref name="value"/> is a prefix, the actual caret index will be advanced until the next non-prefix (or the end of the stream).</remarks>
     /// <exception cref="ArgumentOutOfRangeException">Caret index must be &gt;= 0 and &lt;= instruction count.</exception>
     public int CaretIndex
     {
@@ -117,6 +118,9 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
                 throw new ArgumentOutOfRangeException(nameof(value), "Caret index must be >= 0 and <= instruction count.");
 
             AssertBlocksAndLabelsApplied();
+            while (value < Instructions.Count && Instructions[value].opcode.OpCodeType == OpCodeType.Prefix)
+                ++value;
+
             _caretIndex = value;
         }
     }
@@ -128,15 +132,47 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     {
         get
         {
-            if (_caretIndex > Instructions.Count || _caretIndex < 0)
+            if (_caretIndex >= Instructions.Count || _caretIndex < 0)
                 throw new InvalidOperationException("Caret is not on an instruction.");
 
             return Instructions[_caretIndex];
         }
     }
+
+    /// <summary>
+    /// Enumerate all prefixes for <see cref="Instruction"/>.
+    /// </summary>
+    public IEnumerable<CodeInstruction> Prefixes
+    {
+        get
+        {
+            if (_caretIndex >= Instructions.Count)
+                yield break;
+
+            int prefixStartIndex = GetPrefixStartIndex(_caretIndex);
+            for (int j = prefixStartIndex; j < _caretIndex; ++j)
+                yield return Instructions[j];
+        }
+    }
+
+    private int GetPrefixStartIndex(int caretIndex)
+    {
+        for (int i = caretIndex - 1; i >= 0; --i)
+        {
+            CodeInstruction ins = Instructions[i];
+            if (ins.opcode.OpCodeType != OpCodeType.Prefix)
+                ++i;
+            else if (i != 0)
+                continue;
+
+            return i;
+        }
+
+        return caretIndex;
+    }
     
     /// <summary>
-    /// Move the caret to the next instruction in the instruction list.
+    /// Move the caret to the next instruction in the instruction list. Prefixes are skipped.
     /// </summary>
     /// <returns><see langword="true"/> if the caret is on an instruction, otherwise false.</returns>
     public bool MoveNext()
@@ -144,7 +180,11 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         if (_caretIndex + 1 >= Instructions.Count)
             return false;
 
-        ++_caretIndex;
+        do
+        {
+            ++_caretIndex;
+        }
+        while (_caretIndex + 1 < Instructions.Count && Instruction.opcode.OpCodeType == OpCodeType.Prefix);
         return true;
     }
 
@@ -157,32 +197,117 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <summary>
     /// Remove <paramref name="count"/> instructions from the instruction list, returning their label and block information.
     /// </summary>
+    /// <remarks>If the current instruction has prefixes, those will also be removed. If the end instruction is a prefix, the block will be expanded to include the prefixed instruction.</remarks>
     public BlockInfo Remove(int count)
     {
         if (count == 0)
-            return new BlockInfo(Array.Empty<InstructionBlockInfo>());
+            return new BlockInfo(Array.Empty<InstructionBlockInfo>(), _caretIndex);
         
         if (count < 0 || Instructions == null || _caretIndex + count > Instructions.Count)
             throw new ArgumentOutOfRangeException(nameof(count));
 
+        int beginPrefixStart = GetPrefixStartIndex(_caretIndex);
+        int endIndex = _caretIndex + count;
+        while (Instructions[endIndex].opcode.OpCodeType == OpCodeType.Prefix)
+        {
+            ++endIndex;
+        }
+
+        count += endIndex - (_caretIndex + count);
+        count += _caretIndex - beginPrefixStart;
+
         InstructionBlockInfo[] instructions = new InstructionBlockInfo[count];
-        for (int i = _caretIndex; i < _caretIndex + count; ++i)
+        for (int i = beginPrefixStart; i < beginPrefixStart + count; ++i)
         {
             CodeInstruction codeInstruction = Instructions[i];
-            instructions[i - _caretIndex] = new InstructionBlockInfo(codeInstruction.opcode,
+            instructions[i - beginPrefixStart] = new InstructionBlockInfo(codeInstruction.opcode,
                 codeInstruction.operand,
                 codeInstruction.labels.Count == 0 ? Array.Empty<Label>() : codeInstruction.labels.ToArray(),
                 codeInstruction.blocks.Count == 0 ? Array.Empty<ExceptionBlock>() : codeInstruction.blocks.ToArray()
             );
         }
 
-        Instructions.RemoveRange(_caretIndex, count);
-
-        return new BlockInfo(instructions);
+        _caretIndex = beginPrefixStart;
+        Instructions.RemoveRange(beginPrefixStart, count);
+        return new BlockInfo(instructions, beginPrefixStart);
     }
 
     /// <summary>
-    /// Fail the transpiler because a member couldn't be found and log an error to <see cref="TranspileLogger"/>. 
+    /// Replace the current instruction with what's emitted in <paramref name="replaceWith"/>.
+    /// </summary>
+    public void Replace(Action<IOpCodeEmitter> replaceWith)
+    {
+        Replace(1, replaceWith);
+    }
+
+    /// <summary>
+    /// Replace <paramref name="count"/> instructions from the instruction list with what's emitted in <paramref name="replaceWith"/>.
+    /// </summary>
+    public void Replace(int count, Action<IOpCodeEmitter> replaceWith)
+    {
+        if (count <= 0)
+        {
+            EmitAbove(replaceWith);
+            return;
+        }
+
+        BlockInfo info = Remove(count);
+
+        int index = info.StartIndex;
+
+        replaceWith?.Invoke(this);
+
+        if (index < Instructions.Count)
+        {
+            info.SetupBlockStart(Instructions[index]);
+        }
+        if (_caretIndex <= Instructions.Count)
+        {
+            info.SetupBlockEnd(Instructions[_caretIndex - 1]);
+        }
+    }
+
+    /// <summary>
+    /// Emit after the current instruction and don't copy it's blocks and labels.
+    /// </summary>
+    public void EmitBelow(Action<IOpCodeEmitter> append)
+    {
+        if (_caretIndex < Instructions.Count)
+            ++_caretIndex;
+
+        append?.Invoke(this);
+    }
+
+    /// <summary>
+    /// Push the current instruction down but don't copy it's blocks and labels.
+    /// </summary>
+    public void EmitBelowLast(Action<IOpCodeEmitter> append)
+    {
+        _caretIndex = GetPrefixStartIndex(_caretIndex);
+        append?.Invoke(this);
+    }
+
+    /// <summary>
+    /// Push the current instruction down and copy it's blocks and labels to the first instruction emitted in <paramref name="append"/>.
+    /// </summary>
+    public void EmitAbove(Action<IOpCodeEmitter> append)
+    {
+        int index = GetPrefixStartIndex(_caretIndex);
+        _caretIndex = index;
+
+        append?.Invoke(this);
+
+        if (index == _caretIndex)
+            return;
+
+        if (_caretIndex < Instructions.Count)
+        {
+            Instructions[index].WithStartBlocksFrom(Instructions[_caretIndex]);
+        }
+    }
+
+    /// <summary>
+    /// Fail the transpiler because a member couldn't be found and log an error to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="missingMember">A definition of the original member that couldn't be found.</param>
     /// <returns>The original method's instructions.</returns>
@@ -195,7 +320,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
-    /// Fail the transpiler with a generic message and log an error to <see cref="TranspileLogger"/>. 
+    /// Fail the transpiler with a generic message and log an error to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="message">A generic human-readable message describing what went wrong.</param>
     /// <returns>The original method's instructions.</returns>
@@ -208,7 +333,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
-    /// Log debug information to <see cref="TranspileLogger"/>. 
+    /// Log debug information to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="message">A generic human-readable message describing the event.</param>
     public void LogDebug(string message)
@@ -219,7 +344,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
-    /// Log information to <see cref="TranspileLogger"/>. 
+    /// Log information to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="message">A generic human-readable message describing the event.</param>
     public void LogInfo(string message)
@@ -230,7 +355,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
-    /// Log a warning to <see cref="TranspileLogger"/>. 
+    /// Log a warning to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="message">A generic human-readable message describing the event.</param>
     public void LogWarning(string message)
@@ -241,7 +366,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
-    /// Log an error to <see cref="TranspileLogger"/>. 
+    /// Log an error to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="message">A generic human-readable message describing the event.</param>
     public void LogError(string message)
@@ -252,7 +377,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
-    /// Log an error to <see cref="TranspileLogger"/>. 
+    /// Log an error to <see cref="TranspileLogger"/>.
     /// </summary>
     /// <param name="message">A generic human-readable message describing the event.</param>
     /// <param name="ex">Error detailing what went wrong during the event.</param>
@@ -271,12 +396,6 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     public void Comment(string comment) { }
 
     void IOpCodeEmitter.Comment(string comment) { }
-
-    /// <inheritdoc />
-    public void BeginCatchBlock(Type exceptionType)
-    {
-        _nextBlocks.Add(new ExceptionBlock(ExceptionBlockType.BeginCatchBlock, exceptionType));
-    }
 
     /// <summary>
     /// Applies any marked labels to the instruction at index <see cref="CaretIndex"/>. This happens automatically when you emit a new instruction.
@@ -323,6 +442,14 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc />
+#pragma warning disable CS8767
+    public void BeginCatchBlock(Type? exceptionType)
+    {
+        _nextBlocks.Add(new ExceptionBlock(ExceptionBlockType.BeginCatchBlock, exceptionType));
+    }
+#pragma warning restore CS8767
+
+    /// <inheritdoc />
     public void BeginFaultBlock()
     {
         _nextBlocks.Add(new ExceptionBlock(ExceptionBlockType.BeginFaultBlock));
@@ -332,6 +459,15 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     public void BeginFinallyBlock()
     {
         _nextBlocks.Add(new ExceptionBlock(ExceptionBlockType.BeginFinallyBlock));
+    }
+
+    /// <inheritdoc />
+    public void EndExceptionBlock()
+    {
+        if (_caretIndex == 0)
+            throw new InvalidOperationException("Emit an instruction first.");
+        
+        Instructions[_caretIndex - 1].blocks.Add(new ExceptionBlock(ExceptionBlockType.EndExceptionBlock));
     }
 
     /// <summary>
@@ -358,6 +494,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <summary>Puts the specified instruction onto the stream of instructions.</summary>
     /// <param name="instruction">The Microsoft Intermediate Language (MSIL) instruction to be put onto the stream, with an optional operand and label list.</param>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(CodeInstruction instruction)
     {
         Instructions.Insert(_caretIndex, instruction);
@@ -366,96 +503,103 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         return instruction;
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode)
     {
         Emit(new CodeInstruction(opcode));
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, byte arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, double arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, float arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, int arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, long arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
 
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, sbyte arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
-
-    /// <inheritdoc />
+    
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, short arg)
     {
         Emit(new CodeInstruction(opcode, arg));
     }
-
-    /// <inheritdoc />
+    
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, string str)
     {
         Emit(new CodeInstruction(opcode, str));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, ConstructorInfo con)
     {
         Emit(new CodeInstruction(opcode, con));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, Label label)
     {
         Emit(new CodeInstruction(opcode, label));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, Label[] labels)
     {
         Emit(new CodeInstruction(opcode, labels));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, LocalBuilder local)
     {
         Emit(new CodeInstruction(opcode, local));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, SignatureHelper signature)
     {
         Emit(new CodeInstruction(opcode, signature));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, FieldInfo field)
     {
         Emit(new CodeInstruction(opcode, field));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, MethodInfo meth)
     {
         Emit(new CodeInstruction(opcode, meth));
     }
 
-    /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.Emit(OpCode opcode, Type cls)
     {
         Emit(new CodeInstruction(opcode, cls));
@@ -463,6 +607,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode)
     {
         return Emit(new CodeInstruction(opcode));
@@ -470,6 +615,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,byte)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, byte arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -477,6 +623,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,double)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, double arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -484,6 +631,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,float)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, float arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -491,6 +639,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,int)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, int arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -498,6 +647,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,long)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, long arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -505,6 +655,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,sbyte)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, sbyte arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -512,6 +663,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,short)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, short arg)
     {
         return Emit(new CodeInstruction(opcode, arg));
@@ -519,6 +671,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,string)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, string str)
     {
         return Emit(new CodeInstruction(opcode, str));
@@ -526,6 +679,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,ConstructorInfo)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, ConstructorInfo con)
     {
         return Emit(new CodeInstruction(opcode, con));
@@ -533,6 +687,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, Label label)
     {
         return Emit(new CodeInstruction(opcode, label));
@@ -540,6 +695,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label[])"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, Label[] labels)
     {
         return Emit(new CodeInstruction(opcode, labels));
@@ -547,6 +703,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,LocalBuilder)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, LocalBuilder local)
     {
         return Emit(new CodeInstruction(opcode, local));
@@ -554,6 +711,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,SignatureHelper)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, SignatureHelper signature)
     {
         return Emit(new CodeInstruction(opcode, signature));
@@ -561,6 +719,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,FieldInfo)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, FieldInfo field)
     {
         return Emit(new CodeInstruction(opcode, field));
@@ -568,6 +727,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,MethodInfo)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, MethodInfo meth)
     {
         return Emit(new CodeInstruction(opcode, meth));
@@ -575,14 +735,16 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Type)"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction Emit(OpCode opcode, Type cls)
     {
         return Emit(new CodeInstruction(opcode, cls));
     }
 
-    /// <inheritdoc cref="Emit(HarmonyLib.CodeInstruction)"/>
+    /// <inheritdoc cref="Emit(CodeInstruction)"/>
     /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(CodeInstruction instruction)
     {
         CodeInstruction current = Instructions[_caretIndex];
@@ -593,136 +755,153 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode)
     {
         return EmitAbove(new CodeInstruction(opcode));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,byte)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, byte arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,double)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, double arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,float)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, float arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,int)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, int arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,long)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, long arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,sbyte)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, sbyte arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,short)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, short arg)
     {
         return EmitAbove(new CodeInstruction(opcode, arg));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,string)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, string str)
     {
         return EmitAbove(new CodeInstruction(opcode, str));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,ConstructorInfo)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, ConstructorInfo con)
     {
         return EmitAbove(new CodeInstruction(opcode, con));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, Label label)
     {
         return EmitAbove(new CodeInstruction(opcode, label));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Label[])"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, Label[] labels)
     {
         return EmitAbove(new CodeInstruction(opcode, labels));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,LocalBuilder)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, LocalBuilder local)
     {
         return EmitAbove(new CodeInstruction(opcode, local));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,SignatureHelper)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, SignatureHelper signature)
     {
         return EmitAbove(new CodeInstruction(opcode, signature));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,FieldInfo)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, FieldInfo field)
     {
         return EmitAbove(new CodeInstruction(opcode, field));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,MethodInfo)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, MethodInfo meth)
     {
         return EmitAbove(new CodeInstruction(opcode, meth));
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.Emit(OpCode,Type)"/>
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitAbove(OpCode opcode, Type cls)
     {
         return EmitAbove(new CodeInstruction(opcode, cls));
@@ -731,6 +910,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// <inheritdoc />
     /// <remarks>Using <paramref name="optionalParameterTypes"/> is not supported in <see cref="TranspileContext"/>.</remarks>
     /// <exception cref="NotSupportedException">Optional parameters are not supported.</exception>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     void IOpCodeEmitter.EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
     {
         if (optionalParameterTypes is { Length: > 0 })
@@ -741,6 +921,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.EmitCall(OpCode,MethodInfo,Type[])"/>
     /// <returns>An instance of the added instruction, allowing you to modify the reference to the one added to the instruction set.</returns>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public CodeInstruction EmitCall(OpCode opcode, MethodInfo methodInfo, Type[]? optionalParameterTypes)
     {
         if (optionalParameterTypes is { Length: > 0 })
@@ -776,6 +957,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 #endif
 
     /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void EmitWriteLine(string value)
     {
         MethodInfo method = new Action<string>(Console.WriteLine).Method;
@@ -784,7 +966,8 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.EmitWriteLine(string)" />
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void EmitWriteLineAbove(string value)
     {
         MethodInfo method = new Action<string>(Console.WriteLine).Method;
@@ -803,6 +986,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void EmitWriteLine(LocalBuilder localBuilder)
     {
         MethodInfo method = GetConsoleWriteLineMethod(localBuilder.LocalType, out bool box);
@@ -815,7 +999,8 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.EmitWriteLine(LocalBuilder)" />
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void EmitWriteLineAbove(LocalBuilder localBuilder)
     {
         MethodInfo method = GetConsoleWriteLineMethod(localBuilder.LocalType, out bool box);
@@ -829,7 +1014,8 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc />
-    /// <exception cref="ArgumentException">Field must be static, or the same instance as the current method.</exception>
+    /// <exception cref="ArgumentException">Field must be static, or the same instance as the current method, as opposed to just pushing it down.</exception>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void EmitWriteLine(FieldInfo fld)
     {
         MethodInfo method = GetConsoleWriteLineMethod(fld.FieldType, out bool box);
@@ -850,8 +1036,9 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc cref="IOpCodeEmitter.EmitWriteLine(FieldInfo)" />
-    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks, as opposed to just pushing it down.</remarks>
     /// <exception cref="ArgumentException">Field must be static, or the same instance as the current method.</exception>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void EmitWriteLineAbove(FieldInfo fld)
     {
         MethodInfo method = GetConsoleWriteLineMethod(fld.FieldType, out bool box);
@@ -872,12 +1059,6 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
         Emit(OpCodes.Call, method);
     }
 
-    /// <inheritdoc />
-    public void EndExceptionBlock()
-    {
-        _nextBlocks.Add(new ExceptionBlock(ExceptionBlockType.EndExceptionBlock));
-    }
-
     /// <summary>
     /// Not supported in <see cref="TranspileContext"/>.
     /// </summary>
@@ -891,6 +1072,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <inheritdoc />
+    [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.MarksLabel)]
     public void MarkLabel(Label loc)
     {
         _nextLabels.Add(loc);
@@ -908,6 +1090,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 #endif
 
     /// <inheritdoc />
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void ThrowException(Type excType)
     {
         if (excType == null)
@@ -926,6 +1109,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
 
     /// <inheritdoc cref="IOpCodeEmitter.ThrowException(Type)" />
     /// <remarks>Emits above the active instruction, pushing it down the execution list and taking it's labels and blocks.</remarks>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void ThrowExceptionAbove(Type excType)
     {
         if (excType == null)
@@ -952,6 +1136,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// The type does not have a default constructor or a constructor with a string argument.</exception>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="excType" /> is <see langword="null" />.</exception>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void ThrowException(Type excType, string message)
     {
         if (excType == null)
@@ -983,6 +1168,7 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     /// The type does not have a default constructor or a constructor with a string argument.</exception>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="excType" /> is <see langword="null" />.</exception>
+    [Obsolete("Can cause issues when working with prefixes, use EmitAbove(emit => { }), EmitBelow(emit => { }), and EmitBelowLast(emit => { }).")]
     public void ThrowExceptionAbove(Type excType, string message)
     {
         if (excType == null)

@@ -1,8 +1,8 @@
 ﻿using DanielWillett.ReflectionTools.Formatting;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
-using MethodDefinition = DanielWillett.ReflectionTools.Formatting.MethodDefinition;
 #if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
 using System.Runtime.InteropServices;
 #endif
@@ -21,6 +21,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     private bool _init;
     private bool _lastWasPrefix;
     private readonly IAccessor _accessor;
+    private List<string>? _prefixQueue;
     private static readonly MethodInfo? LogMethod = typeof(DebuggableEmitter).GetMethod("TryLogDebug", BindingFlags.Instance | BindingFlags.NonPublic);
     private string _logSource = nameof(DebuggableEmitter);
 #if !(NET40_OR_GREATER || !NETFRAMEWORK)
@@ -287,7 +288,14 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     private string GetCommentStarter()
     {
 #if NET40_OR_GREATER || !NETFRAMEWORK
-        return new string(' ', LogIndent * IndentSpacing + ILOffset.ToString("X5").Length + 3);
+        try
+        {
+            return new string(' ', LogIndent * IndentSpacing + ILOffset.ToString("X5").Length + 3);
+        }
+        catch (NotSupportedException)
+        {
+            return new string(' ', LogIndent * IndentSpacing + 8);
+        }
 #else
         return new string(' ', LogIndent * IndentSpacing + 8);
 #endif
@@ -295,7 +303,14 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
     private string GetLogStarter()
     {
 #if NET40_OR_GREATER || !NETFRAMEWORK
-        return "IL" + ILOffset.ToString("X5") + " ";
+        try
+        {
+            return "IL" + ILOffset.ToString("X5") + " ";
+        }
+        catch (NotSupportedException)
+        {
+            return "IL" + new string(' ', LogIndent * IndentSpacing + 6);
+        }
 #else
         return _ilOffsetRepl ??= "IL" + new string(' ', LogIndent * IndentSpacing + 6);
 #endif
@@ -348,13 +363,36 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         
         if (DebugLog)
             _accessor.Logger?.LogDebug(LogSource, msg);
-        if (Breakpointing && !_lastWasPrefix)
+        if (Breakpointing)
         {
+            if (!_lastWasPrefix)
+            {
+                Generator.Emit(OpCodes.Ldstr, LogSource);
+                Generator.Emit(OpCodes.Ldstr, msg);
+                Generator.Emit(_accessor.GetCallRuntime(LogMethod!), LogMethod!);
+            }
+            else
+            {
+                (_prefixQueue ??= new List<string>()).Add(msg);
+            }
+        }
+        _lastWasPrefix = code.OpCodeType == OpCodeType.Prefix;
+    }
+
+    private void LogPrefixQueue()
+    {
+        if (_lastWasPrefix || !Breakpointing || _prefixQueue == null)
+            return;
+
+        for (int i = 0; i < _prefixQueue.Count; ++i)
+        {
+            string msg = _prefixQueue[i];
             Generator.Emit(OpCodes.Ldstr, LogSource);
             Generator.Emit(OpCodes.Ldstr, msg);
             Generator.Emit(_accessor.GetCallRuntime(LogMethod!), LogMethod!);
         }
-        _lastWasPrefix = code.OpCodeType == OpCodeType.Prefix;
+
+        _prefixQueue.Clear();
     }
 
     /// <inheritdoc />
@@ -387,6 +425,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
             ++LogIndent;
         }
         Generator.BeginCatchBlock(exceptionType);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -402,6 +441,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.BeginExceptFilterBlock();
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -414,7 +454,9 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         ++LogIndent;
-        return Generator.BeginExceptionBlock();
+        Label? lbl = Generator.BeginExceptionBlock();
+        LogPrefixQueue();
+        return lbl;
     }
 
     /// <inheritdoc />
@@ -430,6 +472,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.BeginFaultBlock();
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -445,6 +488,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.BeginFinallyBlock();
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -458,6 +502,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
 
         ++LogIndent;
         Generator.BeginScope();
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -530,6 +575,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -542,6 +588,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -554,6 +601,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -566,6 +614,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -578,6 +627,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -590,6 +640,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -602,6 +653,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -614,6 +666,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, arg);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -626,6 +679,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, str);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -638,6 +692,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, con);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -650,6 +705,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, label);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -662,6 +718,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, labels);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -674,6 +731,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, local);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -686,6 +744,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, signature);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -698,6 +757,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, field);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -710,6 +770,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, meth);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -722,6 +783,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.Emit(opcode, cls);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -734,6 +796,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EmitCall(opcode, methodInfo, optionalParameterTypes);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -746,6 +809,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EmitCalli(opcode, callingConvention, returnType, parameterTypes, optionalParameterTypes);
+        LogPrefixQueue();
     }
 
 #if !NETSTANDARD || NETSTANDARD2_1_OR_GREATER
@@ -759,6 +823,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EmitCalli(opcode, unmanagedCallConv, returnType, parameterTypes);
+        LogPrefixQueue();
     }
 #endif
 
@@ -772,6 +837,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EmitWriteLine(value);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -784,6 +850,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EmitWriteLine(localBuilder);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -807,6 +874,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EmitWriteLine(fld);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -820,6 +888,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EndExceptionBlock();
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -833,6 +902,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.EndScope();
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -863,6 +933,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
             }
         }
         Generator.MarkLabel(loc);
+        LogPrefixQueue();
     }
 
 #if NETFRAMEWORK
@@ -898,6 +969,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
             }
         }
         Generator.ThrowException(excType);
+        LogPrefixQueue();
     }
 
     /// <inheritdoc />
@@ -910,6 +982,7 @@ public class DebuggableEmitter : IOpCodeEmitterLogSource
         }
 
         Generator.UsingNamespace(usingNamespace);
+        LogPrefixQueue();
     }
 
 #if NETFRAMEWORK

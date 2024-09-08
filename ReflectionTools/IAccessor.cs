@@ -1140,7 +1140,7 @@ public interface IAccessor
     [Pure]
 #endif
     Type? GetDefaultDelegate(Type returnType,
-#if NET45_OR_GREATER
+#if NET45_OR_GREATER || !NETFRAMEWORK
         IReadOnlyList<ParameterInfo> parameters,
 #else
         IList<ParameterInfo> parameters,

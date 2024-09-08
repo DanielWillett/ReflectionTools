@@ -129,12 +129,12 @@ public class EmitterExtensionTests
         {
             if (generic)
             {
-                emit.LoadLocalAddress(emit.DeclareLocal<T>())
+                emit.LoadLocalAddress(emit.AddLocal<T>())
                     .SetDefaultValue<T>(unaligned, @volatile);
             }
             else
             {
-                emit.LoadLocalAddress(emit.DeclareLocal<T>())
+                emit.LoadLocalAddress(emit.AddLocal<T>())
                     .SetDefaultValue(typeof(T), unaligned, @volatile);
             }
         }
@@ -728,6 +728,39 @@ public class EmitterExtensionTests
         int len = func(new int[length]);
 
         Assert.AreEqual(length, len);
+    }
+
+    [TestMethod]
+    public void TestExceptionBlockSimple()
+    {
+        DynamicMethodInfo<Func<int, int, int>> dynMethod = DynamicMethodHelper.Create<Func<int, int, int>>("TryDivide");
+
+        IOpCodeEmitter emit = dynMethod.GetEmitter(debuggable: true);
+
+        emit.AddLocal<int>(out LocalBuilder lclResult)
+            .Try(emit =>
+            {
+                emit.LoadArgument(0)
+                    .LoadArgument(1)
+                    .Divide()
+                    .SetLocalValue(lclResult);
+            })
+            .Catch<DivideByZeroException>(emit =>
+            {
+                emit.PopFromStack() // pop exception object
+                    .SetLocalToDefaultValue<int>(lclResult);
+            })
+            .End()
+            .LoadLocalValue(lclResult)
+            .Return();
+
+        Func<int, int, int> tryDivide = dynMethod.CreateDelegate();
+
+        int quotient = tryDivide(10, 0);
+        Assert.AreEqual(0, quotient);
+
+        quotient = tryDivide(10, 2);
+        Assert.AreEqual(5, quotient);
     }
 
     [TestMethod]

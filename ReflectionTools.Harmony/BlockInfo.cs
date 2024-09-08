@@ -39,6 +39,16 @@ public readonly struct BlockInfo
     public readonly InstructionBlockInfo[] Instructions;
 
     /// <summary>
+    /// The actual amount removed.
+    /// </summary>
+    public int Count => Instructions.Length;
+
+    /// <summary>
+    /// The index at which instructions we're removed.
+    /// </summary>
+    public int StartIndex { get; }
+
+    /// <summary>
     /// The first instruction in the block
     /// </summary>
     public ref readonly InstructionBlockInfo First => ref Instructions[0];
@@ -58,9 +68,10 @@ public readonly struct BlockInfo
     /// Size of the block in instructions.
     /// </summary>
     public int Length => Instructions.Length;
-    internal BlockInfo(InstructionBlockInfo[] instructions)
+    internal BlockInfo(InstructionBlockInfo[] instructions, int startIndex)
     {
         Instructions = instructions;
+        StartIndex = startIndex;
     }
 
     /// <summary>
@@ -69,8 +80,14 @@ public readonly struct BlockInfo
     /// <returns>The instance of the same instruction for method chaining.</returns>
     public CodeInstruction SetupBlockStart(CodeInstruction instruction)
     {
+        for (int i = 0; i < Instructions.Length; ++i)
+        {
+            ref InstructionBlockInfo info = ref Instructions[i];
+            instruction.labels.AddRange(info.Labels);
+        }
+
         ref readonly InstructionBlockInfo startInfo = ref First;
-        instruction.labels.AddRange(startInfo.Labels);
+
         for (int i = 0; i < startInfo.ExceptionBlocks.Length; ++i)
         {
             ExceptionBlock block = startInfo.ExceptionBlocks[i];
@@ -89,6 +106,23 @@ public readonly struct BlockInfo
     /// <returns>The instance of the same instruction for method chaining.</returns>
     public CodeInstruction SetupBlockEnd(CodeInstruction instruction)
     {
+        int exLevel = 0;
+        for (int i = 0; i < Instructions.Length; ++i)
+        {
+            ref InstructionBlockInfo info = ref Instructions[i];
+            for (int j = 0; j < info.ExceptionBlocks.Length; ++j)
+            {
+                ExceptionBlock block = info.ExceptionBlocks[j];
+                if (block.blockType == ExceptionBlockType.BeginExceptionBlock)
+                    --exLevel;
+                else if (block.blockType == ExceptionBlockType.EndExceptionBlock)
+                    ++exLevel;
+            }
+        }
+
+        for (int i = 0; i < exLevel; ++i)
+            instruction.blocks.Add(new ExceptionBlock(ExceptionBlockType.EndExceptionBlock));
+
         ref readonly InstructionBlockInfo endInfo = ref Last;
         for (int i = 0; i < endInfo.ExceptionBlocks.Length; ++i)
         {

@@ -7,21 +7,106 @@ namespace DanielWillett.ReflectionTools.Emit;
 /// <summary>
 /// Utility for laying out exception blocks in a cleaner way.
 /// </summary>
-public class ExceptionBlockBuilder
+public interface IExceptionBlockBuilder
+{
+    /// <summary>
+    /// The label for the end of the block, if the implementation supports it, otherwise <see langword="null"/>. This will leave you in the correct place to execute finally blocks or to finish the try.
+    /// </summary>
+    Label? EndingLabel { get; }
+
+    /// <summary>
+    /// Start a catch handler block for all remaining exceptions. Catch handlers can't co-exist with fault blocks.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockBuilder Catch(Action<IOpCodeEmitter> catchHandler);
+
+    /// <summary>
+    /// Start a catch handler block for exceptions of type <typeparamref name="TException"/>. Catch handlers can't co-exist with fault blocks.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockBuilder Catch<TException>(Action<IOpCodeEmitter> catchHandler) where TException : Exception;
+
+    /// <summary>
+    /// Start a catch handler block for exceptions of type <paramref name="baseExceptionType"/>. Catch handlers can't co-exist with fault blocks.
+    /// </summary>
+    /// <exception cref="ArgumentException">Type is not assignable to <see cref="Exception"/> (or an interface).</exception>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockBuilder Catch(Type baseExceptionType, Action<IOpCodeEmitter> catchHandler);
+
+    /// <summary>
+    /// Start a finally block in the exception block. Finally blocks can't co-exist with fault blocks.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockBuilder Finally(Action<IOpCodeEmitter> finallyHandler);
+
+    /// <summary>
+    /// Start a fault block in the exception block. Fault blocks can't exist with any other handlers.
+    /// </summary>
+    /// <remarks>Note that fault blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
+    /// <exception cref="NotSupportedException">Fault blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockBuilder Fault(Action<IOpCodeEmitter> faultHandler);
+
+    /// <summary>
+    /// Adds a filter block (<see langword="when"/> in C#) to the exception block. Filter handlers can't co-exist with fault blocks.
+    /// </summary>
+    /// <remarks>Note that filter blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
+    /// <exception cref="NotSupportedException">Filter blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockFilterBuilder CatchWhen(Action<IOpCodeEmitter> exceptionHandler);
+
+    /// <summary>
+    /// Adds a filter block (<see langword="when"/> in C#) to the exception block that starts with a type check. Filters can't co-exist with fault blocks.
+    /// </summary>
+    /// <remarks>Note that filter blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
+    /// <exception cref="NotSupportedException">Filter blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockFilterBuilder CatchWhen<TExceptionType>(Action<IOpCodeEmitter> exceptionHandler) where TExceptionType : Exception;
+
+    /// <summary>
+    /// Adds a filter block (<see langword="when"/> in C#) to the exception block that starts with a type check. Filters can't co-exist with fault blocks.
+    /// </summary>
+    /// <remarks>Note that filter blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
+    /// <exception cref="NotSupportedException">Filter blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
+    /// <exception cref="ArgumentException">Type is not assignable to <see cref="Exception"/> (or an interface).</exception>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IExceptionBlockFilterBuilder CatchWhen(Type baseExceptionType, Action<IOpCodeEmitter> exceptionHandler);
+
+    /// <summary>
+    /// Close the exception block. It must have at least one handler attached.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Did not start a catch, finally, fault, or didn't start and end a filter block.</exception>
+    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    IOpCodeEmitter End();
+}
+
+/// <summary>
+/// Limits the actions of <see cref="IExceptionBlockBuilder"/> to only handling the last filter block.
+/// </summary>
+public interface IExceptionBlockFilterBuilder
+{
+    /// <summary>
+    /// Handles when the preceding filter passes.
+    /// </summary>
+    IExceptionBlockBuilder OnPass(Action<IOpCodeEmitter> filterHandler);
+}
+
+/// <summary>
+/// Utility for laying out exception blocks in a cleaner way.
+/// </summary>
+public class ExceptionBlockBuilder : IExceptionBlockBuilder
 {
     private readonly IOpCodeEmitter _emitter;
     private bool _hasHandler;
     private bool _isClosed;
 
-    /// <summary>
-    /// The label for the end of the block, if the implementation supports it, otherwise <see langword="null"/>. This will leave you in the correct place to execute finally blocks or to finish the try.
-    /// </summary>
+    /// <inheritdoc />
     public Label? EndingLabel { get; }
 
     /// <summary>
     /// Create a new <see cref="ExceptionBlockBuilder"/> and begin an exception block.
     /// </summary>
-    public ExceptionBlockBuilder(IOpCodeEmitter emitter, Action<IOpCodeEmitter> tryBlock)
+    internal ExceptionBlockBuilder(IOpCodeEmitter emitter, Action<IOpCodeEmitter> tryBlock)
     {
         EmitterWrapper.Reduce(ref emitter);
         _emitter = emitter;
@@ -37,31 +122,21 @@ public class ExceptionBlockBuilder
             throw new ObjectDisposedException("This exception block has already been closed.", (Exception?)null);
     }
 
-    /// <summary>
-    /// Start a catch handler block for all remaining exceptions. Catch handlers can't co-exist with fault blocks.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockBuilder Catch(Action<IOpCodeEmitter> catchHandler)
+    /// <inheritdoc />
+    public IExceptionBlockBuilder Catch(Action<IOpCodeEmitter> catchHandler)
     {
         CatchIntl(typeof(object), catchHandler);
         return this;
     }
 
-    /// <summary>
-    /// Start a catch handler block for exceptions of type <typeparamref name="TException"/>. Catch handlers can't co-exist with fault blocks.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockBuilder Catch<TException>(Action<IOpCodeEmitter> catchHandler) where TException : Exception
+    /// <inheritdoc />
+    public IExceptionBlockBuilder Catch<TException>(Action<IOpCodeEmitter> catchHandler) where TException : Exception
     {
         return Catch(typeof(TException), catchHandler);
     }
 
-    /// <summary>
-    /// Start a catch handler block for exceptions of type <paramref name="baseExceptionType"/>. Catch handlers can't co-exist with fault blocks.
-    /// </summary>
-    /// <exception cref="ArgumentException">Type is not assignable to <see cref="Exception"/> (or an interface).</exception>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockBuilder Catch(Type baseExceptionType, Action<IOpCodeEmitter> catchHandler)
+    /// <inheritdoc />
+    public IExceptionBlockBuilder Catch(Type baseExceptionType, Action<IOpCodeEmitter> catchHandler)
     {
         if (!baseExceptionType.IsInterface && !typeof(Exception).IsAssignableFrom(baseExceptionType))
             throw new ArgumentException($"Expected a type deriving from {Accessor.ExceptionFormatter.Format(typeof(Exception))}.", nameof(baseExceptionType));
@@ -89,11 +164,8 @@ public class ExceptionBlockBuilder
         }
     }
 
-    /// <summary>
-    /// Start a finally block in the exception block. Finally blocks can't co-exist with fault blocks.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockBuilder Finally(Action<IOpCodeEmitter> finallyHandler)
+    /// <inheritdoc />
+    public IExceptionBlockBuilder Finally(Action<IOpCodeEmitter> finallyHandler)
     {
         AssertNotClosed();
         _hasHandler = true;
@@ -108,13 +180,8 @@ public class ExceptionBlockBuilder
         return this;
     }
 
-    /// <summary>
-    /// Start a fault block in the exception block. Fault blocks can't exist with any other handlers.
-    /// </summary>
-    /// <remarks>Note that fault blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
-    /// <exception cref="NotSupportedException">Fault blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockBuilder Fault(Action<IOpCodeEmitter> faultHandler)
+    /// <inheritdoc />
+    public IExceptionBlockBuilder Fault(Action<IOpCodeEmitter> faultHandler)
     {
         AssertNotClosed();
         _hasHandler = true;
@@ -149,13 +216,8 @@ public class ExceptionBlockBuilder
         }
     }
 
-    /// <summary>
-    /// Adds a filter block (<see langword="when"/> in C#) to the exception block. Filter handlers can't co-exist with fault blocks.
-    /// </summary>
-    /// <remarks>Note that filter blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
-    /// <exception cref="NotSupportedException">Filter blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockFilterBuilder CatchWhen(Action<IOpCodeEmitter> exceptionHandler)
+    /// <inheritdoc />
+    public IExceptionBlockFilterBuilder CatchWhen(Action<IOpCodeEmitter> exceptionHandler)
     {
         AssertNotClosed();
 
@@ -180,25 +242,14 @@ public class ExceptionBlockBuilder
         return new ExceptionBlockFilterBuilder(this);
     }
 
-    /// <summary>
-    /// Adds a filter block (<see langword="when"/> in C#) to the exception block that starts with a type check. Filters can't co-exist with fault blocks.
-    /// </summary>
-    /// <remarks>Note that filter blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
-    /// <exception cref="NotSupportedException">Filter blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockFilterBuilder CatchWhen<TExceptionType>(Action<IOpCodeEmitter> exceptionHandler) where TExceptionType : Exception
+    /// <inheritdoc />
+    public IExceptionBlockFilterBuilder CatchWhen<TExceptionType>(Action<IOpCodeEmitter> exceptionHandler) where TExceptionType : Exception
     {
         return CatchWhen(typeof(TExceptionType), exceptionHandler);
     }
 
-    /// <summary>
-    /// Adds a filter block (<see langword="when"/> in C#) to the exception block that starts with a type check. Filters can't co-exist with fault blocks.
-    /// </summary>
-    /// <remarks>Note that filter blocks aren't supported for <see cref="DynamicMethod"/>'s in some runtimes including .NET Framework. They are supported in .NET Core.</remarks>
-    /// <exception cref="NotSupportedException">Filter blocks aren't supported in <see cref="DynamicMethod"/> in some runtimes. They are supported in .NET Core.</exception>
-    /// <exception cref="ArgumentException">Type is not assignable to <see cref="Exception"/> (or an interface).</exception>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
-    public ExceptionBlockFilterBuilder CatchWhen(Type baseExceptionType, Action<IOpCodeEmitter> exceptionHandler)
+    /// <inheritdoc />
+    public IExceptionBlockFilterBuilder CatchWhen(Type baseExceptionType, Action<IOpCodeEmitter> exceptionHandler)
     {
         if (!baseExceptionType.IsInterface && !typeof(Exception).IsAssignableFrom(baseExceptionType))
             throw new ArgumentException($"Expected a type deriving from {Accessor.ExceptionFormatter.Format(typeof(Exception))}.", nameof(baseExceptionType));
@@ -245,11 +296,7 @@ public class ExceptionBlockBuilder
         return new ExceptionBlockFilterBuilder(this);
     }
 
-    /// <summary>
-    /// Close the exception block. It must have at least one handler attached.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Did not start a catch, finally, fault, or didn't start and end a filter block.</exception>
-    /// <exception cref="ObjectDisposedException">Exception block is already closed.</exception>
+    /// <inheritdoc />
     public IOpCodeEmitter End()
     {
         AssertNotClosed();
@@ -262,31 +309,7 @@ public class ExceptionBlockBuilder
         return _emitter;
     }
 
-    /// <summary>
-    /// The sub-type of the emitter used in the factory for <see cref="CatchWhen(Action{IOpCodeEmitter})"/>.
-    /// </summary>
-    public interface IFilterBlockEmitter : IOpCodeEmitter;
-    
-    /// <summary>
-    /// The sub-type of the emitter used in the factory for <see cref="EmitterExtensions.Try"/>.
-    /// </summary>
-    public interface ITryBlockEmitter : IOpCodeEmitter;
-
-    /// <summary>
-    /// The sub-type of the emitter used in the factory for <see cref="Catch(Type,Action{IOpCodeEmitter})"/> or <see cref="ExceptionBlockFilterBuilder.OnPass"/>.
-    /// </summary>
-    public interface ICatchBlockEmitter : IOpCodeEmitter;
-
-    /// <summary>
-    /// The sub-type of the emitter used in the factory for <see cref="Finally"/>.
-    /// </summary>
-    public interface IFinallyBlockEmitter : IOpCodeEmitter;
-
-    /// <summary>
-    /// The sub-type of the emitter used in the factory for <see cref="Fault"/>.
-    /// </summary>
-    public interface IFaultBlockEmitter : IOpCodeEmitter;
-    private class FilterBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFilterBlockEmitter
+    private class FilterBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFilterBlockOpCodeEmitter
     {
         private static readonly HashSet<OpCode> InvalidOpCodes = 
         [
@@ -300,28 +323,28 @@ public class ExceptionBlockBuilder
         public override void BeginFaultBlock() => throw new NotSupportedException("Fault blocks can not be started in a filter.");
         public override void BeginFinallyBlock() => throw new NotSupportedException("Finally blocks can not be started in a filter.");
     }
-    private class CatchBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), ICatchBlockEmitter
+    private class CatchBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), ICatchBlockOpCodeEmitter
     {
         private static readonly HashSet<OpCode> InvalidOpCodes =
         [
             OpCodes.Ret, OpCodes.Tailcall, OpCodes.Jmp, OpCodes.Endfinally, OpCodes.Endfilter, OpCodes.Localloc
         ];
     }
-    private class FinallyBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFinallyBlockEmitter
+    private class FinallyBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFinallyBlockOpCodeEmitter
     {
         private static readonly HashSet<OpCode> InvalidOpCodes =
         [
             OpCodes.Ret, OpCodes.Tailcall, OpCodes.Jmp, OpCodes.Endfilter, OpCodes.Localloc
         ];
     }
-    private class FaultBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFaultBlockEmitter
+    private class FaultBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFaultBlockOpCodeEmitter
     {
         private static readonly HashSet<OpCode> InvalidOpCodes =
         [
             OpCodes.Ret, OpCodes.Tailcall, OpCodes.Jmp, OpCodes.Endfilter, OpCodes.Localloc
         ];
     }
-    private class TryBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), IFilterBlockEmitter
+    private class TryBlockEmitterWrapper(IOpCodeEmitter underlying) : EmitterWrapper(underlying, InvalidOpCodes), ITryBlockOpCodeEmitter
     {
         private static readonly HashSet<OpCode> InvalidOpCodes =
         [
@@ -338,7 +361,7 @@ public class ExceptionBlockBuilder
 /// <summary>
 /// Limits the actions of <see cref="ExceptionBlockBuilder"/> to only handling the last filter block.
 /// </summary>
-public class ExceptionBlockFilterBuilder
+public class ExceptionBlockFilterBuilder : IExceptionBlockFilterBuilder
 {
     private readonly ExceptionBlockBuilder _builder;
     internal ExceptionBlockFilterBuilder(ExceptionBlockBuilder builder)
@@ -346,12 +369,35 @@ public class ExceptionBlockFilterBuilder
         _builder = builder;
     }
 
-    /// <summary>
-    /// Handles when the preceding filter passes.
-    /// </summary>
-    public ExceptionBlockBuilder OnPass(Action<IOpCodeEmitter> filterHandler)
+    /// <inheritdoc />
+    public IExceptionBlockBuilder OnPass(Action<IOpCodeEmitter> filterHandler)
     {
         _builder.ApplyFilterHandler(filterHandler);
         return _builder;
     }
 }
+
+/// <summary>
+/// The sub-type of the emitter used in the factory for <see cref="IExceptionBlockBuilder.CatchWhen(Action{IOpCodeEmitter})"/>.
+/// </summary>
+public interface IFilterBlockOpCodeEmitter : IOpCodeEmitter;
+
+/// <summary>
+/// The sub-type of the emitter used in the factory for <see cref="EmitterExtensions.Try"/>.
+/// </summary>
+public interface ITryBlockOpCodeEmitter : IOpCodeEmitter;
+
+/// <summary>
+/// The sub-type of the emitter used in the factory for <see cref="IExceptionBlockBuilder.Catch(Type,Action{IOpCodeEmitter})"/> or <see cref="IExceptionBlockFilterBuilder.OnPass"/>.
+/// </summary>
+public interface ICatchBlockOpCodeEmitter : IOpCodeEmitter;
+
+/// <summary>
+/// The sub-type of the emitter used in the factory for <see cref="IExceptionBlockBuilder.Finally"/>.
+/// </summary>
+public interface IFinallyBlockOpCodeEmitter : IOpCodeEmitter;
+
+/// <summary>
+/// The sub-type of the emitter used in the factory for <see cref="IExceptionBlockBuilder.Fault"/>.
+/// </summary>
+public interface IFaultBlockOpCodeEmitter : IOpCodeEmitter;

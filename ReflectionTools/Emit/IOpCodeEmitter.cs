@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
@@ -98,6 +99,30 @@ public static class OpCodeEmitters
     public static bool IsEmitterType<TEmitter>(this IOpCodeEmitter emitter) where TEmitter : IOpCodeEmitter
     {
         return emitter is TEmitter or DebuggableEmitter { Generator: TEmitter };
+    }
+
+    /// <summary>
+    /// Check if an emitter implements one of it's implementing interfaces like <see cref="IRootOpCodeEmitter"/>.
+    /// </summary>
+    public static bool IsEmitterType<TEmitter>(this IOpCodeEmitter emitter,
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP
+        [MaybeNullWhen(false)]
+#endif
+        out TEmitter typedEmitter) where TEmitter : IOpCodeEmitter
+    {
+        if (emitter is TEmitter t)
+        {
+            typedEmitter = t;
+            return true;
+        }
+        if (emitter is DebuggableEmitter { Generator: TEmitter t2 })
+        {
+            typedEmitter = t2;
+            return true;
+        }
+
+        typedEmitter = default!;
+        return false;
     }
 }
 

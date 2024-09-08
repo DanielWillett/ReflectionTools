@@ -67,6 +67,8 @@ public static class EmitUtility
     /// Mark a label if it's not <see langword="null"/>.
     /// </summary>
     [EmitBehavior(SpecialBehavior = EmitSpecialBehavior.MarksLabel)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("Use EditorExtensions.MarkLabel instead.")]
     public static void TryMarkLabel(this IOpCodeEmitter il, Label? label)
     {
         if (label.HasValue)

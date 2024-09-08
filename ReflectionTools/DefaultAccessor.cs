@@ -3501,7 +3501,7 @@ public class DefaultAccessor : IAccessor, IDisposable
     [Pure]
 #endif
     public virtual Type? GetDefaultDelegate(Type returnType,
-#if NET45_OR_GREATER
+#if NET45_OR_GREATER || !NETFRAMEWORK
         IReadOnlyList<ParameterInfo> parameters,
 #else
         IList<ParameterInfo> parameters,
