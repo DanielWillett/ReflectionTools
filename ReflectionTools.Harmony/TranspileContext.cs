@@ -189,6 +189,27 @@ public class TranspileContext : IOpCodeEmitter, IEnumerable<CodeInstruction>
     }
 
     /// <summary>
+    /// Move the caret to the previous instruction in the instruction list. Prefixes are skipped.
+    /// </summary>
+    public bool MoveBack()
+    {
+        if (CaretIndex == 0)
+        {
+            return false;
+        }
+
+        for (int i = 1; i < Count; ++i)
+        {
+            int newIndex = CaretIndex - i;
+            CaretIndex = newIndex;
+            if (CaretIndex <= newIndex)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Get the code instruction at the given index.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"/>

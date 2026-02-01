@@ -1,4 +1,5 @@
-﻿using DanielWillett.ReflectionTools.Formatting;
+﻿using DanielWillett.ReflectionTools.Emit;
+using DanielWillett.ReflectionTools.Formatting;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -8,7 +9,6 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
-using DanielWillett.ReflectionTools.Emit;
 
 namespace DanielWillett.ReflectionTools;
 
@@ -27,14 +27,14 @@ public static class PatchUtility
     private static ICodeInstructionFormatter _codeInsFormatter = new DefaultCodeInstructionFormatter();
 
     /// <summary>
-    /// Formatter used to format <see cref="CodeInstruction"/>'s.
+    /// Formatter used to format <see cref="CodeInstruction"/> objects. Defaults to <see cref="DefaultCodeInstructionFormatter"/>.
     /// </summary>
     public static ICodeInstructionFormatter CodeInstructionFormatter
     {
         get => _codeInsFormatter;
         set
         {
-            ICodeInstructionFormatter old = Interlocked.Exchange(ref _codeInsFormatter, value);
+            ICodeInstructionFormatter old = Interlocked.Exchange(ref _codeInsFormatter, value ?? new DefaultCodeInstructionFormatter());
             if (!ReferenceEquals(old, value) && old is IDisposable disp)
                 disp.Dispose();
 
@@ -669,6 +669,7 @@ public static class PatchUtility
     /// Get the index of a local code instruction.
     /// </summary>
     [Pure]
+    [Obsolete("Use ToLocalReference instead.")]
     public static int GetLocalIndex(CodeInstruction code, bool set)
     {
         if (code.opcode.OperandType == OperandType.ShortInlineVar &&
@@ -731,6 +732,7 @@ public static class PatchUtility
     /// Get the local builder or index of the instruction.
     /// </summary>
     [Pure]
+    [Obsolete("Use ToLocalReference instead.")]
     public static LocalBuilder? GetLocal(CodeInstruction code, out int index, bool set)
     {
         if (code.opcode.OperandType == OperandType.ShortInlineVar &&
@@ -888,4 +890,227 @@ public static class PatchUtility
     /// </summary>
     [Pure]
     public static bool IsEndBlockType(this ExceptionBlockType type) => type == ExceptionBlockType.EndExceptionBlock;
+
+    /// <summary>
+    /// Loads a local using one of the <c>ldloc</c> instructions.
+    /// </summary>
+    /// <param name="localRef">The local variable to load.</param>
+    /// <returns>A code instruction that loads <paramref name="localRef"/> to the stack.</returns>
+    /// <exception cref="ArgumentException">Invalid/Nil local reference.</exception>
+    [Pure]
+    public static CodeInstruction LoadLocalValue(LocalReference localRef)
+    {
+        int index = localRef.Index;
+        LocalBuilder? bldr = localRef.Local;
+        if (bldr == null && index < 0 || bldr != null && index != bldr.LocalIndex || index >= ushort.MaxValue)
+            throw new ArgumentException("Invalid local reference.", nameof(localRef));
+        if (index < 0)
+            index = bldr!.LocalIndex;
+
+        return index switch
+        {
+            0 => new CodeInstruction(OpCodes.Ldloc_0),
+            1 => new CodeInstruction(OpCodes.Ldloc_1),
+            2 => new CodeInstruction(OpCodes.Ldloc_2),
+            3 => new CodeInstruction(OpCodes.Ldloc_3),
+            <= byte.MaxValue => new CodeInstruction(OpCodes.Ldloc_S, bldr ?? (object)(byte)index),
+            _ => new CodeInstruction(OpCodes.Ldloc, bldr ?? (object)unchecked ( (short)(ushort)index ))
+        };
+    }
+
+    /// <summary>
+    /// Assigns a local using one of the <c>stloc</c> instructions.
+    /// </summary>
+    /// <param name="localRef">The local variable to set.</param>
+    /// <returns>A code instruction that sets the value of <paramref name="localRef"/>.</returns>
+    /// <exception cref="ArgumentException">Invalid/Nil local reference.</exception>
+    [Pure]
+    public static CodeInstruction SetLocalValue(LocalReference localRef)
+    {
+        int index = localRef.Index;
+        LocalBuilder? bldr = localRef.Local;
+        if (bldr == null && index < 0 || bldr != null && index != bldr.LocalIndex || index >= ushort.MaxValue)
+            throw new ArgumentException("Invalid local reference.", nameof(localRef));
+        if (index < 0)
+            index = bldr!.LocalIndex;
+
+        return index switch
+        {
+            0 => new CodeInstruction(OpCodes.Stloc_0),
+            1 => new CodeInstruction(OpCodes.Stloc_1),
+            2 => new CodeInstruction(OpCodes.Stloc_2),
+            3 => new CodeInstruction(OpCodes.Stloc_3),
+            <= byte.MaxValue => new CodeInstruction(OpCodes.Stloc_S, bldr ?? (object)(byte)index),
+            _ => new CodeInstruction(OpCodes.Stloc, bldr ?? (object)unchecked ( (short)(ushort)index ))
+        };
+    }
+
+    /// <summary>
+    /// Loads the address of a local using one of the <c>ldloca</c> instructions.
+    /// </summary>
+    /// <param name="localRef">The local variable to load.</param>
+    /// <returns>A code instruction that loads <paramref name="localRef"/> to the stack.</returns>
+    /// <exception cref="ArgumentException">Invalid/Nil local reference.</exception>
+    [Pure]
+    public static CodeInstruction LoadLocalAddress(LocalReference localRef)
+    {
+        int index = localRef.Index;
+        LocalBuilder? bldr = localRef.Local;
+        if (bldr == null && index < 0 || bldr != null && index != bldr.LocalIndex || index >= ushort.MaxValue)
+            throw new ArgumentException("Invalid local reference.", nameof(localRef));
+        if (index < 0)
+            index = bldr!.LocalIndex;
+
+        return index <= byte.MaxValue
+            ? new CodeInstruction(OpCodes.Ldloca_S, bldr ?? (object)(byte)index)
+            : new CodeInstruction(OpCodes.Ldloca, bldr ?? (object)unchecked ( (short)(ushort)index ));
+    }
+
+    /// <inheritdoc cref="LoadArgument(ushort)"/>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> must fit into a <see cref="ushort"/> value.</exception>
+    [Pure]
+    public static CodeInstruction LoadArgument(long index)
+    {
+        // using long so the ushort overload is chosen when using literals
+        if (index is > ushort.MaxValue or < 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return LoadArgument(unchecked ( (ushort)index ));
+    }
+
+    /// <summary>
+    /// Loads the value of an argument using one of the <c>ldarg</c> instructions.
+    /// </summary>
+    /// <param name="index">The argument index to load. Instance methods will use argument <c>0</c> as their <see langword="this"/> parameter.</param>
+    /// <returns>A code instruction that loads the argument at <paramref name="index"/> to the stack.</returns>
+    [Pure]
+    public static CodeInstruction LoadArgument(ushort index)
+    {
+        return index switch
+        {
+            0 => new CodeInstruction(OpCodes.Ldarg_0),
+            1 => new CodeInstruction(OpCodes.Ldarg_1),
+            2 => new CodeInstruction(OpCodes.Ldarg_2),
+            3 => new CodeInstruction(OpCodes.Ldarg_3),
+            <= byte.MaxValue => new CodeInstruction(OpCodes.Ldarg_S, (byte)index),
+            _ => new CodeInstruction(OpCodes.Ldarg, unchecked( (short)index ))
+        };
+    }
+
+    /// <inheritdoc cref="SetArgument(ushort)"/>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> must fit into a <see cref="ushort"/> value.</exception>
+    [Pure]
+    public static CodeInstruction SetArgument(long index)
+    {
+        // using long so the ushort overload is chosen when using literals
+        if (index is > ushort.MaxValue or < 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return SetArgument(unchecked( (ushort)index ));
+    }
+
+    /// <summary>
+    /// Assigns the value of an argument using one of the <c>starg</c> instructions.
+    /// </summary>
+    /// <param name="index">The argument index to set. Instance methods will use argument <c>0</c> as their <see langword="this"/> parameter.</param>
+    /// <returns>A code instruction that sets the value of the argument at <paramref name="index"/>.</returns>
+    [Pure]
+    public static CodeInstruction SetArgument(ushort index)
+    {
+        return index switch
+        {
+            <= byte.MaxValue => new CodeInstruction(OpCodes.Starg_S, (byte)index),
+            _ => new CodeInstruction(OpCodes.Starg, unchecked( (short)index ))
+        };
+    }
+
+    /// <inheritdoc cref="LoadArgumentAddress(ushort)"/>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> must fit into a <see cref="ushort"/> value.</exception>
+    [Pure]
+    public static CodeInstruction LoadArgumentAddress(long index)
+    {
+        // using long so the ushort overload is chosen when using literals
+        if (index is > ushort.MaxValue or < 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return LoadArgumentAddress(unchecked( (ushort)index ));
+    }
+
+    /// <summary>
+    /// Loads the address of an argument using one of the <c>ldarga</c> instructions.
+    /// </summary>
+    /// <param name="index">The index of the argument who's address will be loaded. Instance methods will use argument <c>0</c> as their <see langword="this"/> parameter.</param>
+    /// <returns>A code instruction that loads the address of the argument at <paramref name="index"/> to the stack.</returns>
+    [Pure]
+    public static CodeInstruction LoadArgumentAddress(ushort index)
+    {
+        return index switch
+        {
+            <= byte.MaxValue => new CodeInstruction(OpCodes.Ldarga_S, (byte)index),
+            _ => new CodeInstruction(OpCodes.Ldarga, unchecked( (short)index ))
+        };
+    }
+
+    /// <summary>
+    /// Attempts to get a <see cref="LocalReference"/> from a code instruction.
+    /// </summary>
+    /// <returns>A reference to the local variable, or a <see cref="LocalReference"/> with an index equal to <c>-1</c> if the given <paramref name="instruction"/> isn't a local variable instruction.</returns>
+    [Pure]
+    public static LocalReference ToLocalReference(this CodeInstruction instruction)
+    {
+        if (instruction.operand is LocalBuilder lclBuilder)
+        {
+            return new LocalReference(lclBuilder);
+        }
+
+        if (instruction.opcode == OpCodes.Ldloc_0 || instruction.opcode == OpCodes.Stloc_0)
+            return new LocalReference(0);
+
+        if (instruction.opcode == OpCodes.Ldloc_1 || instruction.opcode == OpCodes.Stloc_1)
+            return new LocalReference(1);
+
+        if (instruction.opcode == OpCodes.Ldloc_2 || instruction.opcode == OpCodes.Stloc_2)
+            return new LocalReference(2);
+
+        if (instruction.opcode == OpCodes.Ldloc_3 || instruction.opcode == OpCodes.Stloc_3)
+            return new LocalReference(3);
+
+        if (instruction.opcode == OpCodes.Ldloc_S || instruction.opcode == OpCodes.Stloc_S || instruction.opcode == OpCodes.Ldloca_S)
+        {
+            object op = instruction.operand;
+            try
+            {
+                byte i1 = Convert.ToByte(op);
+                return new LocalReference(null, i1);
+            }
+            catch
+            {
+                return default;
+            }
+        }
+
+        if (instruction.opcode == OpCodes.Ldloc || instruction.opcode == OpCodes.Stloc || instruction.opcode == OpCodes.Ldloca)
+        {
+            object op = instruction.operand;
+            try
+            {
+                short i2 = Convert.ToInt16(op);
+                return new LocalReference(null, unchecked( (ushort)i2 ));
+            }
+            catch
+            {
+                try
+                {
+                    ushort u2 = Convert.ToUInt16(op);
+                    return new LocalReference(null, u2);
+                }
+                catch
+                {
+                    return default;
+                }
+            }
+        }
+
+        return default;
+    }
 }

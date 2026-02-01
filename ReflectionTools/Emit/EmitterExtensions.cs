@@ -1701,7 +1701,7 @@ public static class EmitterExtensions
     public static IOpCodeEmitter LoadArgument(this IOpCodeEmitter emitter, long index)
     {
         // using long so the ushort overload is chosen when using literals
-        if (index is >= ushort.MaxValue or < 0)
+        if (index is > ushort.MaxValue or < 0)
             throw new ArgumentOutOfRangeException(nameof(index));
 
         return emitter.LoadArgument((ushort)index);
@@ -1711,7 +1711,6 @@ public static class EmitterExtensions
     /// Load an argument by it's zero-based index. Note that on non-static methods, 0 denotes the <see langword="this"/> argument.
     /// <para><c>ldarg</c></para>
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is too high to be an argument index.</exception>
     /// <remarks>... -&gt; ..., value</remarks>
     [EmitBehavior(pushBehavior: StackBehaviour.Push1)]
     public static IOpCodeEmitter LoadArgument(this IOpCodeEmitter emitter, ushort index)
@@ -1733,9 +1732,6 @@ public static class EmitterExtensions
             case 3:
                 emitter.Emit(OpCodes.Ldarg_3);
                 break;
-
-            case ushort.MaxValue:
-                throw new ArgumentOutOfRangeException(nameof(index));
 
             case <= byte.MaxValue:
                 emitter.Emit(OpCodes.Ldarg_S, (byte)index);
@@ -1759,7 +1755,7 @@ public static class EmitterExtensions
     public static IOpCodeEmitter LoadArgumentAddress(this IOpCodeEmitter emitter, long index)
     {
         // using long so the ushort overload is chosen when using literals
-        if (index is >= ushort.MaxValue or < 0)
+        if (index is > ushort.MaxValue or < 0)
             throw new ArgumentOutOfRangeException(nameof(index));
 
         return emitter.LoadArgumentAddress((ushort)index);
@@ -1769,7 +1765,6 @@ public static class EmitterExtensions
     /// Load an argument's address by it's zero-based index. Note that on non-static methods, 0 denotes the <see langword="this"/> argument.
     /// <para><c>ldarga</c></para>
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is too high to be an argument index.</exception>
     /// <remarks>... -&gt; ..., value</remarks>
     [EmitBehavior(pushBehavior: StackBehaviour.Pushi)]
     public static IOpCodeEmitter LoadArgumentAddress(this IOpCodeEmitter emitter, ushort index)
@@ -1779,9 +1774,6 @@ public static class EmitterExtensions
             case <= byte.MaxValue:
                 emitter.Emit(OpCodes.Ldarga_S, (byte)index);
                 break;
-
-            case ushort.MaxValue:
-                throw new ArgumentOutOfRangeException(nameof(index));
 
             default:
                 emitter.Emit(OpCodes.Ldarga, unchecked ( (short)index ));
@@ -2848,7 +2840,7 @@ public static class EmitterExtensions
     {
         int index = lclRef.Index;
         LocalBuilder? bldr = lclRef.Local;
-        if (bldr == null && (index < 0 || index > 3))
+        if (bldr == null && index < 0 || bldr != null && bldr.LocalIndex != index)
             throw new ArgumentException("Missing local reference.", nameof(lclRef));
 
         switch (index)
@@ -2869,9 +2861,20 @@ public static class EmitterExtensions
                 emitter.Emit(OpCodes.Ldloc_3);
                 return emitter;
 
+            case <= byte.MaxValue when bldr == null:
+                emitter.Emit(OpCodes.Ldloc_S, (byte)index);
+                return emitter;
+
+            case < ushort.MaxValue when bldr == null:
+                emitter.Emit(OpCodes.Ldloc, unchecked ( (short)(ushort)index ));
+                return emitter;
+
             default:
+                if (bldr == null)
+                    throw new ArgumentException("Missing local reference.", nameof(lclRef));
+
                 // ILGenerator will optimize low indices
-                emitter.Emit(OpCodes.Ldloc, bldr!);
+                emitter.Emit(OpCodes.Ldloc, bldr);
                 return emitter;
         }
     }
@@ -2890,18 +2893,25 @@ public static class EmitterExtensions
     {
         int index = lclRef.Index;
         LocalBuilder? bldr = lclRef.Local;
-        if (bldr == null && (index < 0 || index > 3))
+        if (bldr == null && index < 0 || bldr != null && bldr.LocalIndex != index)
             throw new ArgumentException("Missing local reference.", nameof(lclRef));
 
         switch (index)
         {
-            case <= 3:
+            case <= byte.MaxValue when bldr == null:
                 emitter.Emit(OpCodes.Ldloca_S, (byte)index);
                 return emitter;
 
+            case < ushort.MaxValue when bldr == null:
+                emitter.Emit(OpCodes.Ldloca, unchecked ( (short)(ushort)index ));
+                return emitter;
+
             default:
+                if (bldr == null)
+                    throw new ArgumentException("Missing local reference.", nameof(lclRef));
+
                 // ILGenerator will optimize low indices
-                emitter.Emit(OpCodes.Ldloca, bldr!);
+                emitter.Emit(OpCodes.Ldloca, bldr);
                 return emitter;
         }
     }
@@ -3679,7 +3689,7 @@ public static class EmitterExtensions
     public static IOpCodeEmitter SetArgument(this IOpCodeEmitter emitter, long index)
     {
         // using long so the ushort overload is chosen when using literals
-        if (index is >= ushort.MaxValue or < 0)
+        if (index is > ushort.MaxValue or < 0)
             throw new ArgumentOutOfRangeException(nameof(index));
 
         return emitter.SetArgument((ushort)index);
@@ -3699,9 +3709,6 @@ public static class EmitterExtensions
             case <= byte.MaxValue:
                 emitter.Emit(OpCodes.Starg_S, (byte)index);
                 break;
-
-            case ushort.MaxValue:
-                throw new ArgumentOutOfRangeException(nameof(index));
 
             default:
                 emitter.Emit(OpCodes.Starg, unchecked ( (short)index ));
@@ -4151,7 +4158,7 @@ public static class EmitterExtensions
     {
         int index = lclRef.Index;
         LocalBuilder? bldr = lclRef.Local;
-        if (bldr == null && (index < 0 || index > 3))
+        if (bldr == null && index < 0 || bldr != null && bldr.LocalIndex != index)
             throw new ArgumentException("Missing local reference.", nameof(lclRef));
 
         switch (index)
@@ -4172,9 +4179,20 @@ public static class EmitterExtensions
                 emitter.Emit(OpCodes.Stloc_3);
                 return emitter;
 
+            case <= byte.MaxValue when bldr == null:
+                emitter.Emit(OpCodes.Stloc_S, (byte)index);
+                return emitter;
+
+            case < ushort.MaxValue when bldr == null:
+                emitter.Emit(OpCodes.Stloc, unchecked ( (short)(ushort)index ));
+                return emitter;
+
             default:
+                if (bldr == null)
+                    throw new ArgumentException("Missing local reference.", nameof(lclRef));
+
                 // ILGenerator will optimize low indices
-                emitter.Emit(OpCodes.Stloc, bldr!);
+                emitter.Emit(OpCodes.Stloc, bldr);
                 return emitter;
         }
     }

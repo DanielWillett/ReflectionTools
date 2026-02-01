@@ -12,13 +12,13 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools</PackageId>
     <Title>Reflection Tools</Title>
-    <Version>4.0.0</Version>
+    <Version>4.1.0</Version>
     <PackageReleaseNotes></PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools</Product>
     <Description>Various reflection tools for modding.</Description>
     <PackageProjectUrl>https://github.com/DanielWillett/ReflectionTools</PackageProjectUrl>
-    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageLicenseExpression>LGPL-3.0-or-later</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/DanielWillett/ReflectionTools</RepositoryUrl>
@@ -50,8 +50,8 @@
     <PackageReference Include="System.Reflection.Emit" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="[3.1.0,)" Condition="'$(TargetFramework)' != 'net35' And '$(TargetFramework)' != 'net40' And '$(TargetFramework)' != 'net45'" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

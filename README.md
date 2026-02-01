@@ -500,6 +500,20 @@ You can also use `HarmonyLog.ResetConditional`, which is ignored if the compiler
   - Chainable version of TransferStartingInstructionNeeds
 * WithEndBlocksFrom
   - Chainable version of TransferEndingInstructionNeeds
+* LoadLocalValue
+  - Create `CodeInstruction` to load a local variable.
+* SetLocalValue
+  - Create `CodeInstruction` to set a local variable.
+* LoadLocalAddress
+  - Create `CodeInstruction` to load a local variable's address.
+* LoadArgument
+  - Create `CodeInstruction` to load a parameter value.
+* SetArgument
+  - Create `CodeInstruction` to set a parameter value.
+* LoadArgumentAddress
+  - Create `CodeInstruction` to load a parameter's address.
+* ToLocalReference
+  - Extension for `CodeInstruction` to get the corresponding [`LocalReference`](https://github.com/DanielWillett/ReflectionTools/blob/master/ReflectionTools/Emit/LocalReference.cs).
 
 ## TranspilerContext
 `TranspilerContext` can be used with `PatchUtility` in transpilers to simplify modifying methods and fetching existing members with reflection.
@@ -564,3 +578,8 @@ public static IEnumerable<CodeInstruction> WriteInstructions(IEnumerable<CodeIns
     return ctx;
 }
 ```
+
+# Legal
+
+Versions including and before v4.0.0 are licensed under **GNU General Public License v3.0 only**<br>
+Versions including and after v4.1.0 are licensed under **GNU Lesser General Public License v3.0 or later**.

@@ -11,15 +11,15 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <PackageId>DanielWillett.ReflectionTools.Harmony</PackageId>
     <Title>Reflection Tools - Lib.Harmony Module</Title>
-    <Version>4.0.0</Version>
+    <Version>4.1.0</Version>
     <PackageVersion>$(Version)</PackageVersion>
     <PackageReleaseNotes></PackageReleaseNotes>
     <Authors>Daniel Willett</Authors>
     <Product>DanielWillett.ReflectionTools.Harmony</Product>
     <Description>Various reflection tools for Lib.Harmony.</Description>
     <PackageProjectUrl>https://github.com/DanielWillett/ReflectionTools</PackageProjectUrl>
-    <SignAssembly>False</SignAssembly>
-    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <SignAssembly>True</SignAssembly>
+    <PackageLicenseExpression>LGPL-3.0-or-later</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/DanielWillett/ReflectionTools</RepositoryUrl>
@@ -34,13 +34,18 @@
     <AssemblyOriginatorKeyFile>C:\Users\danny\OneDrive\Documents\Strong Name Keys\DanielWillett.ReflectionTools\DanielWillett.ReflectionTools.Harmony.dll.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+
+    <SignAssembly>False</SignAssembly>
+
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DanielWillett.ReflectionTools" Version="[4.0.0,)" NoWarn="NU1701" />
-    <!--<ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />-->
+    <ProjectReference Include=".\..\ReflectionTools\ReflectionTools.csproj" />
 
     <PackageReference Include="Lib.Harmony" Version="[2.3.3,)" NoWarn="NU1701" />
     <PackageReference Include="System.Reflection.Emit" Version="[4.7.0,)" Condition="'$(TargetFramework)' == 'netstandard2.0'" />

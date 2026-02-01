@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection.Emit;
 
 namespace DanielWillett.ReflectionTools.Emit;
@@ -40,6 +40,12 @@ public readonly struct LocalReference
         _indexPlusOne = index + 1;
     }
 
+    internal LocalReference(LocalBuilder? builder, int index)
+    {
+        _indexPlusOne = index + 1;
+        Local = builder;
+    }
+
     /// <summary>
     /// Reference a local by it's local variable builder.
     /// </summary>
@@ -60,5 +66,5 @@ public readonly struct LocalReference
     /// <remarks>The index has to be 0-3, otherwise you need to pass the <see cref="LocalBuilder"/> instead.</remarks>
     /// <exception cref="ArgumentOutOfRangeException">The index was less than zero.</exception>
     /// <exception cref="ArgumentException">The index was greater than three.</exception>
-    public static explicit operator LocalReference(int index) => new LocalReference(index);
+    public static implicit operator LocalReference(int index) => new LocalReference(index);
 }
